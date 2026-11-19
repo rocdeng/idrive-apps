@@ -56,6 +56,9 @@ void load_map_state(cld::Config *cfg, const std::string &path)
             continue;
         const size_t eq = line.find('=');
         const std::string key = trim(line.substr(0, eq)), value = eq == std::string::npos ? "" : trim(line.substr(eq + 1));
+        // 简洁导航由 OAP 后台模块绘制；视频服务只读取与自己有关的设置。
+        if (key == "hud_simple")
+            continue;
         const bool known = std::find_if(std::begin(kMapStateKeys), std::end(kMapStateKeys),
                                         [&](const char *k) { return key == k; }) != std::end(kMapStateKeys);
         if (!known || !valid(key, value) || !cfg->set_pair(key + "=" + value, &err)) {

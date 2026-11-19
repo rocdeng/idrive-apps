@@ -98,7 +98,12 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "قد ينقطع الصوت. على iPhone، أوقف Wi-Fi ثم شغّله.",
    "Own settings for this driver": "إعدادات خاصة لهذا السائق",
-   "Keep HUD map over BMW's pop-ups": "إبقاء خريطة HUD فوق النوافذ المنبثقة من BMW"
+   "Keep HUD map over BMW's pop-ups": "إبقاء خريطة HUD فوق النوافذ المنبثقة من BMW",
+   "HUD simple mode": "وضع HUD المبسط",
+   "HUD simple mode: {0}": "وضع HUD المبسط: {0}",
+   "Waiting for navigation": "بانتظار الملاحة",
+   "Run HUD validation (parked)": "بدء اختبار HUD (أثناء الوقوف)",
+   "Stop HUD validation ({0}/{1})": "إيقاف اختبار HUD ({0}/{1})"
   }
  },
  {
@@ -198,7 +203,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvuk se může přerušovat. Na iPhonu vypněte a zapněte Wi-Fi.",
    "Own settings for this driver": "Vlastní nastavení pro tohoto řidiče",
-   "Keep HUD map over BMW's pop-ups": "Ponechat mapu na HUD přes vyskakovací okna BMW"
+   "Keep HUD map over BMW's pop-ups": "Ponechat mapu na HUD přes vyskakovací okna BMW",
+   "HUD simple mode": "Jednoduchý režim HUD",
+   "HUD simple mode: {0}": "Jednoduchý režim HUD: {0}",
+   "Waiting for navigation": "Čekání na navigaci",
+   "Run HUD validation (parked)": "Spustit kontrolu HUD (při stání)",
+   "Stop HUD validation ({0}/{1})": "Zastavit kontrolu HUD ({0}/{1})"
   }
  },
  {
@@ -298,7 +308,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Lyden kan falde ud. Slå Wi-Fi fra og til på din iPhone.",
    "Own settings for this driver": "Egne indstillinger for denne fører",
-   "Keep HUD map over BMW's pop-ups": "Behold kort i HUD over BMW's pop-ups"
+   "Keep HUD map over BMW's pop-ups": "Behold kort i HUD over BMW's pop-ups",
+   "HUD simple mode": "Enkel HUD-tilstand",
+   "HUD simple mode: {0}": "Enkel HUD-tilstand: {0}",
+   "Waiting for navigation": "Venter på navigation",
+   "Run HUD validation (parked)": "Start HUD-test (parkeret)",
+   "Stop HUD validation ({0}/{1})": "Stop HUD-test ({0}/{1})"
   }
  },
  {
@@ -398,7 +413,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Der Ton kann aussetzen. Am iPhone WLAN aus- und wieder einschalten.",
    "Own settings for this driver": "Eigene Einstellungen für diesen Fahrer",
-   "Keep HUD map over BMW's pop-ups": "Karte im HUD vor BMW-Pop-ups behalten"
+   "Keep HUD map over BMW's pop-ups": "Karte im HUD vor BMW-Pop-ups behalten",
+   "HUD simple mode": "HUD-Einfachmodus",
+   "HUD simple mode: {0}": "HUD-Einfachmodus: {0}",
+   "Waiting for navigation": "Warten auf Navigation",
+   "Run HUD validation (parked)": "HUD-Test starten (im Stand)",
+   "Stop HUD validation ({0}/{1})": "HUD-Test stoppen ({0}/{1})"
   }
  },
  {
@@ -498,7 +518,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ο ήχος μπορεί να διακόπτεται. Στο iPhone, απενεργοποιήστε και ενεργοποιήστε ξανά το Wi-Fi.",
    "Own settings for this driver": "Δικές ρυθμίσεις για αυτόν τον οδηγό",
-   "Keep HUD map over BMW's pop-ups": "Διατήρηση χάρτη στο HUD πάνω από τα αναδυόμενα της BMW"
+   "Keep HUD map over BMW's pop-ups": "Διατήρηση χάρτη στο HUD πάνω από τα αναδυόμενα της BMW",
+   "HUD simple mode": "Απλή λειτουργία HUD",
+   "HUD simple mode: {0}": "Απλή λειτουργία HUD: {0}",
+   "Waiting for navigation": "Αναμονή πλοήγησης",
+   "Run HUD validation (parked)": "Έναρξη ελέγχου HUD (σταθμευμένο)",
+   "Stop HUD validation ({0}/{1})": "Διακοπή ελέγχου HUD ({0}/{1})"
   }
  },
  {
@@ -598,7 +623,12 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "El audio puede cortarse. En tu iPhone, desactiva y vuelve a activar el Wi-Fi.",
    "Own settings for this driver": "Configuración propia para este conductor",
-   "Keep HUD map over BMW's pop-ups": "Mantener mapa en el HUD sobre ventanas emergentes de BMW"
+   "Keep HUD map over BMW's pop-ups": "Mantener mapa en el HUD sobre ventanas emergentes de BMW",
+   "HUD simple mode": "Modo HUD sencillo",
+   "HUD simple mode: {0}": "Modo HUD sencillo: {0}",
+   "Waiting for navigation": "Esperando navegación",
+   "Run HUD validation (parked)": "Iniciar prueba del HUD (estacionado)",
+   "Stop HUD validation ({0}/{1})": "Detener prueba del HUD ({0}/{1})"
   }
  },
  {
@@ -698,7 +728,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "El audio puede cortarse. En tu iPhone, desactiva y vuelve a activar la Wi-Fi.",
    "Own settings for this driver": "Ajustes propios para este conductor",
-   "Keep HUD map over BMW's pop-ups": "Mantener mapa en el HUD sobre ventanas emergentes de BMW"
+   "Keep HUD map over BMW's pop-ups": "Mantener mapa en el HUD sobre ventanas emergentes de BMW",
+   "HUD simple mode": "Modo HUD sencillo",
+   "HUD simple mode: {0}": "Modo HUD sencillo: {0}",
+   "Waiting for navigation": "Esperando navegación",
+   "Run HUD validation (parked)": "Iniciar prueba del HUD (estacionado)",
+   "Stop HUD validation ({0}/{1})": "Detener prueba del HUD ({0}/{1})"
   }
  },
  {
@@ -798,7 +833,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ääni voi katkeilla. Laita iPhonen Wi-Fi pois ja takaisin päälle.",
    "Own settings for this driver": "Omat asetukset tälle kuljettajalle",
-   "Keep HUD map over BMW's pop-ups": "Pidä HUD-kartta BMW:n ponnahdusikkunoiden päällä"
+   "Keep HUD map over BMW's pop-ups": "Pidä HUD-kartta BMW:n ponnahdusikkunoiden päällä",
+   "HUD simple mode": "HUD:n yksinkertainen tila",
+   "HUD simple mode: {0}": "HUD:n yksinkertainen tila: {0}",
+   "Waiting for navigation": "Odotetaan navigointia",
+   "Run HUD validation (parked)": "Aloita HUD-testi (pysäköitynä)",
+   "Stop HUD validation ({0}/{1})": "Lopeta HUD-testi ({0}/{1})"
   }
  },
  {
@@ -898,7 +938,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Le son peut se couper. Sur votre iPhone, désactivez puis réactivez le Wi-Fi.",
    "Own settings for this driver": "Réglages propres à ce conducteur",
-   "Keep HUD map over BMW's pop-ups": "Garder la carte sur le HUD devant les fenêtres contextuelles BMW"
+   "Keep HUD map over BMW's pop-ups": "Garder la carte sur le HUD devant les fenêtres contextuelles BMW",
+   "HUD simple mode": "Mode HUD simplifié",
+   "HUD simple mode: {0}": "Mode HUD simplifié : {0}",
+   "Waiting for navigation": "En attente de navigation",
+   "Run HUD validation (parked)": "Lancer le test HUD (à l’arrêt)",
+   "Stop HUD validation ({0}/{1})": "Arrêter le test HUD ({0}/{1})"
   }
  },
  {
@@ -998,7 +1043,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Le son peut se couper. Sur votre iPhone, désactivez puis réactivez le Wi-Fi.",
    "Own settings for this driver": "Réglages propres à ce conducteur",
-   "Keep HUD map over BMW's pop-ups": "Garder la carte sur le HUD devant les pop-up BMW"
+   "Keep HUD map over BMW's pop-ups": "Garder la carte sur le HUD devant les pop-up BMW",
+   "HUD simple mode": "Mode HUD simplifié",
+   "HUD simple mode: {0}": "Mode HUD simplifié : {0}",
+   "Waiting for navigation": "En attente de navigation",
+   "Run HUD validation (parked)": "Lancer le test HUD (à l’arrêt)",
+   "Stop HUD validation ({0}/{1})": "Arrêter le test HUD ({0}/{1})"
   }
  },
  {
@@ -1098,7 +1148,12 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "השמע עלול להיקטע. ב-iPhone, כבו את ה-Wi-Fi והפעילו אותו מחדש.",
    "Own settings for this driver": "הגדרות נפרדות לנהג זה",
-   "Keep HUD map over BMW's pop-ups": "השארת המפה ב-HUD מעל החלונות הקופצים של BMW"
+   "Keep HUD map over BMW's pop-ups": "השארת המפה ב-HUD מעל החלונות הקופצים של BMW",
+   "HUD simple mode": "מצב HUD פשוט",
+   "HUD simple mode: {0}": "מצב HUD פשוט: {0}",
+   "Waiting for navigation": "ממתין לניווט",
+   "Run HUD validation (parked)": "התחלת בדיקת HUD (בחניה)",
+   "Stop HUD validation ({0}/{1})": "עצירת בדיקת HUD ({0}/{1})"
   }
  },
  {
@@ -1198,7 +1253,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "A hang akadozhat. Az iPhone-on kapcsolja ki, majd be a Wi-Fi-t.",
    "Own settings for this driver": "Saját beállítások ennek a vezetőnek",
-   "Keep HUD map over BMW's pop-ups": "Térkép megtartása a HUD-on a BMW felugró ablakai felett"
+   "Keep HUD map over BMW's pop-ups": "Térkép megtartása a HUD-on a BMW felugró ablakai felett",
+   "HUD simple mode": "Egyszerű HUD mód",
+   "HUD simple mode: {0}": "Egyszerű HUD mód: {0}",
+   "Waiting for navigation": "Várakozás a navigációra",
+   "Run HUD validation (parked)": "HUD-teszt indítása (álló helyzetben)",
+   "Stop HUD validation ({0}/{1})": "HUD-teszt leállítása ({0}/{1})"
   }
  },
  {
@@ -1298,7 +1358,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Audio mungkin terputus. Di iPhone Anda, matikan lalu nyalakan Wi-Fi.",
    "Own settings for this driver": "Pengaturan sendiri untuk pengemudi ini",
-   "Keep HUD map over BMW's pop-ups": "Pertahankan peta di HUD di atas pop-up BMW"
+   "Keep HUD map over BMW's pop-ups": "Pertahankan peta di HUD di atas pop-up BMW",
+   "HUD simple mode": "Mode HUD sederhana",
+   "HUD simple mode: {0}": "Mode HUD sederhana: {0}",
+   "Waiting for navigation": "Menunggu navigasi",
+   "Run HUD validation (parked)": "Mulai uji HUD (saat parkir)",
+   "Stop HUD validation ({0}/{1})": "Hentikan uji HUD ({0}/{1})"
   }
  },
  {
@@ -1398,7 +1463,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "L'audio potrebbe interrompersi. Sull'iPhone, disattiva e riattiva il Wi-Fi.",
    "Own settings for this driver": "Impostazioni proprie per questo conducente",
-   "Keep HUD map over BMW's pop-ups": "Mantieni la mappa sull'HUD sopra i pop-up BMW"
+   "Keep HUD map over BMW's pop-ups": "Mantieni la mappa sull'HUD sopra i pop-up BMW",
+   "HUD simple mode": "Modalità HUD semplice",
+   "HUD simple mode: {0}": "Modalità HUD semplice: {0}",
+   "Waiting for navigation": "In attesa della navigazione",
+   "Run HUD validation (parked)": "Avvia test HUD (da fermo)",
+   "Stop HUD validation ({0}/{1})": "Interrompi test HUD ({0}/{1})"
   }
  },
  {
@@ -1498,7 +1568,12 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音声が途切れることがあります。iPhoneでWi-Fiをオフにしてからオンにしてください。",
    "Own settings for this driver": "このドライバー専用の設定",
-   "Keep HUD map over BMW's pop-ups": "HUDの地図をBMWのポップアップより優先"
+   "Keep HUD map over BMW's pop-ups": "HUDの地図をBMWのポップアップより優先",
+   "HUD simple mode": "HUD シンプルモード",
+   "HUD simple mode: {0}": "HUD シンプルモード：{0}",
+   "Waiting for navigation": "ナビゲーション待機中",
+   "Run HUD validation (parked)": "HUD 検証を開始（駐車中）",
+   "Stop HUD validation ({0}/{1})": "HUD 検証を停止（{0}/{1}）"
   }
  },
  {
@@ -1598,7 +1673,12 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "오디오가 끊길 수 있습니다. iPhone에서 Wi-Fi를 껐다가 다시 켜십시오.",
    "Own settings for this driver": "이 운전자 전용 설정",
-   "Keep HUD map over BMW's pop-ups": "BMW 팝업 위에 HUD 지도 유지"
+   "Keep HUD map over BMW's pop-ups": "BMW 팝업 위에 HUD 지도 유지",
+   "HUD simple mode": "HUD 간편 모드",
+   "HUD simple mode: {0}": "HUD 간편 모드: {0}",
+   "Waiting for navigation": "내비게이션 대기 중",
+   "Run HUD validation (parked)": "HUD 검증 시작 (주차 중)",
+   "Stop HUD validation ({0}/{1})": "HUD 검증 중지 ({0}/{1})"
   }
  },
  {
@@ -1698,7 +1778,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Lyden kan falle ut. Slå Wi-Fi av og på igjen på iPhone.",
    "Own settings for this driver": "Egne innstillinger for denne føreren",
-   "Keep HUD map over BMW's pop-ups": "Behold kart i HUD over BMWs popup-vinduer"
+   "Keep HUD map over BMW's pop-ups": "Behold kart i HUD over BMWs popup-vinduer",
+   "HUD simple mode": "Enkel HUD-modus",
+   "HUD simple mode: {0}": "Enkel HUD-modus: {0}",
+   "Waiting for navigation": "Venter på navigasjon",
+   "Run HUD validation (parked)": "Start HUD-test (parkert)",
+   "Stop HUD validation ({0}/{1})": "Stopp HUD-test ({0}/{1})"
   }
  },
  {
@@ -1800,7 +1885,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Het geluid kan wegvallen. Zet Wi-Fi op je iPhone uit en weer aan.",
    "Own settings for this driver": "Eigen instellingen voor deze bestuurder",
-   "Keep HUD map over BMW's pop-ups": "Kaart in HUD boven BMW-pop-ups houden"
+   "Keep HUD map over BMW's pop-ups": "Kaart in HUD boven BMW-pop-ups houden",
+   "HUD simple mode": "Eenvoudige HUD-modus",
+   "HUD simple mode: {0}": "Eenvoudige HUD-modus: {0}",
+   "Waiting for navigation": "Wachten op navigatie",
+   "Run HUD validation (parked)": "HUD-test starten (geparkeerd)",
+   "Stop HUD validation ({0}/{1})": "HUD-test stoppen ({0}/{1})"
   }
  },
  {
@@ -1900,7 +1990,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Dźwięk może się przerywać. Na iPhonie wyłącz i włącz Wi-Fi.",
    "Own settings for this driver": "Własne ustawienia dla tego kierowcy",
-   "Keep HUD map over BMW's pop-ups": "Zachowaj mapę na HUD nad wyskakującymi oknami BMW"
+   "Keep HUD map over BMW's pop-ups": "Zachowaj mapę na HUD nad wyskakującymi oknami BMW",
+   "HUD simple mode": "Prosty tryb HUD",
+   "HUD simple mode: {0}": "Prosty tryb HUD: {0}",
+   "Waiting for navigation": "Oczekiwanie na nawigację",
+   "Run HUD validation (parked)": "Uruchom test HUD (na postoju)",
+   "Stop HUD validation ({0}/{1})": "Zatrzymaj test HUD ({0}/{1})"
   }
  },
  {
@@ -2000,7 +2095,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "O áudio pode falhar. No iPhone, desative e ative o Wi-Fi.",
    "Own settings for this driver": "Configurações próprias para este motorista",
-   "Keep HUD map over BMW's pop-ups": "Manter mapa no HUD sobre pop-ups da BMW"
+   "Keep HUD map over BMW's pop-ups": "Manter mapa no HUD sobre pop-ups da BMW",
+   "HUD simple mode": "Modo HUD simples",
+   "HUD simple mode: {0}": "Modo HUD simples: {0}",
+   "Waiting for navigation": "Aguardando navegação",
+   "Run HUD validation (parked)": "Iniciar teste do HUD (estacionado)",
+   "Stop HUD validation ({0}/{1})": "Parar teste do HUD ({0}/{1})"
   }
  },
  {
@@ -2100,7 +2200,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "O áudio pode falhar. No iPhone, desative e volte a ativar o Wi-Fi.",
    "Own settings for this driver": "Definições próprias para este condutor",
-   "Keep HUD map over BMW's pop-ups": "Manter mapa no HUD sobre pop-ups BMW"
+   "Keep HUD map over BMW's pop-ups": "Manter mapa no HUD sobre pop-ups BMW",
+   "HUD simple mode": "Modo HUD simples",
+   "HUD simple mode: {0}": "Modo HUD simples: {0}",
+   "Waiting for navigation": "A aguardar navegação",
+   "Run HUD validation (parked)": "Iniciar teste do HUD (estacionado)",
+   "Stop HUD validation ({0}/{1})": "Parar teste do HUD ({0}/{1})"
   }
  },
  {
@@ -2200,7 +2305,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Sunetul se poate întrerupe. Pe iPhone, dezactivați și reactivați Wi-Fi.",
    "Own settings for this driver": "Setări proprii pentru acest șofer",
-   "Keep HUD map over BMW's pop-ups": "Păstrare hartă pe HUD peste ferestrele pop-up BMW"
+   "Keep HUD map over BMW's pop-ups": "Păstrare hartă pe HUD peste ferestrele pop-up BMW",
+   "HUD simple mode": "Mod HUD simplu",
+   "HUD simple mode: {0}": "Mod HUD simplu: {0}",
+   "Waiting for navigation": "Se așteaptă navigarea",
+   "Run HUD validation (parked)": "Pornește testul HUD (staționat)",
+   "Stop HUD validation ({0}/{1})": "Oprește testul HUD ({0}/{1})"
   }
  },
  {
@@ -2300,7 +2410,12 @@ module.exports = [
    "2.4 GHz": "2,4 ГГц",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Звук может прерываться. На iPhone выключите и снова включите Wi-Fi.",
    "Own settings for this driver": "Свои настройки для этого водителя",
-   "Keep HUD map over BMW's pop-ups": "Оставлять карту на HUD поверх всплывающих окон BMW"
+   "Keep HUD map over BMW's pop-ups": "Оставлять карту на HUD поверх всплывающих окон BMW",
+   "HUD simple mode": "Простой режим HUD",
+   "HUD simple mode: {0}": "Простой режим HUD: {0}",
+   "Waiting for navigation": "Ожидание навигации",
+   "Run HUD validation (parked)": "Запустить проверку HUD (на стоянке)",
+   "Stop HUD validation ({0}/{1})": "Остановить проверку HUD ({0}/{1})"
   }
  },
  {
@@ -2400,7 +2515,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvuk sa môže prerušovať. Na iPhone vypnite a zapnite Wi-Fi.",
    "Own settings for this driver": "Vlastné nastavenia pre tohto vodiča",
-   "Keep HUD map over BMW's pop-ups": "Ponechať mapu na HUD nad kontextovými oknami BMW"
+   "Keep HUD map over BMW's pop-ups": "Ponechať mapu na HUD nad kontextovými oknami BMW",
+   "HUD simple mode": "Jednoduchý režim HUD",
+   "HUD simple mode: {0}": "Jednoduchý režim HUD: {0}",
+   "Waiting for navigation": "Čakanie na navigáciu",
+   "Run HUD validation (parked)": "Spustiť test HUD (pri státí)",
+   "Stop HUD validation ({0}/{1})": "Zastaviť test HUD ({0}/{1})"
   }
  },
  {
@@ -2500,7 +2620,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvok se lahko prekinja. Na iPhonu izklopite in vklopite Wi-Fi.",
    "Own settings for this driver": "Lastne nastavitve za tega voznika",
-   "Keep HUD map over BMW's pop-ups": "Ohrani zemljevid na HUD nad pojavnimi okni BMW"
+   "Keep HUD map over BMW's pop-ups": "Ohrani zemljevid na HUD nad pojavnimi okni BMW",
+   "HUD simple mode": "Preprosti način HUD",
+   "HUD simple mode: {0}": "Preprosti način HUD: {0}",
+   "Waiting for navigation": "Čakanje na navigacijo",
+   "Run HUD validation (parked)": "Začni preizkus HUD (parkirano)",
+   "Stop HUD validation ({0}/{1})": "Ustavi preizkus HUD ({0}/{1})"
   }
  },
  {
@@ -2600,7 +2725,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ljudet kan försvinna. Stäng av och slå på Wi-Fi på din iPhone.",
    "Own settings for this driver": "Egna inställningar för den här föraren",
-   "Keep HUD map over BMW's pop-ups": "Behåll karta i HUD över BMW:s popup-fönster"
+   "Keep HUD map over BMW's pop-ups": "Behåll karta i HUD över BMW:s popup-fönster",
+   "HUD simple mode": "Enkelt HUD-läge",
+   "HUD simple mode: {0}": "Enkelt HUD-läge: {0}",
+   "Waiting for navigation": "Väntar på navigering",
+   "Run HUD validation (parked)": "Starta HUD-test (parkerad)",
+   "Stop HUD validation ({0}/{1})": "Stoppa HUD-test ({0}/{1})"
   }
  },
  {
@@ -2700,7 +2830,12 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "เสียงอาจขาดหาย ให้ปิดแล้วเปิด Wi-Fi บน iPhone",
    "Own settings for this driver": "การตั้งค่าเฉพาะสำหรับผู้ขับขี่คนนี้",
-   "Keep HUD map over BMW's pop-ups": "คงแผนที่บน HUD ไว้เหนือป๊อปอัปของ BMW"
+   "Keep HUD map over BMW's pop-ups": "คงแผนที่บน HUD ไว้เหนือป๊อปอัปของ BMW",
+   "HUD simple mode": "โหมด HUD แบบเรียบง่าย",
+   "HUD simple mode: {0}": "โหมด HUD แบบเรียบง่าย: {0}",
+   "Waiting for navigation": "กำลังรอการนำทาง",
+   "Run HUD validation (parked)": "เริ่มทดสอบ HUD (ขณะจอดรถ)",
+   "Stop HUD validation ({0}/{1})": "หยุดทดสอบ HUD ({0}/{1})"
   }
  },
  {
@@ -2800,7 +2935,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ses kesilebilir. iPhone'unuzda Wi-Fi'yi kapatıp açın.",
    "Own settings for this driver": "Bu sürücüye özel ayarlar",
-   "Keep HUD map over BMW's pop-ups": "HUD haritasını BMW açılır pencerelerinin üstünde tut"
+   "Keep HUD map over BMW's pop-ups": "HUD haritasını BMW açılır pencerelerinin üstünde tut",
+   "HUD simple mode": "Basit HUD modu",
+   "HUD simple mode: {0}": "Basit HUD modu: {0}",
+   "Waiting for navigation": "Navigasyon bekleniyor",
+   "Run HUD validation (parked)": "HUD testini başlat (park halinde)",
+   "Stop HUD validation ({0}/{1})": "HUD testini durdur ({0}/{1})"
   }
  },
  {
@@ -2900,7 +3040,12 @@ module.exports = [
    "2.4 GHz": "2,4 ГГц",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Звук може перериватися. На iPhone вимкніть і знову ввімкніть Wi-Fi.",
    "Own settings for this driver": "Власні налаштування для цього водія",
-   "Keep HUD map over BMW's pop-ups": "Залишати карту на HUD поверх спливних вікон BMW"
+   "Keep HUD map over BMW's pop-ups": "Залишати карту на HUD поверх спливних вікон BMW",
+   "HUD simple mode": "Простий режим HUD",
+   "HUD simple mode: {0}": "Простий режим HUD: {0}",
+   "Waiting for navigation": "Очікування навігації",
+   "Run HUD validation (parked)": "Почати перевірку HUD (на стоянці)",
+   "Stop HUD validation ({0}/{1})": "Зупинити перевірку HUD ({0}/{1})"
   }
  },
  {
@@ -3000,7 +3145,12 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Âm thanh có thể bị ngắt. Trên iPhone, hãy tắt rồi bật lại Wi-Fi.",
    "Own settings for this driver": "Cài đặt riêng cho người lái này",
-   "Keep HUD map over BMW's pop-ups": "Giữ bản đồ trên HUD phía trên cửa sổ bật lên của BMW"
+   "Keep HUD map over BMW's pop-ups": "Giữ bản đồ trên HUD phía trên cửa sổ bật lên của BMW",
+   "HUD simple mode": "Chế độ HUD đơn giản",
+   "HUD simple mode: {0}": "Chế độ HUD đơn giản: {0}",
+   "Waiting for navigation": "Đang chờ dẫn đường",
+   "Run HUD validation (parked)": "Bắt đầu kiểm tra HUD (khi đỗ xe)",
+   "Stop HUD validation ({0}/{1})": "Dừng kiểm tra HUD ({0}/{1})"
   }
  },
  {
@@ -3102,7 +3252,12 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音频可能中断。请在 iPhone 上关闭再打开无线局域网。",
    "Own settings for this driver": "此驾驶员的专属设置",
-   "Keep HUD map over BMW's pop-ups": "HUD 地图保持在 BMW 弹窗之上"
+   "Keep HUD map over BMW's pop-ups": "HUD 地图保持在 BMW 弹窗之上",
+   "HUD simple mode": "HUD 简洁模式",
+   "HUD simple mode: {0}": "HUD 简洁模式：{0}",
+   "Waiting for navigation": "等待导航",
+   "Run HUD validation (parked)": "开始 HUD 验证（停车时使用）",
+   "Stop HUD validation ({0}/{1})": "停止 HUD 验证（{0}/{1}）"
   }
  },
  {
@@ -3204,7 +3359,12 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音訊可能中斷。請在 iPhone 上關閉再開啟 Wi-Fi。",
    "Own settings for this driver": "此駕駛的專屬設定",
-   "Keep HUD map over BMW's pop-ups": "HUD 地圖保持在 BMW 彈出視窗之上"
+   "Keep HUD map over BMW's pop-ups": "HUD 地圖保持在 BMW 彈出視窗之上",
+   "HUD simple mode": "HUD 簡潔模式",
+   "HUD simple mode: {0}": "HUD 簡潔模式：{0}",
+   "Waiting for navigation": "等待導航",
+   "Run HUD validation (parked)": "開始 HUD 驗證（停車時使用）",
+   "Stop HUD validation ({0}/{1})": "停止 HUD 驗證（{0}/{1}）"
   }
  }
 ];

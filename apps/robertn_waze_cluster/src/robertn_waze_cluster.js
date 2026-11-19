@@ -60,6 +60,8 @@ const logging = require('oap-sdk/src/logging/logging');
 const someipBuilders = require('oap-sdk/src/someip/someipBuilders');
 const i18n = require('./i18n.js');
 const { WazeClusterControl, ZOOM_STEP, SHOWN_ON } = require('./waze_cluster_control.js');
+const { StructuredHud } = require('./structured_hud.js');
+const { GuidanceReader } = require('./guidance_reader.js');
 const { LogsControl, ROWS: LOGS_ROWS } = require('./logs_control.js');
 const { qrPng } = require('./qr.js');
 const { ProfileSync, sessionReader } = require('./profile_sync.js');
@@ -86,6 +88,7 @@ const GUIDE_NAME = 'wocGuide';
 const HEAD_GENERAL_NAME = 'wocHeadGeneral';
 const HEAD_HUD_NAME = 'wocHeadHud';
 const HUD_NAME = 'wocHud';
+const HUD_VALIDATION_NAME = 'wocHudValidation';
 const HUD_KEEP_NAME = 'wocHudKeep';
 const SHOW_ON_NAME = 'wocShowOn';
 const PROFILE_NAME = 'wocProfile';
@@ -138,6 +141,8 @@ class WazeClusterApp extends OnlineApp {
         this._shutdownPromise = null;
         this._control = new WazeClusterControl({ log: logger });
         this._control.on('change', () => this._render());
+        this._simpleHud = new StructuredHud({ control: this._control, reader: new GuidanceReader(someipBuilders), log: logger });
+        this._simpleHud.on('change', () => this._render());
         this._logs = new LogsControl({ log: logger });
         this._logs.on('change', () => this._renderLogs());
         /* the map settings per driver profile, page shown or not */
@@ -161,6 +166,7 @@ class WazeClusterApp extends OnlineApp {
     _appInitialized() {
         logger.info(`robertn_waze_cluster ${this.getAppId()} v${this._packageJson.version} starting`);
         this._profiles.start();
+        this._simpleHud.start();
         if (!this.rhmiApplication) {
             logger.info('no RhmiApplication for this start reason; initializing without a screen');
             return this.initialized();
@@ -206,7 +212,7 @@ class WazeClusterApp extends OnlineApp {
         }
         const names = [STATUS_NAME, MAP_NAME, RESTART_STATUS_NAME, ENABLE_NAME, DISABLE_NAME, WIFI_NAME, WIFI_HINT_NAME, AA_STATUS_NAME,
             AA_ENABLE_NAME, AA_DISABLE_NAME, AA_ZOOM_NAME, AA_ZOOM_OUT_NAME, AA_ZOOM_IN_NAME, AA_CARD_NAME, RESTART_NAME, GUIDE_NAME,
-            HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, PROFILE_NAME, HUD_NAME, HUD_KEEP_NAME, HUD_SIZE_NAME, HUD_POS_NAME]
+            HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, PROFILE_NAME, HUD_NAME, HUD_VALIDATION_NAME, HUD_KEEP_NAME, HUD_SIZE_NAME, HUD_POS_NAME]
             .concat(Object.values(HUD_MOVE_NAMES), [HUD_CENTRE_NAME, CAPTURE_NAME, CAPTURE_STATUS,
                 LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL], LOGS_ROW_NAMES);
         names.forEach((name) => { this._components[name] = rhmi.getByName(name); });
@@ -237,6 +243,10 @@ class WazeClusterApp extends OnlineApp {
             delete this._written[`selected:${HUD_KEEP_NAME}`];
             this._control.toggleHudKeep();
             this._render();
+        });
+        this._bind(HUD_VALIDATION_NAME, () => {
+            if (this._simpleHud.validation) this._simpleHud.stopValidation();
+            else this._simpleHud.startValidation();
         });
         this._bind(PROFILE_NAME, () => {
             /* as for the turn box: patchd's answer decides the tick */
@@ -557,7 +567,9 @@ class WazeClusterApp extends OnlineApp {
         /* where the map shows: the choice, '—' in its place until the render has said */
         const shownOn = SHOWN_ON.indexOf(c.shownOn());
         this._writeCell(SHOW_ON_NAME, 'HeaderText', t('Show on'), 'Text');
-        [t('Cluster'), t('HUD (experimental)'), t('Cluster and HUD (experimental)'), t('Off')].forEach((text, row) =>
+        const simpleLabel = this._simpleHud.supported ? t('HUD simple mode') :
+            t('HUD simple mode: {0}', c.connectedPatch() ? t('Update needed') : t('Unavailable'));
+        [t('Cluster'), t('HUD (experimental)'), t('Cluster and HUD (experimental)'), t('Off'), simpleLabel].forEach((text, row) =>
             this._writeCell(SHOW_ON_NAME, 'ItemText', row === 0 && shownOn < 0 ? '—' : text, 'Text', row));
         this._writeCell(SHOW_ON_NAME, 'SelectedItem', Math.max(shownOn, 0), 'UInt');
         this._setEnabled(SHOW_ON_NAME, c.canChooseShownOn());
@@ -570,6 +582,9 @@ class WazeClusterApp extends OnlineApp {
         this._write(GUIDE_NAME, t("Hide BMW's turn box"));
         this._setSelected(GUIDE_NAME, !!hide && !unavailable);
         this._write(HUD_NAME, c.hudText());
+        const validation = this._simpleHud.validationProgress();
+        this._write(HUD_VALIDATION_NAME, validation ? t('Stop HUD validation ({0}/{1})', validation[0], validation[1]) : t('Run HUD validation (parked)'));
+        this._setEnabled(HUD_VALIDATION_NAME, this._simpleHud.enabled && !this._simpleHud.suspended);
         this._write(HUD_KEEP_NAME, t("Keep HUD map over BMW's pop-ups"));
         this._setSelected(HUD_KEEP_NAME, c.hudKeepShown() === true);
         this._setEnabled(HUD_KEEP_NAME, c.canKeepHud());
@@ -668,6 +683,7 @@ class WazeClusterApp extends OnlineApp {
         this._control.close();
         this._logs.close();
         this._profiles.stop();
+        this._simpleHud.stop();
         if (this._qr.file) {
             try {
                 fs.unlinkSync(this._qr.file);

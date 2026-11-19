@@ -236,7 +236,7 @@ var LOCAL_CONF = process.env.WOC_LOCAL_CONF || '/var/opt/waze-on-cluster/waze-on
  * configuration. Not in LOCAL_CONF, which waze-on-cluster 0.8 refuses to
  * start with any of MAP_KEYS in. */
 var MAP_STATE = path.join(STATE_DIR, 'map.state.conf');
-var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown'];
+var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'hud_simple'];
 
 /* A key = value file's settings; none when it cannot be read. */
 function readConf(file) {
@@ -344,6 +344,7 @@ function flushMapSettings() {
         a.keys.forEach(function (k) { r[k] = m.settings[k]; });
         reply(a.sock, r);
     });
+    if (!err && keys.length) send({ ev: 'map-settings', settings: mapSettingsNow() });
 }
 /* The same write again, SAVE_RETRY_MS later and then less often; what is
  * asked meanwhile joins it. Its replies are sent already. */
@@ -376,7 +377,7 @@ function saveLater(settings, withProfiles) {
 var PROFILES_FILE = path.join(STATE_DIR, 'profiles.json');
 var PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+={}-]{0,127}$/;
 var MAX_OWN = 16;
-var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0 };
+var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0 };
 var profiles = null;          /* PROFILES_FILE as read at the start, and changed since */
 var currentProfile;           /* the profile the app last told (null: none; undefined: not told since the start) */
 var restored = false;         /* MAP_STATE written from PROFILES_FILE at the start, not yet told to the app */
@@ -397,7 +398,7 @@ function profileSettings(o) {
     var s = {};
     for (var i = 0; i < MAP_KEYS.length; i++) {
         var k = MAP_KEYS[i];
-        var v = typeof o[k] === 'number' ? String(o[k]) : k === 'hud_keep_shown' && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
+        var v = typeof o[k] === 'number' ? String(o[k]) : (k === 'hud_keep_shown' || k === 'hud_simple') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
         if (v === null || !mapValueOk(k, v)) return null;
         s[k] = Number(v);
     }
@@ -1685,6 +1686,15 @@ function handle(line, sock) {
     var msg;
     try { msg = JSON.parse(line); } catch (e) { return; }
     if (!msg || !msg.cmd) return;
+    if (msg.cmd === 'hud-simple-status') {
+        reply(sock, { ev: 'map-settings', settings: mapSettingsNow() });
+        return;
+    }
+    if (msg.cmd === 'hud-simple') {
+        if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: 'hud-simple-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
+        saveMapSettings(sock, 'hud-simple-reply', msg.on ? { hud: 0, hud_simple: 1 } : { hud_simple: 0 }, 'HUD simple mode');
+        return;
+    }
     if (msg.cmd === 'status') { status(); return; }
     if (msg.cmd === 'logs') {
         /* The captured carplay and AVB lines (markers flagged), dlt-receive's
@@ -1717,6 +1727,7 @@ function handle(line, sock) {
         var set = {};
         if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: msg.cmd + '-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
         set[msg.cmd] = msg.on;
+        if (msg.cmd === 'hud' && msg.on === 1 && mapSettingsNow().hud_simple) set.hud_simple = 0;
         saveMapSettings(sock, msg.cmd + '-reply', set, 'where the map shows');
         return;
     }

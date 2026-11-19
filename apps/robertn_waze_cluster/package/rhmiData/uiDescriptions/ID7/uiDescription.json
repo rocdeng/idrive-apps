@@ -92,6 +92,12 @@
                 "value": "Off",
                 "type": "Text"
               }
+            },
+            {
+              "ItemText": {
+                "value": "HUD simple mode",
+                "type": "Text"
+              }
             }
           ]
         },
@@ -230,6 +236,28 @@
             {
               "Text": {
                 "value": "HUD map: —",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "94": {
+          "type": "button",
+          "name": "wocHudValidation",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Run HUD validation (parked)",
                 "type": "Text"
               }
             }

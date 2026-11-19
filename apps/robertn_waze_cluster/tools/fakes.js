@@ -228,7 +228,7 @@ class FakePatch extends LineServer {
         this.mute = false;         /* commands received and not answered */
         this.holdAa = false;       /* an Android Auto change stays busy until releaseAa(failure) */
         this.releaseAa = null;
-        this.map = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0 };
+        this.map = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0 };
         this.shared = null;
         this.own = {};
         this.active = null;
@@ -275,6 +275,7 @@ class FakePatch extends LineServer {
         this.active = target;
         this.map = want;
         this._send(socket, { ev: `${msg.cmd}-reply`, ok: true, id, own: !!target, changed, settings: want });
+        if (changed) this._broadcast({ ev: 'map-settings', settings: this.map });
     }
 
     /* CarPlay's Wi-Fi band changes, as patchd sends it: a status. */
@@ -302,6 +303,16 @@ class FakePatch extends LineServer {
             this._broadcast(this._status());
             return;
         }
+        if (msg.cmd === 'hud-simple-status') {
+            if ('hud_simple' in this.map) this._send(socket, { ev: 'map-settings', settings: this.map });
+            return;
+        }
+        if (msg.cmd === 'hud-simple') {
+            this.map = Object.assign({}, this.map, { hud_simple: msg.on }, msg.on ? { hud: 0 } : {});
+            this._send(socket, { ev: 'hud-simple-reply', ok: true });
+            this._broadcast({ ev: 'map-settings', settings: this.map });
+            return;
+        }
         if (msg.cmd === 'profile' || msg.cmd === 'profile-own') {
             if (!this.profileMute) this._profile(msg, socket);
             return;
@@ -312,6 +323,8 @@ class FakePatch extends LineServer {
             const v = msg.cmd === 'hud-pos' ? [msg.hud_x, msg.hud_y] : [msg.cmd === 'hud-size' ? msg.hud_width_pct : msg.on];
             this.map = Object.assign({}, this.map);
             MAP[msg.cmd].forEach((k, i) => { this.map[k] = v[i]; });
+            if (msg.cmd === 'hud' && msg.on === 1) this.map.hud_simple = 0;
+            this._broadcast({ ev: 'map-settings', settings: this.map });
             return;
         }
         if (msg.cmd === 'reboot') {

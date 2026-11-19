@@ -55,10 +55,10 @@ int main()
     load_map_state(&c, path);
     ok("no state file: the configuration's", settings(c) == "1 0 60 0 0 0");
     std::ofstream(path) << "hud = 1\ncluster = 0\nhud_width_pct = 85\nhud_offset_x = -40\nhud_offset_y = 800\n"
-                           "hud_keep_shown = 1\n";
+                           "hud_keep_shown = 1\nhud_simple = 1\n";
     c = conf();
     load_map_state(&c, path);
-    ok("the state file's, over the configuration's", settings(c) == "0 1 85 -40 800 1");
+    ok("the state file's, over the configuration's; OAP's hud_simple ignored", settings(c) == "0 1 85 -40 800 1");
     std::ofstream(path) << "cluster = 2\nhud = 1\nhud_width_pct = 10\n\nhud_offset_x = 900\nhud_offset_y = -20\n"
                            "hud_fps = 30\ntarget = panel\ngarbage\nhud = yes\nhud_keep_shown = 2\n";
     c = conf();

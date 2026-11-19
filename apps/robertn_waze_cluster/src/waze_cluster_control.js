@@ -107,7 +107,7 @@ const SAFE = '504x368+286+72';
 const HUD_MIN_PCT = 30, HUD_MAX_PCT = 85, HUD_STEP_PCT = 5, HUD_STANDARD_PCT = 57;
 const HUD_SIZE_STEPS = (HUD_MAX_PCT - HUD_MIN_PCT) / HUD_STEP_PCT;
 /* Where the map can show, the choices in their order on the page. */
-const SHOWN_ON = ['cluster', 'hud', 'both', 'off'];
+const SHOWN_ON = ['cluster', 'hud', 'both', 'off', 'simple'];
 /* The HUD map moved from its centre, HUD_MOVE_PX a press, within +-HUD_MOVE_MAX; the render holds it inside the
  * HUD and reports the offset as far as it went. An asked size or place shows until the render's status has it,
  * HUD_ASKED_MS has passed, the render reconnects or patchd fails to save the size; then the render's own. */
@@ -369,7 +369,9 @@ class WazeClusterControl extends EventEmitter {
     /* 'cluster', 'hud', 'both' or 'off': as just asked for until the render
      * reports it, else as the render last said; null while it has not. */
     shownOn() {
-        return this._askedShownOn || (this.renderStatus && shownOnOf(this.renderStatus));
+        const actual = this.simpleHud && this.simpleHud.enabled && !this.simpleHud.suspended ? 'simple' : this.renderStatus && shownOnOf(this.renderStatus);
+        if (this._askedShownOn === actual) this._askedShownOn = null;
+        return this._askedShownOn || actual;
     }
 
     /* Whether the map shows on the cluster / the HUD; null while the render has not said. */
@@ -387,6 +389,7 @@ class WazeClusterControl extends EventEmitter {
             return null;
         }
         const on = this.shownOn();
+        if (on === 'simple') return display === 'cluster' ? rs && rs.cluster === 1 : false;
         return on === 'both' || on === display;
     }
 
@@ -402,6 +405,18 @@ class WazeClusterControl extends EventEmitter {
     showOn(choice) {
         if (!SHOWN_ON.includes(choice) || !this.canChooseShownOn() || choice === this.shownOn()) {
             return;
+        }
+        if (choice === 'simple') {
+            if (!this.simpleHud || !this.simpleHud.supported) return;
+            this._askedShownOn = choice;
+            this.render.send({ cmd: 'hud', on: '0' });
+            this.patch.send({ cmd: 'hud-simple', on: 1 });
+            this.emit('change');
+            return;
+        }
+        if (this.simpleHud && this.simpleHud.supported) {
+            this.simpleHud.suspend();
+            this.patch.send({ cmd: 'hud-simple', on: 0 });
         }
         const want = { cluster: choice === 'cluster' || choice === 'both', hud: choice === 'hud' || choice === 'both' };
         const changes = ['cluster', 'hud'].filter((d) => this._shows(d) !== want[d]).sort((a, b) => want[b] - want[a]);
@@ -420,6 +435,10 @@ class WazeClusterControl extends EventEmitter {
     }
 
     hudText() {
+        if (this.shownOn() === 'simple') {
+            const state = this.simpleHud.state;
+            return t('HUD simple mode: {0}', state === 'showing' ? t('Showing') : state === 'unavailable' ? t('Unavailable') : t('Waiting for navigation'));
+        }
         return t('HUD map: {0}', this._hudState());
     }
 
@@ -545,11 +564,15 @@ class WazeClusterControl extends EventEmitter {
     /* True while the HUD map stays shown over them, false while it gives way;
      * null while the render has not said. */
     hudKeepShown() {
+        if (this.shownOn() === 'simple') return this.simpleHud.keepShown;
         const v = this.renderStatus && this.renderStatus.hud_keep_shown;
         return v === 0 || v === 1 ? v === 1 : null;
     }
-    /* Changes as the size and place do. */
     canKeepHud() {
+        if (this.shownOn() === 'simple') {
+            const hud = this.simpleHud;
+            return this.connectedPatch() && hud.enabled && !hud.suspended && this.hudKeepShown() !== null;
+        }
         return this.canChangeHudSize() && this.hudKeepShown() !== null;
     }
     /* Flips it: the render at once, patchd saves it; the render's next status shows it. */
@@ -1058,9 +1081,13 @@ class WazeClusterControl extends EventEmitter {
             this._noteCardAsked(msg);
             this._wake();
             this.emit('change');
-        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown)-reply$/.test(msg.ev)) {
+        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple)-reply$/.test(msg.ev)) {
             if (!msg.ok) {
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
+                if (msg.ev === 'hud-simple-reply') {
+                    this._askedShownOn = null;
+                    this.emit('change');
+                }
             }
         } else if (msg.ev === 'reboot-reply') {
             /* A refused or failed request clears the asked flag; the status

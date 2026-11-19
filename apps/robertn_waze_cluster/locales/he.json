@@ -94,6 +94,11 @@
     "2.4 GHz": "2.4 GHz",
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "השמע עלול להיקטע. ב-iPhone, כבו את ה-Wi-Fi והפעילו אותו מחדש.",
     "Own settings for this driver": "הגדרות נפרדות לנהג זה",
-    "Keep HUD map over BMW's pop-ups": "השארת המפה ב-HUD מעל החלונות הקופצים של BMW"
+    "Keep HUD map over BMW's pop-ups": "השארת המפה ב-HUD מעל החלונות הקופצים של BMW",
+    "HUD simple mode": "מצב HUD פשוט",
+    "HUD simple mode: {0}": "מצב HUD פשוט: {0}",
+    "Waiting for navigation": "ממתין לניווט",
+    "Run HUD validation (parked)": "התחלת בדיקת HUD (בחניה)",
+    "Stop HUD validation ({0}/{1})": "עצירת בדיקת HUD ({0}/{1})"
   }
 }

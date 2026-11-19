@@ -11,7 +11,17 @@
     "src/logs_control.js",
     "src/qr.js",
     "src/qrcodegen.js",
-    "src/profile_sync.js"
+    "src/profile_sync.js",
+    "src/structured_hud.js",
+    "src/hud_validation_scenarios.js",
+    "src/guidance_reader.js",
+    "src/hud_navigation.js",
+    "src/hud_renderer.js",
+    "src/hud_font.js",
+    "src/hud_output.js",
+    "src/hud_cluster_render_client.js",
+    "src/hud_font_data.js",
+    "src/hud_turn_icons.js"
   ],
   "sdk": [
     "oap-sdk/src/core/OnlineApp.js",

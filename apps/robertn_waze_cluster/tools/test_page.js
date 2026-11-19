@@ -240,11 +240,24 @@ class OnlineApp extends EventEmitter {
 const hmiContexts = [];
 let displayLanguage = null;
 let sessionUser = '';
+let navigationDistance = '147';
+let navigationReads = 0;
 const someipBuilders = {
     buildTypedProxy: (iface, instance) => Promise.resolve(iface === 'de.bmw.infotainment.personalization.SessionManager' ? {
         init: () => Promise.resolve(),
         waitUntilAvailable: () => Promise.resolve(),
         currentUserAccountReference: { getValue: () => Promise.resolve(sessionUser) }
+    } : iface === 'de.bmw.infotainment.navigation.guiding.GuidanceEventList' ? {
+        init: () => Promise.resolve(),
+        shutdown: () => {},
+        waitUntilAvailable: () => Promise.resolve(),
+        _someIpProxy: { callMethod: (method) => {
+            if (method === 'getViewConfig') return Promise.resolve({ viewConfig: {} });
+            navigationReads++;
+            return Promise.resolve({ viewContent: [{ eventsInView: [{ intersection: {
+                direction: 'LEFT', formattedDistance: { distance: navigationDistance, unit: 'METER' }
+            } }] }] });
+        } }
     } : {
         init: () => Promise.resolve(),
         waitUntilAvailable: () => Promise.resolve(),
@@ -285,7 +298,7 @@ async function main() {
     assert.deepStrictEqual(main.map(([id, type, name, text]) => (type === 'title' ? name : `${name} ${text}`)), [
         'wocTitle',
         'wocHeadGeneral General', 'wocShowOn Show on: Cluster', 'wocProfile Own settings for this driver', 'wocMap Cluster map: Off', "wocGuide Hide BMW's turn box", 'wocLogs Logs',
-        'wocHeadHud HUD', 'wocHud HUD map: \u2014', "wocHudKeep Keep HUD map over BMW's pop-ups", 'wocHudSize Size: \u2014', 'wocHudPos Position: \u2014', 'wocHudLeft Move left',
+        'wocHeadHud HUD', 'wocHud HUD map: \u2014', 'wocHudValidation Run HUD validation (parked)', "wocHudKeep Keep HUD map over BMW's pop-ups", 'wocHudSize Size: \u2014', 'wocHudPos Position: \u2014', 'wocHudLeft Move left',
         'wocHudRight Move right', 'wocHudUp Move up', 'wocHudDown Move down', 'wocHudCentre Centre',
         'wocHeadCarPlay CarPlay', 'wocStatus Status: Connecting…', 'wocEnable Patch', 'wocDisable Remove patch', 'wocWifi ', 'wocWifiHint ',
         'wocHeadAa Android Auto', 'wocAaStatus Status: Connecting…', 'wocAaEnable Patch', 'wocAaDisable Remove patch',
@@ -310,7 +323,7 @@ async function main() {
         'the on/off settings are checkboxes');
     assert.deepStrictEqual([widgets.wocShowOn, widgets.wocHudSize], ['LT_DropDownMenu_1Row_2Col3070', 'LT_Slider_LeftJustified_Fill_Steps'],
         'where the map shows: a drop-down of four; the HUD\'s size: a slider');
-    assert.deepStrictEqual(components['62'].rows.map((r) => r.ItemText.value), ['Cluster', 'HUD (experimental)', 'Cluster and HUD (experimental)', 'Off']);
+    assert.deepStrictEqual(components['62'].rows.map((r) => r.ItemText.value), ['Cluster', 'HUD (experimental)', 'Cluster and HUD (experimental)', 'Off', 'HUD simple mode']);
     assert.deepStrictEqual(['MinValue', 'MaxValue', 'NumberOfSteps'].map((k) => components['52'].rows[0][k].value), [0, HUD_SIZE_STEPS, HUD_SIZE_STEPS],
         'the slider: one step for each 5 %');
     /* every info row reads "Name: Value" */
@@ -340,6 +353,7 @@ async function main() {
 
     const render = new FakeRender(RSOCK);
     let patch = new FakePatch(PSOCK);
+    delete patch.map.hud_simple; // 模拟旧版 patchd 不识别简洁模式。
     await render.listen();
     await patch.listen();
     patch.res = SIZE;
@@ -358,7 +372,7 @@ async function main() {
         const bound = logs.filter((l) => l.startsWith('info: BIND OK: ')).map((l) => l.split(' ')[3]).sort();
         assert.deepStrictEqual(bound, ['wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut', 'wocCapture', 'wocDisable', 'wocEnable',
             'wocGuide', 'wocHudCentre', 'wocHudDown', 'wocHudKeep', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocLogs', 'wocLogsSave', 'wocProfile',
-            'wocRestart'],
+            'wocHudValidation', 'wocRestart'].sort(),
             'bound buttons and checkbox');
         assert.strictEqual(byName.wocRestart.visible, false, 'restart button hidden while the map shows');
         console.log('ok   a page opened while the map is up shows it');
@@ -440,6 +454,73 @@ async function main() {
 
         /* ---- where the map shows, and the HUD ---- */
         const showOn = byName.wocShowOn;
+        const simpleFrames = [], simpleKeepSettings = [];
+        OnlineApp.instance._simpleHud.outputFactory = (keepShown, onState) => ({
+            setKeepShown: (keep) => simpleKeepSettings.push(keep),
+            update: (pixels, visible) => { simpleFrames.push({ pixels: visible ? Buffer.from(pixels) : null, visible }); onState(visible ? 'showing' : 'unavailable'); },
+            close: () => simpleFrames.push({ visible: false })
+        });
+        await until('旧版服务提示需要更新', () => patch.count('hud-simple-status') > 0 &&
+            showOn.cells['4:ItemText'] === 'HUD simple mode: Update needed');
+        const blockedCommands = patch.count('hud-simple');
+        showOn.pick(4);
+        assert.strictEqual(showOn.shown(), 'Show on: Cluster');
+        assert.strictEqual(patch.count('hud-simple'), blockedCommands);
+        patch.map.hud_simple = 0;
+        patch._broadcast({ ev: 'map-settings', settings: patch.map });
+        await until('收到能力通知后恢复选项', () => showOn.cells['4:ItemText'] === 'HUD simple mode');
+        await sleep(450);
+        showOn.pick(4);
+        await until('选择简洁导航，仪表保持开启', () => showOn.shown() === 'Show on: HUD simple mode' &&
+            patch.map.hud_simple === 1 && render.hud === 0 && render.cluster === 1 &&
+            byName.wocHud.text.indexOf('HUD simple mode:') === 0);
+        await until('结构化导航已绘制', () => simpleFrames.some((f) => f.visible));
+        const simpleKeep = byName.wocHudKeep;
+        assert.strictEqual(simpleKeep.enabled, true);
+        assert.strictEqual(byName.wocHudSize.enabled, false);
+        simpleKeep.press();
+        await until('在简洁模式勾选并保存弹窗设置', () => simpleKeep.selected &&
+            patch.map.hud_keep_shown === 1 && simpleKeepSettings.includes(true));
+        assert.strictEqual(render.hud, 0);
+        await sleep(450);
+        simpleKeep.press();
+        await until('简洁 HUD 恢复让位', () => !simpleKeep.selected &&
+            patch.map.hud_keep_shown === 0 && simpleKeepSettings[simpleKeepSettings.length - 1] === false);
+        const validationButton = byName.wocHudValidation;
+        assert.strictEqual(validationButton.enabled, true);
+        validationButton.press();
+        await until('验证按钮启动并显示进度', () => /^Stop HUD validation \(1\//.test(validationButton.text));
+        const validationReads = navigationReads;
+        await sleep(550);
+        assert.strictEqual(navigationReads, validationReads, '验证时停用真实导航查询');
+        byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: false });
+        await until('验证模式隐藏页面释放控制连接', () => !OnlineApp.instance._visible && render._clients.size === 0 && patch._clients.size === 1);
+        assert(OnlineApp.instance._simpleHud.validation, '后台继续完成当前验证');
+        assert.strictEqual(navigationReads, validationReads);
+        byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: true });
+        await until('返回验证菜单', () => OnlineApp.instance._visible && render._clients.size > 0);
+        validationButton.press();
+        await until('停止验证恢复真实数据', () => validationButton.text === 'Run HUD validation (parked)' && navigationReads > validationReads);
+        const inactiveAtSimple = inactiveReports;
+        byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: false });
+        await until('简洁模式页面隐藏', () => OnlineApp.instance._visible === false);
+        const lastSimple = simpleFrames[simpleFrames.length - 1].pixels;
+        navigationDistance = '98';
+        await until('页面隐藏后继续更新导航', () => simpleFrames.some((f) => f.visible && !f.pixels.equals(lastSimple)));
+        await until('后台释放视频控制连接', () => render._clients.size === 0 && patch._clients.size === 1);
+        assert.strictEqual(inactiveReports, inactiveAtSimple + 1, '简洁模式沿用普通 HUD 的页面生命周期');
+        byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: true });
+        await sleep(450);
+        showOn.pick(0);
+        await until('离开简洁模式', () => patch.map.hud_simple === 0 && showOn.shown() === 'Show on: Cluster');
+        assert.strictEqual(validationButton.enabled, false, '普通视频 HUD 模式不能启动验证');
+        assert.strictEqual(simpleFrames[simpleFrames.length - 1].visible, false, '切回地图释放简洁图层');
+        const stoppedReads = navigationReads;
+        await sleep(450);
+        assert.strictEqual(navigationReads, stoppedReads, '离开简洁模式不再查询导航');
+        console.log('通过：简洁模式从结构化代理绘制，页面隐藏继续更新，退出后停止查询并清屏');
+        render.received.length = 0;
+        patch.received.length = 0;
         const size = byName.wocHudSize;
         const hudRows = () => ['wocHudKeep', 'wocHudSize', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocHudDown'].map((n) => byName[n].enabled);
         await until('the cluster, the HUD off', () => showOn.shown() === 'Show on: Cluster' && showOn.enabled === true &&
@@ -577,6 +658,23 @@ async function main() {
         showOn.pick(1);
         await until('A: the HUD alone, saved', () => render.hud === 1 && render.cluster === 0 && showOn.shown() === 'Show on: HUD (experimental)' &&
             patch.map.hud === 1 && patch.map.cluster === 0);
+        await sleep(450);
+        showOn.pick(4);
+        await until('A 保存简洁模式', () => patch.map.hud_simple === 1 && OnlineApp.instance._simpleHud.state === 'showing');
+        byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: false });
+        await until('A 后台不占控制连接', () => OnlineApp.instance._visible === false && render._clients.size === 0);
+        sessionUser = 'a1b2c3d4-0000-4000-8000-000000000002';
+        await until('后台切换 B 释放简洁图层并恢复仪表', () => !OnlineApp.instance._simpleHud.enabled &&
+            simpleFrames[simpleFrames.length - 1].visible === false && render.cluster === 1 && render.hud === 0);
+        sessionUser = 'a1b2c3d4-0000-4000-8000-000000000001';
+        await until('后台切回 A 恢复结构化导航', () => OnlineApp.instance._simpleHud.state === 'showing' &&
+            simpleFrames[simpleFrames.length - 1].visible === true && render.cluster === 0 && render.hud === 0);
+        await until('后台驾驶员切换后释放短控制连接', () => render._clients.size === 0);
+        byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: true });
+        await until('A 重新打开页面', () => showOn.enabled && OnlineApp.instance._control.render.connected());
+        showOn.pick(1);
+        await until('A 切回普通 HUD', () => !OnlineApp.instance._simpleHud.enabled && render.hud === 1 && render.cluster === 0);
+        console.log('通过：后台驾驶员切换恢复简洁模式和普通模式，控制连接按普通 HUD 使用后释放');
         sessionUser = 'a1b2c3d4-0000-4000-8000-000000000002';
         await until('B, without its own: the shared settings, the cluster', () => render.cluster === 1 && render.hud === 0 &&
             showOn.shown() === 'Show on: Cluster' && own.selected === false && own.enabled === true);
@@ -597,8 +695,8 @@ async function main() {
             'a switch moves the render to the other profile\'s or the shared settings; unticked, the shared ones back; an empty read changes nothing');
 
         byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: false });
-        await until('sockets closed', () => render._clients.size === 0 && patch._clients.size === 0);
-        console.log('ok   hiding the page closes both sockets');
+        await until('sockets closed', () => render._clients.size === 0 && patch._clients.size === 1);
+        console.log('通过：未开启简洁模式时，隐藏页面释放控制连接，保留模式监听连接');
 
         render.stream(false);
         patch.announce('patched', 'high', null);
@@ -617,7 +715,7 @@ async function main() {
 
         /* Before the head-unit start that starts the daemon: from the marker. */
         byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: false });
-        await until('closed', () => patch._clients.size === 0);
+        await until('closed', () => patch._clients.size === 1);
         await patch.close();
         fs.writeFileSync(PENDING, JSON.stringify({ action: 'apply' }) + '\n');
         byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: true });
@@ -702,7 +800,7 @@ async function main() {
         await until('logs socket open', () => lserver._clients.size === 1);
         await sleep(900);
         assert.strictEqual(inactiveReports, inactiveBefore, 'moving to the Logs page keeps the app shown');
-        assert.strictEqual(patch._clients.size, 1, 'and its sockets open');
+        assert.strictEqual(patch._clients.size, 2, 'and its sockets open');
         await until('logs state shown', () => byName.wocLogsStatus.text === 'Saved logs: None' &&
             byName.wocLogsUrl.text === `Address: ${lserver.url}` && byName.wocLogsSave.enabled === true);
         const qr1 = byName.wocLogsQr.text;
@@ -762,9 +860,9 @@ async function main() {
         OnlineApp.instance.emit('entryPointExecute', APP_JSON.application.entryPoints[0].uuid);
         await sleep(400);
         assert.strictEqual(lserver._clients.size, 0, 'a tile launch opens no logs socket');
-        assert.strictEqual(patch._clients.size, 1, 'the main page\'s sockets are open');
+        assert.strictEqual(patch._clients.size, 2, 'the main page\'s sockets are open');
         console.log('ok   launched from the tile after leaving on the Logs page: the main page, no logs socket');
-        assert.strictEqual(patch._clients.size, 1, 'the main page keeps its sockets');
+        assert.strictEqual(patch._clients.size, 2, 'the main page keeps its sockets');
         console.log('ok   leaving the Logs page closes the logs socket');
 
         /* the display language: every row in its words, English for a word it lacks */

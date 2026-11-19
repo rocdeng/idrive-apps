@@ -94,6 +94,11 @@
     "2.4 GHz": "2,4 GHz",
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "A hang akadozhat. Az iPhone-on kapcsolja ki, majd be a Wi-Fi-t.",
     "Own settings for this driver": "Saját beállítások ennek a vezetőnek",
-    "Keep HUD map over BMW's pop-ups": "Térkép megtartása a HUD-on a BMW felugró ablakai felett"
+    "Keep HUD map over BMW's pop-ups": "Térkép megtartása a HUD-on a BMW felugró ablakai felett",
+    "HUD simple mode": "Egyszerű HUD mód",
+    "HUD simple mode: {0}": "Egyszerű HUD mód: {0}",
+    "Waiting for navigation": "Várakozás a navigációra",
+    "Run HUD validation (parked)": "HUD-teszt indítása (álló helyzetben)",
+    "Stop HUD validation ({0}/{1})": "HUD-teszt leállítása ({0}/{1})"
   }
 }

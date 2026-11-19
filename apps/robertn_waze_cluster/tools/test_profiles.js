@@ -307,6 +307,16 @@ async function main() {
         await until('render moved', () => render.received.length === 3);
         assert.deepStrictEqual(render.received[2], { cmd: 'hud', hud_width_pct: '0', hud_x: '0', hud_y: '0' });
     });
+    await check('驾驶员切换先更新简洁模式，再打开视频 HUD', async () => {
+        const events = [];
+        c.simpleHud = { settings: (s) => events.push(s.hud_simple) };
+        const send = c.render.send;
+        c.render.send = function(msg) { events.push(msg.cmd); return send.call(this, msg); };
+        sync2._toRender(Object.assign(settings(1, 1, 0, 0, 0), { hud_simple: 0 }));
+        assert.deepStrictEqual(events.slice(0, 2), [0, 'cluster']);
+        c.render.send = send;
+        delete c.simpleHud;
+    });
     sync2.stop();
     c.close();
 

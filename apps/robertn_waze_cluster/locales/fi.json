@@ -94,6 +94,11 @@
     "2.4 GHz": "2,4 GHz",
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ääni voi katkeilla. Laita iPhonen Wi-Fi pois ja takaisin päälle.",
     "Own settings for this driver": "Omat asetukset tälle kuljettajalle",
-    "Keep HUD map over BMW's pop-ups": "Pidä HUD-kartta BMW:n ponnahdusikkunoiden päällä"
+    "Keep HUD map over BMW's pop-ups": "Pidä HUD-kartta BMW:n ponnahdusikkunoiden päällä",
+    "HUD simple mode": "HUD:n yksinkertainen tila",
+    "HUD simple mode: {0}": "HUD:n yksinkertainen tila: {0}",
+    "Waiting for navigation": "Odotetaan navigointia",
+    "Run HUD validation (parked)": "Aloita HUD-testi (pysäköitynä)",
+    "Stop HUD validation ({0}/{1})": "Lopeta HUD-testi ({0}/{1})"
   }
 }

@@ -321,6 +321,8 @@ class ProfileSync extends EventEmitter {
      * then the HUD's size, place and whether it stays shown over BMW's
      * pop-ups (from a patchd that has it). */
     _toRender(s) {
+        // 先停止旧自绘图层，再发送新驾驶员的视频 HUD 设置。
+        if (this._control && this._control.simpleHud) this._control.simpleHud.settings(s);
         const on = (v) => (v ? '1' : '0');
         const shows = ['cluster', 'hud'].sort((a, b) => s[b] - s[a]);
         const hud = { cmd: 'hud', hud_width_pct: String(s.hud_width_pct), hud_x: String(s.hud_offset_x), hud_y: String(s.hud_offset_y) };

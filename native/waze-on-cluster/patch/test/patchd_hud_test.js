@@ -88,7 +88,7 @@ function ask(obj) {
             buf.split('\n').forEach(function (l) {
                 var m = null;
                 try { m = JSON.parse(l); } catch (e) {}
-                if (m && /^(cluster|hud|hud-size|hud-pos|hud-keep-shown)-reply$/.test(m.ev)) { s.end(); resolve(m); }
+                if (m && /^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple)-reply$/.test(m.ev)) { s.end(); resolve(m); }
             });
         });
         s.on('error', reject);
@@ -188,6 +188,15 @@ function ok(name, cond) {
     for (t = 0; t < 5000 && out.split('patchd listening').length < 3; t += 50) await sleep(50);
     ok('started again: nothing to move, both files as they were',
        fs.readFileSync(CONF, 'utf8') === conf && fs.readFileSync(STATE, 'utf8') === state);
+    r = await ask({ cmd: 'hud-simple', on: 1 });
+    ok('简洁模式一次保存视频 HUD 关闭和模式开启，仪表设置不变',
+       r.ok && r.hud === 0 && r.hud_simple === 1 && /hud = 0\n/.test(fs.readFileSync(STATE, 'utf8')) &&
+       /hud_simple = 1\n/.test(fs.readFileSync(STATE, 'utf8')));
+    state = fs.readFileSync(STATE, 'utf8');
+    r = await ask({ cmd: 'hud-simple', on: '1' });
+    ok('简洁模式拒绝非法值', !r.ok && fs.readFileSync(STATE, 'utf8') === state);
+    r = await ask({ cmd: 'hud', on: 1 });
+    ok('开启 HUD 地图同时退出简洁模式', r.ok && r.hud === 1 && r.hud_simple === 0);
 })().catch(function (e) {
     ok('no error: ' + e.message, false);
 }).then(function () {
