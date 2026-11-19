@@ -10,7 +10,9 @@
  *   4. targets are published, requested, kept or released (slot manager),
  *   5. each requested target's layers are staged and flushed once,
  *   6. changed states go to the clients, and once a second to the status
- *      file; once a minute each shown target's layers' writes since its
+ *      file; once a second the upload is sampled (link_trace.h) and the
+ *      remembered ceiling kept (ceiling_memory.h); once a minute the
+ *      upload's summary and each shown target's layers' writes since its
  *      last such line, and whether it is rendered, go to the log. */
 #ifndef CRS_SERVICE_H
 #define CRS_SERVICE_H
@@ -21,9 +23,10 @@
 #include <string>
 #include <vector>
 
+#include "ceiling_memory.h"
 #include "compositor.h"
-#include "guard.h"
 #include "governor.h"
+#include "link_trace.h"
 #include "server.h"
 #include "slots.h"
 
@@ -41,12 +44,18 @@ struct ServiceConfig {
     std::string socket_group;
     std::string status_path;     /* empty: none */
     std::string backend = "id7";
-    /* The mapping guard's file (guard.h); empty: no guard. */
-    std::string guard_path;
     /* Where the scene files of targets that take them come from: under
      * /var/opt/, root's (scene_file.h). */
     SceneFiles scene_files;
-    std::string version, boot_id;
+    /* The drop-ins read with the settings, one line each for the status:
+     * "loaded PATH" or "skipped PATH: why" (settings.h). */
+    std::vector<std::string> drop_ins;
+    /* The remembered ceiling's file and what it is checked against; its
+     * limits are budget's. path empty: nothing remembered. */
+    CeilingSettings ceiling;
+    /* The TCP tables the send queue is read from (link_trace.h); empty:
+     * not read. */
+    std::vector<std::string> tcp_tables;
 };
 
 class Service {
@@ -55,7 +64,6 @@ public:
     bool start(std::string *err);
 
     SlotManager &slots() { return slots_; }
-    Guard &guard() { return guard_; }
     Compositor &compositor() { return *comp_; }
     Server &server() { return *server_; }
 
@@ -71,7 +79,6 @@ public:
 private:
     ServiceConfig cfg_;
     SlotManager slots_;
-    Guard guard_;
     std::unique_ptr<Compositor> comp_;
     std::unique_ptr<Server> server_;
     int64_t status_ms_ = 0;
@@ -81,6 +88,11 @@ private:
     std::vector<WriteStats> stats_;
     std::vector<int64_t> stats_ms_;
     void log_minute(int64_t now_ms);
+    std::unique_ptr<CeilingMemory> memory_;
+    LinkTrace trace_;
+    int64_t second_ms_ = -1;
+    WriteStats written_;   /* every target's, at the last sample */
+    void sample(int64_t now_ms);
 };
 
 }  // namespace crs

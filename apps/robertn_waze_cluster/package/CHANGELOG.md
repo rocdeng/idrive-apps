@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-## 0.6.9
-
 增加“HUD 简洁模式”：以结构化导航事件绘制转向、距离和可用的导航文字，使用新版 HUD 箭头，不截屏。模式随驾驶员配置保存；关闭 HUD 视频地图，保留仪表设置，退出设置页面后继续更新。数据缺失或查询失败时清除旧引导。
 
 同步新版推荐车道的透明底和绿色底线；车道虚实分隔线按明确提供的边界数据绘制，缺失时不补画。
@@ -11,6 +9,30 @@
 增加停车时使用的 HUD 验证按钮：43 个合成场景依次输出到真实 HUD 图层，显示 TEST 和进度，每个场景显示至少 5 秒，完成后自动恢复真实导航数据源。可手动停止；切换显示模式、配置连接中断或应用退出会取消验证。图层状态以渲染服务确认为准，断连或弹窗让位期间暂停场景计时。
 
 简洁模式可直接设置 BMW 弹窗让位，旧版服务会在模式选项上提示需要更新。补齐 BMW 距离单位解析，延后字体加载，并避免等待导航时重复分配隐藏帧。
+
+## 0.6.12
+
+The cluster's safe area is back to 504x368 at (286, 72); a smaller area made
+Apple Maps show a black or card-only cluster.
+
+## 0.6.11
+
+Apple Maps and Google Maps keep their arrival time, road names and turn
+card inside the part of the cluster map you can see, from the next
+head-unit start.
+
+## 0.6.10
+
+Waze on cluster is renamed Maps on cluster, with its name translated in
+every language, since it shows the map of Waze, Google Maps or Apple Maps.
+Your settings stay as they are.
+
+## 0.6.9
+
+CarPlay's Status shows `Update needed` while the CarPlay patch on the car
+lacks the arrival time on the cluster map; its Patch button adds it. With
+the patch, Apple Maps and Google Maps show your arrival time on the cluster
+during a route.
 
 ## 0.6.8
 

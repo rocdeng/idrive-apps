@@ -516,7 +516,8 @@ void Server::op_layer(Client &c, const cr::Json &j, int64_t now_ms)
             {"fps", 0, 60, (double)vp.fps},           {"level_bits", 0, 3, (double)vp.level_bits},
             {"dirty_threshold", 0, 64, (double)vp.dirty_threshold},
             {"settle_ms", 0, 3600000, (double)vp.dirty_settle_ms},
-            {"pan_blocks", 0, 1, vp.pan_blocks ? 1.0 : 0.0}, {"stall_ms", 1000, 600000, (double)vp.stall_ms}};
+            {"pan_blocks", 0, 1, vp.pan_blocks ? 1.0 : 0.0}, {"stall_ms", 1000, 600000, (double)vp.stall_ms},
+            {"always_packed", 0, 1, vp.always_packed ? 1.0 : 0.0}};
         for (auto &e : k)
             if (!num(j, e.key, e.lo, e.hi, &e.cur, &err)) {
                 error(c, "layer", ref, err);
@@ -530,6 +531,7 @@ void Server::op_layer(Client &c, const cr::Json &j, int64_t now_ms)
         vp.dirty_settle_ms = (int)k[5].cur;
         vp.pan_blocks = k[6].cur != 0;
         vp.stall_ms = (int)k[7].cur;
+        vp.always_packed = k[8].cur != 0;
         id = comp_->add_video(c.id, target, lp, vp, now_ms, &err);
     } else if (kind == "image") {
         double iw = lp.rect.w, ih = lp.rect.h, fps = 30;
@@ -602,8 +604,11 @@ void Server::on_json(Client &c, const std::string &body, int64_t now_ms)
                                  {"proto", std::to_string(cr::kProtocolVersion)},
                                  {"backend", cr::json_quote(backend_)},
                                  {"targets", cr::json_quote(targets)},
-                                 {"repeat", "1"}}));
+                                 {"repeat", "1"},
+                                 {"always_packed", "1"}}));
         c.target_sent.clear();
+        c.host_sent.clear();
+        c.host_gen = 0;
         log_info("client %llu: %s", (unsigned long long)c.id, c.app.c_str());
         return;
     }
@@ -630,6 +635,10 @@ void Server::on_json(Client &c, const std::string &body, int64_t now_ms)
     auto it = c.refs.find(ref);
     if (op == "edit") {
         op_edit(c, ref, j);
+        return;
+    }
+    if (op == "host") {
+        op_host(c, ref, j);
         return;
     }
     if (op == "drop" && it != c.refs.end() && comp_->edits(c.id, it->second)) {
@@ -761,7 +770,10 @@ void Server::op_scene(Client &c, const cr::Json &j)
         return;
     }
     SceneSource src;
-    if (!num(j, "contend", 0, 1, &contend, &err) ||
+    SceneLayers layers;
+    double on = 0, order = 0;
+    if (!num(j, "contend", 0, 1, &contend, &err) || !num(j, "layers", 0, 1, &on, &err) ||
+        !num(j, "layers_order", INT32_MIN, INT32_MAX - 1024, &order, &err) ||
         !check_scene_source(scene_files_, str(j, "file"), str(j, "res"), str(j, "sha256"), &src, &err)) {
         log_warn("client %llu (%s): scene file refused: %s", (unsigned long long)c.id, c.app.c_str(), err.c_str());
         error(c, "scene", ref, err);
@@ -774,10 +786,63 @@ void Server::op_scene(Client &c, const cr::Json &j)
     }
     if (again)
         comp_->replace_scene(c.id, id, src, contend != 0);
+    layers.on = on != 0;
+    layers.order_set = j.count("layers_order") != 0;
+    layers.order = (int32_t)order;
+    comp_->set_layers(id, layers);
     c.refs[ref] = id;
     c.layer_sent.erase(ref);   /* its state again, even unchanged: send the values again then */
     log_info("client %llu (%s): scene %u %s%s", (unsigned long long)c.id, c.app.c_str(), id,
              comp_->scene_text(id).c_str(), again ? " (replaced)" : "");
+}
+
+void Server::op_host(Client &c, uint32_t ref, const cr::Json &j)
+{
+    /* A refusal names the target, so a client forgets that host only. */
+    auto refuse = [&](const std::string &why) {
+        send(c, cr::json_object({{"ev", cr::json_quote("error")},
+                                 {"op", cr::json_quote("host")},
+                                 {"ref", std::to_string(ref)},
+                                 {"target", cr::json_quote(str(j, "target"))},
+                                 {"reason", cr::json_quote(why)}}));
+    };
+    auto it = c.refs.find(ref);
+    const uint32_t scene = it != c.refs.end() && comp_->edits(c.id, it->second) ? it->second : 0;
+    if (!scene) {
+        refuse("no such scene");
+        return;
+    }
+    const int hosted = slots_->index(str(j, "target"));
+    if (hosted < 0 || !slots_->targets()[hosted].follows.empty()) {
+        refuse("unknown target " + str(j, "target"));
+        return;
+    }
+    const TargetSpec &from = slots_->targets()[hosted];
+    static const char *const keys[] = {"x", "y", "w", "h", "src_x", "src_y", "src_w", "src_h", "shown"};
+    double v[] = {0, 0, 0, 0, 0, 0, (double)from.width, (double)from.height, 1};
+    std::string err;
+    for (size_t i = 0; i < 9; i++)
+        if (!num(j, keys[i], 0, i == 8 ? 1 : 65535, &v[i], &err)) {
+            comp_->unhost(c.id, scene, hosted);
+            refuse(err);
+            return;
+        }
+    const size_t src = j.count("src_x") + j.count("src_y") + j.count("src_w") + j.count("src_h");
+    if (src && src != 4) {
+        comp_->unhost(c.id, scene, hosted);
+        refuse("src_x, src_y, src_w, src_h go together (none: all of " + from.name + ")");
+        return;
+    }
+    Host h;
+    h.rect = Rect{(int32_t)v[0], (int32_t)v[1], (uint32_t)v[2], (uint32_t)v[3]};
+    h.src = Rect{(int32_t)v[4], (int32_t)v[5], (uint32_t)v[6], (uint32_t)v[7]};
+    h.shown = v[8] != 0;
+    if (!comp_->host(c.id, scene, hosted, h, &err)) {
+        refuse(err);
+        return;
+    }
+    log_info("client %llu (%s): scene %u %s", (unsigned long long)c.id, c.app.c_str(), scene,
+             comp_->scene_text(scene).c_str());
 }
 
 void Server::op_edit(Client &c, uint32_t ref, const cr::Json &j)
@@ -1047,17 +1112,59 @@ void Server::on_mesh(Client &c, const char *body, size_t n, int64_t now_ms)
 
 void Server::report(int64_t now_ms)
 {
+    /* What each hosted target's event says now (PROTOCOL.md "host"), made
+     * again only when the compositor's hosts may have changed (hosts_gen_);
+     * a client is compared with it only then: nothing hosted, nothing
+     * changes, nothing costs. */
+    if (!hosts_gen_ || hosts_serial_ != comp_->host_serial()) {
+        hosts_serial_ = comp_->host_serial();
+        hosts_gen_++;
+        hosts_.clear();
+        for (const Compositor::Hosted &x : comp_->hosts()) {
+            const Host &h = x.host;
+            const std::string &name = slots_->targets()[x.target].name;
+            hosts_[name] = cr::json_object({{"ev", cr::json_quote("host")},
+                                            {"target", cr::json_quote(name)},
+                                            {"into", cr::json_quote(slots_->targets()[x.into].name)},
+                                            {"shown", h.shown ? "1" : "0"},
+                                            {"x", std::to_string(h.rect.x)},
+                                            {"y", std::to_string(h.rect.y)},
+                                            {"w", std::to_string(h.rect.w)},
+                                            {"h", std::to_string(h.rect.h)},
+                                            {"src_x", std::to_string(h.src.x)},
+                                            {"src_y", std::to_string(h.src.y)},
+                                            {"src_w", std::to_string(h.src.w)},
+                                            {"src_h", std::to_string(h.src.h)}});
+        }
+    }
     for (Client &c : clients_) {
         if (c.closing || c.app.empty())
             continue;
+        if (c.host_gen != hosts_gen_) {
+            c.host_gen = hosts_gen_;
+            for (auto it = c.host_sent.begin(); it != c.host_sent.end();) {
+                if (hosts_.count(it->first)) {
+                    ++it;
+                    continue;
+                }
+                send(c, cr::json_object({{"ev", cr::json_quote("host")},
+                                         {"target", cr::json_quote(it->first)},
+                                         {"into", cr::json_quote("")}}));
+                it = c.host_sent.erase(it);
+            }
+            for (const auto &kv : hosts_) {
+                std::string &sent = c.host_sent[kv.first];
+                if (sent != kv.second)
+                    send(c, sent = kv.second);
+            }
+        }
         for (size_t t = 0; t < slots_->targets().size(); t++) {
             if (!slots_->targets()[t].follows.empty())
                 continue;   /* a hold: no client's target */
             const TargetStatus &s = slots_->status((int)t);
-            const bool hold_off = slots_->hold_disabled((int)t), off = slots_->disabled((int)t);
             const std::string line = std::string(target_state_name(s.state)) + "\n" + holder_name(s.holder) + "\n" +
                                      s.reason + "\n" + std::to_string(s.retry_ms) + "\n" +
-                                     rendering_name(s.rendering) + "\n" + (hold_off ? "1" : "0") + (off ? "1" : "0");
+                                     rendering_name(s.rendering);
             std::string &sent = c.target_sent[slots_->targets()[t].name];
             if (line == sent)
                 continue;
@@ -1070,8 +1177,9 @@ void Server::report(int64_t now_ms)
                                      {"retry_in_ms", std::to_string(s.retry_ms >= 0 ? std::max<int64_t>(0, s.retry_ms - now_ms)
                                                                                    : -1)},
                                      {"rendering", cr::json_quote(rendering_name(s.rendering))},
-                                     {"guide_disabled", hold_off ? "1" : "0"},
-                                     {"disabled", off ? "1" : "0"}}));
+                                     /* Always 0: kept for clients that read them. */
+                                     {"guide_disabled", "0"},
+                                     {"disabled", "0"}}));
         }
         const Governor &gov = comp_->governor();
         const std::string budget = std::to_string(gov.cap()) + "\n" + gov.reason();
@@ -1112,10 +1220,15 @@ std::string Server::status_text(int64_t now_ms) const
     std::string s;
     char line[320];
     const Governor &gov = comp_->governor();
-    std::snprintf(line, sizeof line, "upload: cap %llu KB/s (ceiling %llu, floor %llu): %s\n",
-                  (unsigned long long)(gov.cap() / 1024), (unsigned long long)(gov.max() / 1024),
+    char configured[64] = "";
+    if (gov.ceiling() < gov.max())
+        std::snprintf(configured, sizeof configured, ", configured %llu", (unsigned long long)(gov.max() / 1024));
+    std::snprintf(line, sizeof line, "upload: cap %llu KB/s (ceiling %llu%s, floor %llu): %s\n",
+                  (unsigned long long)(gov.cap() / 1024), (unsigned long long)(gov.ceiling() / 1024), configured,
                   (unsigned long long)(gov.floor() / 1024), gov.reason().c_str());
     s += line;
+    if (ceiling_text)
+        s += ceiling_text();
     for (size_t t = 0; t < slots_->targets().size(); t++) {
         const TargetSpec &spec = slots_->targets()[t];
         const TargetStatus &st = slots_->status((int)t);
@@ -1133,7 +1246,8 @@ std::string Server::status_text(int64_t now_ms) const
             s += line + cv->stats() + "\n";
         }
     }
-    s += slots_->guard_text();
+    for (const std::string &d : drop_ins_)
+        s += "drop-in " + d + "\n";
     s += slots_->renderer_text(now_ms);
     s += slots_->port().status_text(now_ms);
     s += slots_->table_text();

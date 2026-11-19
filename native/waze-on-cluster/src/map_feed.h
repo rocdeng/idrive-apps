@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Robert Nisipeanu
 /* MapFeed: the decoded map as a video layer of the shared cluster renderer
- * (cluster-render, its PROTOCOL.md), and what the Waze app is told about it.
+ * (cluster-render, its PROTOCOL.md), and what the app is told about it.
  *
  * One video layer, class content and contending with the stock map, on the
  * target the map goes to: `map` (the native central-map slot 0x100, whose
- * 1088x480 scene the map fills) unless a control start chose another; on a
- * whole-panel or HUD target it is the centred map area (map_geometry.h).
+ * 1088x480 scene the map fills) for the cluster, `hud` for the HUD, where
+ * it is the centred map area (map_geometry.h).
  * The renderer draws every frame the way waze-on-cluster always has (one
  * persistent R8 atlas written in changed tiles, packed fast motion, the
  * frame clock, newest frame only) within the budget all its clients share,
@@ -24,10 +24,10 @@
  * held, and goes with the next frame or repeat; when the layer shows again
  * it goes (or a repeat of the last one sent) before the layer is made
  * visible, so the renderer never draws an older picture first. A new
- * layer (another target) starts from a copy of the old one's newest. A
- * layer that scales (the HUD's) keeps the newest picture whole, scales it
- * once, at most video.fps a second, and sends a repeat as a repeat of its
- * last scaled frame.
+ * layer (a host taking or dropping the map, a new size) starts from a copy
+ * of the old one's newest. A layer that scales (the HUD's) keeps the
+ * newest picture whole, scales it once, at most video.fps a second, and
+ * sends a repeat as a repeat of its last scaled frame.
  *
  * The app's status line follows the stream, the layer and its target: idle
  * until the first frame or while the stream is not live, idle with kWaiting
@@ -36,7 +36,27 @@
  * renderer starts, showing with the frames handed over a second, error when
  * the renderer refused the layer or stays unreachable. Showing, and idle
  * while the stream is live, carry the stream's own reason (stream_health.h:
- * the stream lost) when it has one, in place of kWaiting. */
+ * the stream lost) when it has one, in place of kWaiting.
+ *
+ * Hosted: while a scene on another target hosts the feed's target
+ * (cluster-render PROTOCOL.md "host"), the layer is there instead, where its
+ * part lands in the host's rect (host_crop), and nothing is on the feed's
+ * own target, so the renderer lets
+ * that slot go. Its frames are the part of the picture the host's src
+ * covers (host_crop), scaled on the head unit to at most the rect's size by
+ * the scaling worker, as the HUD's are: one decode, one upload, of that part
+ * only. Hidden by the host, there is no layer at all and nothing goes to the
+ * renderer; the newest picture is held, and goes first when shown again.
+ * The host ending, or the renderer going away, puts the layer back on the
+ * feed's own target.
+ *
+ * With hosted_vpp_scale (FeedConfig::vpp_scale), the part and its size go
+ * to the decoder instead (part()), whose VPP makes them on the GPU: such a
+ * frame goes as it is (offer_part), after any the worker has, and one of a
+ * part the layer no longer shows (the host moved or went) is dropped. Only
+ * a whole frame (before VPP has the part, or when it cannot make it) goes
+ * through the worker. A layer made for another part, or for none, starts
+ * from the next frame, not a part of the old one. */
 #ifndef WOC_MAP_FEED_H
 #define WOC_MAP_FEED_H
 
@@ -82,21 +102,31 @@ struct FeedConfig {
     bool hud_round_corners = true;
     /* the HUD map's dark background made black (see-through on a HUD) */
     bool hud_black_background = true;
+    /* hosted_vpp_scale: hosted, the host's part is made by the decoder's VPP
+     * (MapFeed::part) rather than scaled by the worker */
+    bool vpp_scale = false;
+    /* always_packed: every update of the layer as packed 4x4 blocks, the
+     * changed ones only (cluster-render's always_packed), where the
+     * renderer's hello (each connection's) takes it and the frame's width
+     * and height are multiples of 4; else as pan_blocks decides, with one
+     * log line */
+    bool always_packed = false;
 };
 
-/* The status the Waze app shows (its render socket's "status" event), with
+/* The status the app shows (its render socket's "status" event), with
  * the shared upload cap and why it is what it is, for the diagnostics. */
 struct FeedStatus {
     std::string state = "idle";   /* idle, starting, showing, frozen, error */
-    std::string target;
+    std::string target;           /* where the map is drawn: the host's target while hosted */
+    bool hosted = false;          /* inside another app's scene (MapFeed, "Hosted") */
     std::string page;
     std::string reason;
     bool stream_reason = false;   /* the reason is the stream's (MapFeed::status) */
     unsigned upload_cap_kb = 0;   /* 0 until the renderer reports it */
     std::string upload_reason;
     bool guide_hold = true;
-    bool guide_disabled = false;   /* cluster-render's guard keeps the turn box's hold off */
-    bool disabled = false;         /* cluster-render's guard keeps the target's mapping off */
+    bool guide_disabled = false;   /* cluster-render reports the turn box's hold disabled */
+    bool disabled = false;         /* cluster-render reports the target disabled */
     bool cluster = true;           /* the cluster setting (MapFeeds) */
     bool hud = false;              /* the HUD setting (MapFeeds) */
     std::string hud_state = "off";   /* off, disabled, or the HUD feed's state */
@@ -127,15 +157,13 @@ class MapFeed {
 public:
     /* The reason while the stream is live and its picture blank. */
     static const char *const kWaiting;
+    /* The reason while hosted and hidden by the host. */
+    static const char *const kHostHidden;
     /* How often poll() looks for the worker's frame while it scales. */
     static const int64_t kScaleWaitMs = 5;
 
     explicit MapFeed(const FeedConfig &cfg);
 
-    /* Where the map goes from now on: a renderer target, or "sail" for the
-     * native central-map slot. False for a name the renderer has not got
-     * (known once connected). */
-    bool set_target(const std::string &name);
     /* The layer's guide_hold from now on. */
     void set_guide_hold(bool hold);
     const std::string &target() const { return cfg_.target; }
@@ -152,8 +180,8 @@ public:
     /* The HUD map kept shown over the stock HMI's pop-ups or not
      * (FeedConfig::hud_keep_shown), at once. */
     void set_hud_keep_shown(bool keep);
-    /* A layer to take frames: made, and not disabled by cluster-render's
-     * guard. */
+    /* A layer to take frames: made, and not reported disabled by
+     * cluster-render. */
     bool takes_frames() const { return layer_ && !disabled(); }
     int fd() const { return client_.fd(); }
     bool wants_write() const { return client_.wants_write(); }
@@ -170,6 +198,13 @@ public:
     /* The newest decoded frame, whose picture is the last one offered
      * again. */
     void repeat(uint64_t id, int64_t now_ms);
+    /* hosted_vpp_scale: the part of the decoded frame the layer shows, at
+     * the size it is sent at, for the decoder to make; unset unless hosted,
+     * shown and vpp_scale. */
+    const OutputPart &part() const { return part_; }
+    /* The newest decoded frame as that part (part's size), taken as offer()
+     * takes it; dropped unless it is part(). */
+    void offer_part(std::vector<uint8_t> *atlas, uint64_t id, const OutputPart &part, int64_t now_ms);
     /* The newest decoded frame, held for the layer to take when it can
      * (swapped, as offer does): a feed made after it starts from it. */
     void hold(std::vector<uint8_t> *atlas, uint64_t id);
@@ -183,7 +218,7 @@ public:
     /* A copy of the newest picture into *out; false when this feed has none
      * at hand. */
     bool latest(std::vector<uint8_t> *out) const;
-    /* cluster-render's mapping guard keeps the target's mapping off. */
+    /* cluster-render reports the target disabled. */
     bool disabled() const;
     /* Frames scaled for this feed. */
     uint64_t scaled_frames() const { return worker_.frames(); }
@@ -203,6 +238,12 @@ public:
 
 private:
     void make_layer();
+    /* The host of the feed's target from now on (into empty: none): the
+     * layer made again where it goes, or none while hidden. */
+    void set_host(const cr::Host &h);
+    bool hosted() const { return !host_.into.empty(); }
+    /* The target the layer is on: the host's, or the feed's own. */
+    const std::string &drawn_target() const { return hosted() ? host_.into : cfg_.target; }
     /* A layer that scales: the scaled frame to the renderer, and the newest
      * frame to the worker once the frame rate allows (offer and poll). */
     void send_pending(int64_t now_ms);
@@ -221,6 +262,7 @@ private:
 
     FeedConfig cfg_;
     cr::Client client_;
+    cr::Host host_;   /* the feed's target's host, from the renderer's events */
     uint32_t layer_ = 0;
     cr::LayerOptions lo_;   /* the layer's options as last sent */
     bool show_due_ = false;   /* visible once the frame waiting has gone */
@@ -252,6 +294,11 @@ private:
     bool scaling_ = false;
     std::vector<uint8_t> scaled_;
     int64_t next_send_ms_ = 0;
+    OutputPart part_;
+    /* Set: the newest picture is a VPP-made frame of this part, held_ while
+     * held_new_ (else the layer's last), never a whole picture. */
+    OutputPart held_part_;
+    const char *unpacked_why_ = nullptr;   /* why always_packed did not apply, as last logged */
 };
 
 }  // namespace woc

@@ -608,6 +608,35 @@ test('an older full-frame safe area prompts CarPlay\'s Patch button, which write
     patch._broadcast({ ev: 'status', state: 'patched', panel: 'high', mode: 'avb', res: '1088x480' });
     await until('older daemon', () => c.statusText() === 'Status: Patched' && c.mapText() === 'Cluster map: Waiting for the phone' && c.patchStatus.safe === undefined);
     assert.strictEqual(SAFE, '504x368+286+72');
+    /* The safe area 0.10.6 wrote: its Patch button is prompted, and writes SAFE. */
+    patch.safe = '476x306+306+72';
+    patch.announce('patched', 'high', null);
+    await until('0.10.6 safe area', () => c.statusText() === 'Status: Update needed');
+    c.enableMap();
+    await until('applied again', () => patch.count('apply') === 2 && !patch.busy);
+    assert.strictEqual(patch.safe, SAFE);
+    await until('current again', () => c.statusText() === 'Status: Patched');
+    c.close();
+});
+
+test('a patch with the cluster map URL without the arrival-time card prompts CarPlay\'s Patch button, which writes it', async (render, patch) => {
+    const c = control();
+    c.open();
+    await until('connected', () => c.connectedPatch() && c.connectedRender());
+    patch.res = SIZE;
+    patch.safe = SAFE;
+    patch.mapurl = 'no-eta';
+    patch.announce('patched', 'high', null);
+    await until('update map URL', () => c.statusText() === 'Status: Update needed' && c.canEnable());
+    c.enableMap();
+    await until('applied', () => patch.count('apply') === 1 && !patch.busy);
+    await until('current', () => c.statusText() === 'Status: Patched' && !c.canEnable());
+    /* A build without the edit, and one where it is stock, are current. */
+    for (const m of [null, 'off']) {
+        patch.mapurl = m;
+        patch.announce('patched', 'high', null);
+        await until('current with ' + m, () => c.patchStatus.mapurl === m && c.statusText() === 'Status: Patched' && !c.canEnable());
+    }
     c.close();
 });
 

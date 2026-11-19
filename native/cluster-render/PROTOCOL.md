@@ -43,8 +43,9 @@ lacks.
 | `transform` | `ref`, `part`, any of `tx`, `ty`, `tz`, `rx`, `ry`, `rz` (degrees, right-handed), `sx`, `sy`, `sz` |
 | `animate` | `ref`, `part`, `anim`, `property`, `name`, `keys`, `loop`, `interp` ([below](#animations)) |
 | `stop` | `ref`, `anim` |
-| `scene` | `ref`, `target`, `file`, `res`, `sha256`, `contend` ([below](#scene-files)); sent again with its ref, another file in place |
+| `scene` | `ref`, `target`, `file`, `res`, `sha256`, `contend`, `layers`, `layers_order` ([below](#scene-files)); sent again with its ref, another file in place |
 | `edit` | `ref` (a scene), `lines` ([below](#scene-edits)) |
+| `host` | `ref` (a scene with `layers` 1), `target`, `x`, `y`, `w`, `h`, `src_x`, `src_y`, `src_w`, `src_h`, `shown` ([below](#hosting-another-target)) |
 | `drop` | `ref`: a layer, a scene, or an asset no layer samples (else refused: `asset in use`) |
 | `repeat` | `ref` (a video layer): a frame whose atlas is the layer's last frame's, byte for byte, in place of that frame; to a service whose hello has `repeat` 1 |
 | `status` | — (answered by a `status` event) |
@@ -95,8 +96,8 @@ Layer fields (all optional):
 | `exclusive` | 0 | 1 hides every layer below it while it is drawn, once its first write has gone |
 | `prewarm` | 0 | 1 asks for the slot before the layer's first content |
 | `contend` | 0 | 1 retries the slot after the stock HMI takes it (2, 5, 10, 20, then every 30 s), and on a target that takes over from the stock HMI (`map`), takes it from the stock content; 0 waits until it is free |
-| `guide_hold` | 1 | on a target guide holds follow (`map`, iDrive 7): 0 keeps them released while this layer wants the target, so the stock HMI's guidance box shows (README.md "Guide hold") |
-| `yield` | 1 | on a target with yield slots (`hud`): 0 keeps the target shown over the stock HMI's pop-ups while this layer wants it (README.md "Giving way") |
+| `guide_hold` | 1 | on a target guide holds follow (`map`, iDrive 7): 0 keeps them released while this layer wants the target, so the stock HMI's turn box shows (README.md "Arbitration") |
+| `yield` | 1 | on a target with yield slots (`hud`): 0 keeps the target shown over the stock HMI's pop-ups while this layer wants it (README.md "Arbitration") |
 | `opacity` | 1 | 0-1, for video and image layers; drawn times the target's fade in and out |
 | `rotate` | 0 | video, image and effect layers: degrees clockwise about the pivot |
 | `sx`, `sy` | 1 | video, image and effect layers: scale about the pivot |
@@ -112,6 +113,7 @@ Kind fields:
 | | `dirty_threshold` | 8 | tiles differing by at most this many levels are not written (0-64) |
 | | `settle_ms` | 1000 | such a tile is written after this long anyway (0: never) |
 | | `pan_blocks` | 1 | fast motion as packed 4x4 blocks |
+| | `always_packed` | 0 | optional; 1: every write as packed 4x4 blocks, never the exact atlas. Each update is planned as an exact one (`dirty_threshold`, `settle_ms`, the tiles), and only the blocks in its tiles that changed are written, in place; the whole packed buffer goes only with the layer's first write in a scene or after a failed one, and a still picture writes nothing. Needs `pan_blocks` 1 and `vh` a multiple of 4, else it is off. A target's shared video has it only when all of its videos do. Send it only to a service whose hello has `always_packed` 1 (a service without it ignores it and writes the layer exact); a layer without it is written exact |
 | | `stall_ms` | 6000 | no frame for this long: the layer is stalled (not drawn) |
 | image | `iw`, `ih` | the rect | the image size, up to 1920x720 |
 | | `fps` | 30 | writes a second at most |
@@ -175,7 +177,7 @@ the asset's buffer does not hold them whole.
 The cluster cannot change a compressed texture in place, on iDrive 7 or
 iDrive 8: only uncompressed textures take updates. New pixels for an
 `etc2rgba` or `etc2rgb` asset mean a new asset sent whole, which costs its
-full size in upload and has not been tried per frame.
+full size in upload.
 
 - **Artwork sent once, then animated** by moving, scaling, fading or
   switching sprite-sheet frames: a compressed asset, preloaded
@@ -308,6 +310,8 @@ changed live by edits ([below](#scene-edits)).
 | `res` | its resource files, absolute paths separated by spaces (at most 16; none: empty) |
 | `sha256` | the SHA-256 of `file`, then of each file of `res` in its order: hex, separated by spaces |
 | `contend` | as a layer's |
+| `layers` | 0 (default): the target's layers wait while the file is there; 1: they are drawn over it ([below](#layers-over-a-scene-file)) |
+| `layers_order` | with `layers` 1: the render order the layers' passes start at; left out: one past the file's highest |
 
 The service runs as `hmi_5000` and any client may name a file, and a
 malformed file can take the RAMSES client down with the service, so it takes
@@ -320,12 +324,13 @@ the render loop). Anything else is refused with an `error` event (`op`
 `scene`). The file is loaded when the target's scene is published; it keeps
 the scene id it was saved with, which must be the target's
 (`<target>_scene_id`; a panel that has fallen back has
-`panel_fallback_scene_id`, README.md "Scene ids"), else the scene is in
+`panel_fallback_scene_id`), else the scene is in
 `error` with the reason.
 
 A target has at most one scene (another is refused: `the target has a
 scene file already`). While it is there and has not failed to load, the
-target is wanted, as by a layer that wants it, and every layer on it is
+target is wanted, as by a layer that wants it, and, unless the scene has
+`layers` 1, every layer on it is
 `waiting` with `reason` `scene <ref>` (the client's own scene) or
 `scene of <app>`, as below an exclusive layer. The scene's `layer` events:
 `waiting` (the target not shown yet: its state and reason, the `target`
@@ -341,7 +346,7 @@ again with its new scene.
 
 `scene` sent again with the scene's ref (its target unchanged) loads the
 new file in place: the scene is unpublished and published again with the
-same id while the target keeps its slot, and its kept edits go. A `layer`
+same id while the target keeps its slot, and its kept edits (and hosts) go. A `layer`
 event follows even when the state is the same.
 
 ### Scene edits
@@ -376,22 +381,72 @@ why. A line that changes nothing (no object matches, no mesh has the
 uniform, not a regular expression) is reported the same way, once per
 loaded scene.
 
+### Layers over a scene file
+
+A scene with `layers` 1 has the layers on its target, every client's, drawn
+over the file: in the file's own scene, with a camera and render passes of
+the service's that never clear, from render order `layers_order` up, one
+order a pass (the quads between two mesh layers share one; each mesh layer
+takes one), or from one past the file's highest pass without it. A pass of
+the file ordered above all of them is drawn over the layers: the file's
+owner can keep frame lines, an edge that fades into the file's artwork, or
+a shape cut out of it on top of what the layers draw. The layers are
+arranged, faded, written and flushed as on any target, the scene's edits
+in the same flush, within the same budget; the file's resources are charged
+as without layers. The edits never wait for the layers: while a layer holds
+the target's flushes (a buffer left half written, an uncover the budget
+defers), the flush goes for the edits all the same and the layers' writes
+count as not gone (a video writes whole next), so what a layer wrote may
+show half done meanwhile. `scene` sent again with `layers` 0 publishes the
+file again without them, and they wait. A display that draws nothing over
+files (iDrive 8) leaves the layers waiting, the file shown, and logs why.
+
+### Hosting another target
+
+A scene with `layers` 1 may show another target's content: `host` tells
+every client that `target` is hosted in the scene's target, at `x`, `y`,
+`w`, `h` there (inside it), and which part of `target` it shows: `src_x`,
+`src_y`, `src_w`, `src_h` in `target`'s pixels (inside it; all four or none:
+none is all of it), stretched over the rect; `shown` 0 shows it nowhere.
+The service only keeps this and tells the clients (the `host` event); it
+moves nothing. A producer of `target` that follows it puts its layer in the
+scene's target where that part of its own drawing lands in the rect, with
+only that part of its picture, and nothing on `target`, so `target`'s slot
+is let go; with `shown` 0 it has no layer at all. A producer that does not
+know the event keeps drawing on `target` as before. The event says a target
+is hosted only while the scene can draw it: its file published as the
+target's scene with the layers over it; at other times (not published yet,
+published again, a display that draws no layers over files) it says the
+target is not hosted, so a producer stays where it can be seen. `host` sent
+again with the same `target` replaces it. A target is hosted by one scene at
+most (another's is refused: `target T is hosted by another scene`), never
+by a scene on itself. A `host` refused (the `error` event names its
+`target`) ends that scene's host of that target, if it had one. Hosting ends
+when the scene goes (`drop`, its client gone), is sent again (another file,
+or `layers` 0: its hosts go with its edits), fails to load, or the display
+draws no layers over it. The client libraries keep a scene's `host`
+messages and send them again after a reconnect, except one the service
+refused or one whose scene was sent again since, and send none for a scene
+without `layers` or for the scene's own target.
+
 ## Service to client
 
 Every JSON message has `ev`.
 
 | ev | Fields | When |
 |---|---|---|
-| `hello` | `proto`, `backend` (`id7`, or `id8` on iDrive 8), `targets` (`map:1088x480,panel:1920x720,hud:800x480`; on iDrive 8 `map:874x749,hud:353x203,guide:702x213,widget:2240x896,popup:2240x896`), `repeat` (1: takes `repeat`) | after the client's hello |
+| `hello` | `proto`, `backend` (`id7`, or `id8` on iDrive 8), `targets` (`map:1088x480,panel:1920x720,hud:800x480`; on iDrive 8 `map:874x749,hud:353x203,guide:702x213,widget:2240x896,popup:2240x896`, then any a drop-in adds, README.md "iDrive 8"), `repeat` (1: takes `repeat`), `always_packed` (1: takes a video layer's `always_packed`; absent from older services) | after the client's hello |
 | `layer` | `ref`, `state`, `reason` | the layer's state changed |
 | `target` | `target`, `state`, `holder`, `reason`, `retry_in_ms`, `rendering`, `guide_disabled`, `disabled` | a target's state changed |
 | `budget` | `cap_kb_per_s`, `max_kb_per_s`, `floor_kb_per_s`, `reason` | the upload cap changed |
-| `error` | `op`, `ref`, `reason`; `line` for an edit line | a message was refused, or an edit line changed nothing |
+| `error` | `op`, `ref`, `reason`; `line` for an edit line; `target` for a `host` | a message was refused, or an edit line changed nothing |
 | `status` | `text` | after a status request; among its lines, one for each slot the KOMBI's latest reports name: `slot 0x203 status 2: 0x1000400 class 0 map 1, ...` (each row's content, class and map status) |
+| `host` | `target`, `into` (the hosting scene's target; empty: `target` is not hosted any more), `shown`, `x`, `y`, `w`, `h`, `src_x`, `src_y`, `src_w`, `src_h` | after the client's hello for each hosted target, and to every client when a host comes, changes or ends ([above](#hosting-another-target)) |
 
 Layer states (a scene's too, [above](#scene-files)): `shown`; `waiting`
 (its target is not shown yet or is taken, an asset it samples is not
-written yet, or a scene file is on its target; `reason` says which);
+written yet, or a scene file without `layers` 1 is on its target; `reason`
+says which);
 `suspended` (below an exclusive layer); `stalled` (no content yet: no frame,
 no part with geometry, an asset it samples without pixels; or a video's
 frames stopped); `hidden`; `error` (the renderer refused it). Target states:
@@ -405,12 +460,8 @@ someone else holds the slot, and `retry_in_ms` when on a timer),
 (the display's renderer is subscribed to its scene), `checking` (not
 subscribed yet; after 1.5 s shown the service asks for the slot again),
 `unobservable` (the service cannot see subscriptions); `none` otherwise.
-`guide_disabled`: 1 while a guide hold following the target (`map`) is
-disabled by the mapping guard or by the display refusing its slot, so the
-stock HMI's guidance box shows whatever the layers' `guide_hold`; else 0.
-`disabled`: 1 while the target's own mapping is disabled by the mapping
-guard (the HUD's, README.md "Mapping guard"): it is never asked for, its
-layers stay waiting; else 0.
+`guide_disabled` and `disabled` are always 0; no target or guide hold is
+ever turned off for good.
 
 On a head unit that refuses the service (README.md "Supported head
 units") no `hello` comes: a `status` request gets `text` `not supported on
