@@ -88,7 +88,7 @@ function ask(obj) {
             buf.split('\n').forEach(function (l) {
                 var m = null;
                 try { m = JSON.parse(l); } catch (e) {}
-                if (m && /^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple)-reply$/.test(m.ev)) { s.end(); resolve(m); }
+                if (m && /^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple|hud-fade)-reply$/.test(m.ev)) { s.end(); resolve(m); }
             });
         });
         s.on('error', reject);
@@ -150,6 +150,11 @@ function ok(name, cond) {
     state = fs.readFileSync(STATE, 'utf8');
     r = await ask({ cmd: 'hud-keep-shown', on: '1' });
     ok('a keep-shown that is not 0 or 1 is refused, nothing written', !r.ok && fs.readFileSync(STATE, 'utf8') === state);
+    r = await ask({ cmd: 'hud-fade', hud_edge_fade_pct: 15 });
+    state = fs.readFileSync(STATE, 'utf8');
+    ok('保存 HUD 羽化档位', r.ok && r.hud_edge_fade_pct === 15 && /hud_edge_fade_pct = 15\n/.test(state));
+    r = await ask({ cmd: 'hud-fade', hud_edge_fade_pct: 31 });
+    ok('拒绝无效的羽化强度', !r.ok && fs.readFileSync(STATE, 'utf8') === state);
     ok('the local conf untouched by every setting', fs.readFileSync(CONF, 'utf8') === conf);
     /* A burst: one write SAVE_MS after the last change, every reply after it. */
     var saves = function () { return out.split('(saved for the next start)').length - 1; };

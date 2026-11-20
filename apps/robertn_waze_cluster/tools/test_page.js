@@ -298,7 +298,7 @@ async function main() {
     assert.deepStrictEqual(main.map(([id, type, name, text]) => (type === 'title' ? name : `${name} ${text}`)), [
         'wocTitle',
         'wocHeadGeneral General', 'wocShowOn Show on: Cluster', 'wocProfile Own settings for this driver', 'wocMap Cluster map: Off', "wocGuide Hide BMW's turn box", 'wocLogs Logs',
-        'wocHeadHud HUD', 'wocHud HUD map: \u2014', 'wocHudValidation Run HUD validation (parked)', "wocHudKeep Keep HUD map over BMW's pop-ups", 'wocHudSize Size: \u2014', 'wocHudPos Position: \u2014', 'wocHudLeft Move left',
+        'wocHeadHud HUD', 'wocHud HUD map: \u2014', 'wocHudValidation Run HUD validation (parked)', "wocHudKeep Keep HUD map over BMW's pop-ups", 'wocHudSize Size: \u2014', 'wocHudFade HUD edge fade', 'wocHudPos Position: \u2014', 'wocHudLeft Move left',
         'wocHudRight Move right', 'wocHudUp Move up', 'wocHudDown Move down', 'wocHudCentre Centre',
         'wocHeadCarPlay CarPlay', 'wocStatus Status: Connecting…', 'wocEnable Patch', 'wocDisable Remove patch', 'wocWifi ', 'wocWifiHint ',
         'wocHeadAa Android Auto', 'wocAaStatus Status: Connecting…', 'wocAaEnable Patch', 'wocAaDisable Remove patch',
@@ -371,7 +371,7 @@ async function main() {
         assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
         const bound = logs.filter((l) => l.startsWith('info: BIND OK: ')).map((l) => l.split(' ')[3]).sort();
         assert.deepStrictEqual(bound, ['wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut', 'wocCapture', 'wocDisable', 'wocEnable',
-            'wocGuide', 'wocHudCentre', 'wocHudDown', 'wocHudKeep', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocLogs', 'wocLogsSave', 'wocProfile',
+            'wocGuide', 'wocHudCentre', 'wocHudDown', 'wocHudFade', 'wocHudKeep', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocLogs', 'wocLogsSave', 'wocProfile',
             'wocHudValidation', 'wocRestart'].sort(),
             'bound buttons and checkbox');
         assert.strictEqual(byName.wocRestart.visible, false, 'restart button hidden while the map shows');
@@ -478,6 +478,7 @@ async function main() {
         const simpleKeep = byName.wocHudKeep;
         assert.strictEqual(simpleKeep.enabled, true);
         assert.strictEqual(byName.wocHudSize.enabled, false);
+        assert.strictEqual(byName.wocHudFade.enabled, false);
         simpleKeep.press();
         await until('在简洁模式勾选并保存弹窗设置', () => simpleKeep.selected &&
             patch.map.hud_keep_shown === 1 && simpleKeepSettings.includes(true));
@@ -522,7 +523,8 @@ async function main() {
         render.received.length = 0;
         patch.received.length = 0;
         const size = byName.wocHudSize;
-        const hudRows = () => ['wocHudKeep', 'wocHudSize', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocHudDown'].map((n) => byName[n].enabled);
+        const fade = byName.wocHudFade;
+        const hudRows = () => ['wocHudKeep', 'wocHudSize', 'wocHudFade', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocHudDown'].map((n) => byName[n].enabled);
         await until('the cluster, the HUD off', () => showOn.shown() === 'Show on: Cluster' && showOn.enabled === true &&
             byName.wocHud.text === 'HUD map: Off' && size.text === 'Size: Standard' && size.cells['0:Value'] === 5 &&
             byName.wocHudPos.text === 'Position: Centre');
@@ -537,6 +539,20 @@ async function main() {
         await until('the size and position enabled', () => hudRows().every((e) => e === true));
         assert.deepStrictEqual(render.received, [{ cmd: 'hud', on: '1' }, { cmd: 'cluster', on: '0' }], 'the HUD on, then the cluster off');
         await until('saved', () => patch.count('hud') === 1 && patch.count('cluster') === 1);
+        for (const [pct, label] of [[8, 'Soft'], [15, 'Medium'], [25, 'Strong'], [0, 'Off']]) {
+            fade.press();
+            await until(`HUD edge fade ${label}`, () => render.hudFade === pct && patch.map.hud_edge_fade_pct === pct &&
+                fade.text === `HUD edge fade: ${label}`);
+            await sleep(450);
+        }
+        render.hudFade = null;
+        render._broadcast(render._status());
+        await until('旧版后端不启用边缘羽化', () => fade.enabled === false);
+        fade.press();
+        assert.strictEqual(patch.map.hud_edge_fade_pct, 0);
+        render.hudFade = 0;
+        render._broadcast(render._status());
+        await until('支持羽化的后端恢复', () => fade.enabled === true);
         size.turn(1);
         await until('larger', () => size.text === 'Size: 60 %' && render.hudWidth === 60 && size.cells['0:Value'] === 6);
         await until('saved', () => patch.received.some((m) => m.cmd === 'hud-size' && m.hud_width_pct === 60));

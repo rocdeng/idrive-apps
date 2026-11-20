@@ -112,6 +112,7 @@ const SHOWN_ON = ['cluster', 'hud', 'both', 'off', 'simple'];
  * HUD and reports the offset as far as it went. An asked size or place shows until the render's status has it,
  * HUD_ASKED_MS has passed, the render reconnects or patchd fails to save the size; then the render's own. */
 const HUD_MOVE_PX = 10, HUD_MOVE_MAX = 400, HUD_ASKED_MS = 300;
+const HUD_FADES = [0, 8, 15, 25];
 const MOVES = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
 
 /* One newline-delimited-JSON stream socket, reconnecting while open.
@@ -306,6 +307,7 @@ class WazeClusterControl extends EventEmitter {
             this.renderStatus = null;
             this._askedShownOn = null;
             this._clearAskedHud();
+            this._clearAskedFade();
             this.emit('change');
         };
         this.render.on('connect', reset);
@@ -325,6 +327,7 @@ class WazeClusterControl extends EventEmitter {
         clearTimeout(this._askedPosTimer);
         this._askedPos = null;
         this._clearAskedHud();
+        this._clearAskedFade();
         this.render.close();
         this.patch.close();
         this.renderStatus = null;
@@ -520,6 +523,42 @@ class WazeClusterControl extends EventEmitter {
     _clearAskedHud() {
         clearTimeout(this._askedHudTimer);
         this._askedHud = null;
+    }
+
+    hudFade() {
+        const v = this.renderStatus && this.renderStatus.hud_edge_fade_pct;
+        if (!Number.isInteger(v) || v < 0 || v > 30) return null;
+        return this._askedFade == null ? v : this._askedFade;
+    }
+
+    canChangeHudFade() {
+        return this.canChangeHudSize() && this.hudFade() !== null;
+    }
+
+    hudFadeText() {
+        const v = this.hudFade();
+        const labels = [t('Off'), t('Soft'), t('Medium'), t('Strong')];
+        return t('HUD edge fade: {0}', v == null ? '—' : labels[HUD_FADES.indexOf(v)] || t('{0} %', v));
+    }
+
+    cycleHudFade() {
+        if (!this.canChangeHudFade()) return;
+        const v = this.hudFade();
+        const next = HUD_FADES.find((pct) => pct > v) || 0;
+        this._clearAskedFade();
+        this._askedFade = next;
+        this._askedFadeTimer = setTimeout(() => {
+            this._clearAskedFade();
+            this.emit('change');
+        }, HUD_ASKED_MS);
+        this.render.send({ cmd: 'hud', hud_edge_fade_pct: String(next) });
+        this.patch.send({ cmd: 'hud-fade', hud_edge_fade_pct: next });
+        this.emit('change');
+    }
+
+    _clearAskedFade() {
+        clearTimeout(this._askedFadeTimer);
+        this._askedFade = null;
     }
 
     /* ---- where the HUD map is: moved from its centre, in HUD pixels ---- */
@@ -1062,6 +1101,7 @@ class WazeClusterControl extends EventEmitter {
             if (this._askedHud != null && msg.hud_width_pct === this._askedHud) {
                 this._clearAskedHud();
             }
+            if (msg.hud_edge_fade_pct === this._askedFade) this._clearAskedFade();
             if (this._askedPos && msg.hud_x === this._askedPos[0] && msg.hud_y === this._askedPos[1]) {
                 this._askedPos = null;
             }
@@ -1082,7 +1122,7 @@ class WazeClusterControl extends EventEmitter {
             this._noteCardAsked(msg);
             this._wake();
             this.emit('change');
-        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple)-reply$/.test(msg.ev)) {
+        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple|hud-fade)-reply$/.test(msg.ev)) {
             if (!msg.ok) {
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
                 if (msg.ev === 'hud-simple-reply') {

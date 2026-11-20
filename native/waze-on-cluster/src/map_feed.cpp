@@ -126,7 +126,7 @@ void MapFeed::make_layer()
      * renderer and packed motion need), drawn 1:1 centred where the quad
      * was. On the cluster the KOMBI scales a map_rect itself. */
     cr::VideoOptions vo = cfg_.video;
-    scaling_ = false;
+    scaling_ = fade_only_ = false;
     const uint32_t sw = q.w & ~3u, sh = q.h & ~3u;
     if (hosted()) {
         /* Hosted: the part of the picture the host's src covers where the
@@ -181,7 +181,16 @@ void MapFeed::make_layer()
         shape_.level_bits = cfg_.scaled_level_bits;
         shape_.radius = cfg_.hud_round_corners ? (sh / 12 > 6 ? sh / 12 : 6) : 0;
         shape_.black = cfg_.hud_black_background;
+    } else if (cfg_.target == "hud" && cfg_.hud_edge_fade_pct) {
+        // 纹理无需缩放时，也可以由同一个工作线程处理羽化。
+        scaling_ = fade_only_ = true;
+        shape_ = ScaleShape();
+        shape_.w = shape_.dw = vo.w;
+        shape_.h = shape_.dh = vo.h;
+        shape_.level_bits = vo.level_bits;
     }
+    if (scaling_ && !hosted() && cfg_.target == "hud")
+        shape_.fade = shape_.dh * cfg_.hud_edge_fade_pct / 100;
     /* a VPP-made picture is of no use to a layer of another part, or none */
     if (held_part_.set() && held_part_ != part_) {
         held_part_ = OutputPart();
@@ -298,6 +307,27 @@ void MapFeed::set_hud_keep_shown(bool keep)
         client_.set(layer_, lo_);
         log_info("render: HUD map %s", keep ? "kept shown over BMW's pop-ups" : "gives way to BMW's pop-ups");
     }
+}
+
+void MapFeed::set_hud_edge_fade(unsigned pct)
+{
+    if (pct == cfg_.hud_edge_fade_pct)
+        return;
+    cfg_.hud_edge_fade_pct = pct;
+    if (cfg_.target != "hud" || !layer_ || hosted())
+        return;
+    if (!scaling_ || (fade_only_ && !pct)) {
+        keep_newest();
+        client_.drop(layer_);
+        layer_ = 0;
+        make_layer();
+    } else {
+        shape_.fade = shape_.dh * pct / 100;
+        // 静止画面也重绘。若原帧在工作线程内，等它交还后再处理。
+        if (in_worker_ || !held_.empty())
+            held_new_ = true;
+    }
+    log_info("render: HUD map edge fade %u%%", pct);
 }
 
 void MapFeed::set_hud_width(unsigned pct)
@@ -566,6 +596,7 @@ FeedStatus MapFeed::status(const std::string &decode, const std::string &stream)
     s.hud_width_pct = cfg_.hud_width_pct;
     s.hud_offset_x = placed_x_;
     s.hud_keep_shown = cfg_.hud_keep_shown;
+    s.hud_edge_fade_pct = cfg_.hud_edge_fade_pct;
     s.hud_offset_y = placed_y_;
     s.upload_cap_kb = cap_kb_;
     s.upload_reason = budget_reason_;

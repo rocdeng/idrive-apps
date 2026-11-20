@@ -1348,6 +1348,25 @@ int main()
     }
 
 
+    // 静止画面切换档位时，HUD 重绘当前帧，仪表仍显示原图。
+    std::vector<uint8_t> still(1088 * 720, 128);
+    std::fill_n(still.begin(), 1088 * 480, 200);
+    bpump(1000, &still);
+    std::vector<uint8_t> unfaded, faded;
+    ref.set_black_background(true);
+    ref.scale(still.data(), &unfaded);
+    ok("HUD edge fade fixture: the still frame is shown", shown_r8("hud", unfaded));
+    ref.set_edge_fade(30);
+    ref.scale(still.data(), &faded);
+    feeds.set_hud_edge_fade(15);
+    bpump(300, nullptr);
+    ok("HUD edge fade: redraws a still frame without changing the cluster",
+       faded != unfaded && shown_r8("hud", faded) && shown_r8("map", still) &&
+           feeds.status("decode").hud_edge_fade_pct == 15);
+    feeds.set_hud_edge_fade(0);
+    bpump(300, nullptr);
+    ok("HUD edge fade off: restores the still frame", shown_r8("hud", unfaded));
+
     /* ---- the HUD map's size ---- */
     const crs::Layer *hl = layer_on(2);
     const unsigned default_w = hl ? hl->params.rect.w : 0;

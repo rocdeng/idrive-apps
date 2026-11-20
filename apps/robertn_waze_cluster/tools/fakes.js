@@ -155,6 +155,7 @@ class FakeRender extends LineServer {
         if (this.hud !== null) {
             Object.assign(s, { cluster: this.cluster, hud: this.hud, hud_state: this.hud ? this.hudState || this.state : 'off',
                 hud_width_pct: this.hudWidth || 0, hud_x: this.hudX || 0, hud_y: this.hudY || 0 });
+            if (this.hudFade !== null) s.hud_edge_fade_pct = this.hudFade || 0;
             if (this.hudKeep !== null) s.hud_keep_shown = this.hudKeep;
         }
         if (this.hide !== null) {
@@ -200,6 +201,7 @@ class FakeRender extends LineServer {
             const lim = (v) => (this.hudMaxX ? Math.max(-this.hudMaxX, Math.min(this.hudMaxX, v)) : v);
             if (msg.hud_x !== undefined) this.hudX = lim(Number(msg.hud_x));
             if (msg.hud_y !== undefined) this.hudY = Number(msg.hud_y);
+            if (msg.hud_edge_fade_pct !== undefined && this.hudFade !== null) this.hudFade = Number(msg.hud_edge_fade_pct);
             if (msg.hud_keep_shown !== undefined && this.hudKeep !== null) this.hudKeep = Number(msg.hud_keep_shown);
             this._broadcast(this._status());
         }
@@ -319,9 +321,9 @@ class FakePatch extends LineServer {
             return;
         }
         const MAP = { cluster: ['cluster'], hud: ['hud'], 'hud-size': ['hud_width_pct'], 'hud-pos': ['hud_offset_x', 'hud_offset_y'],
-            'hud-keep-shown': ['hud_keep_shown'] };
+            'hud-keep-shown': ['hud_keep_shown'], 'hud-fade': ['hud_edge_fade_pct'] };
         if (MAP[msg.cmd]) {
-            const v = msg.cmd === 'hud-pos' ? [msg.hud_x, msg.hud_y] : [msg.cmd === 'hud-size' ? msg.hud_width_pct : msg.on];
+            const v = msg.cmd === 'hud-pos' ? [msg.hud_x, msg.hud_y] : [msg.cmd === 'hud-size' ? msg.hud_width_pct : msg.cmd === 'hud-fade' ? msg.hud_edge_fade_pct : msg.on];
             this.map = Object.assign({}, this.map);
             MAP[msg.cmd].forEach((k, i) => { this.map[k] = v[i]; });
             if (msg.cmd === 'hud' && msg.on === 1) this.map.hud_simple = 0;

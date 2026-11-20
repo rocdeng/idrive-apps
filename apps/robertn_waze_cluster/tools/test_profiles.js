@@ -307,6 +307,12 @@ async function main() {
         await until('render moved', () => render.received.length === 3);
         assert.deepStrictEqual(render.received[2], { cmd: 'hud', hud_width_pct: '0', hud_x: '0', hud_y: '0' });
     });
+    await check('切换驾驶员后恢复 HUD 羽化档位', async () => {
+        render.received.length = 0;
+        sync2._toRender(Object.assign(settings(1, 1, 0, 0, 0), { hud_edge_fade_pct: 25 }));
+        await until('羽化档位到达渲染端', () => render.hudFade === 25);
+        assert.strictEqual(render.received[2].hud_edge_fade_pct, '25');
+    });
     await check('驾驶员切换先更新简洁模式，再打开视频 HUD', async () => {
         const events = [];
         c.simpleHud = { settings: (s) => events.push(s.hud_simple) };

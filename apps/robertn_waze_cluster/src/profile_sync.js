@@ -329,6 +329,9 @@ class ProfileSync extends EventEmitter {
         if (s.hud_keep_shown === 0 || s.hud_keep_shown === 1) {
             hud.hud_keep_shown = on(s.hud_keep_shown);
         }
+        if (Number.isInteger(s.hud_edge_fade_pct) && s.hud_edge_fade_pct >= 0 && s.hud_edge_fade_pct <= 30) {
+            hud.hud_edge_fade_pct = String(s.hud_edge_fade_pct);
+        }
         const cmds = shows.map((d) => ({ cmd: d, on: on(s[d]) })).concat([hud]);
         const c = this._control;
         if (c && c.render && c.render.connected()) {
