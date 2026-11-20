@@ -98,8 +98,10 @@ async function main() {
     hud.settings({ hud_simple: 1, hud: 0, hud_keep_shown: 1 });
     assert.strictEqual(outputs[0].keepShown, true, '沿用普通 HUD 的弹窗让位设置');
     assert.deepStrictEqual(publications[0].frame, Buffer.from(renderer.render(nav.fromBmw(reply), new Font(require('../src/hud_font_data.js')))));
+    const firstFrame = hud.frame;
     hud.tick(); await until(() => !hud.busy);
     assert.strictEqual(publications.length, 1, '重复完整状态不重复发送像素');
+    assert.strictEqual(hud.frame, firstFrame, '重复完整状态不重新分配帧');
     outputs[0].report('unavailable');
     hud.tick(); await until(() => !hud.busy);
     assert.strictEqual(hud.state, 'unavailable', '相同导航数据不能掩盖输出断连');

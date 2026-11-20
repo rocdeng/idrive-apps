@@ -112,7 +112,7 @@ async function main() {
         }
         assert.strictEqual(validation.validation, null);
         assert.strictEqual(validation.output, null);
-        console.log('通过：全部 43 个场景经正式解析、绘制、输出客户端和 Unix socket 传输，最后清屏并释放连接');
+        console.log(`通过：全部 ${scenarios.length} 个场景经正式解析、绘制、输出客户端和 Unix socket 传输，最后清屏并释放连接`);
     } finally {
         if (validation) validation.stop();
         output.close();

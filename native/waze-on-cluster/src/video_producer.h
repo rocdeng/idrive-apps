@@ -123,7 +123,7 @@ public:
      * buffer comes back for the next one), or with *same the picture last
      * taken again (*frame untouched); false when there is none. With part,
      * the part of the frame it is (set_part; unset: the whole frame). */
-    bool take(std::vector<uint8_t> *frame, uint64_t *id, bool *same, OutputPart *part = nullptr);
+    bool take(std::vector<uint8_t> *frame, uint64_t *id, bool *same, OutputPart *part = nullptr, bool *clean = nullptr);
     /* hosted_vpp_scale: the frames from the next picture on are this part
      * of the frame, at its size, made by VPP (Decoder::set_part), as far as
      * VPP can; unset: the whole frame. Main thread. */
@@ -258,6 +258,7 @@ private:
     mutable std::mutex frame_mutex_;
     std::vector<uint8_t> back_;
     bool back_dirty_ = false;
+    bool back_clean_ = false;
     bool repeat_ = false;            /* the picture last taken is due again (back_dirty_ false) */
     int ready_[2] = {-1, -1};        /* a byte written when a frame waits to be taken */
     uint32_t back_w_ = 0, back_h_ = 0;

@@ -7,6 +7,7 @@ const renderer = require('./hud_renderer.js');
 const Font = require('./hud_font.js');
 const Output = require('./hud_output.js');
 const scenarios = require('./hud_validation_scenarios.js');
+const { HudTrafficReader } = require('./hud_traffic_reader.js');
 
 /* 跟随 app 的后台生命周期，独立于设置页面；只把新查询的完整状态交给绘制器。 */
 class StructuredHud extends EventEmitter {
@@ -14,6 +15,7 @@ class StructuredHud extends EventEmitter {
         super();
         const o = options;
         this.reader = o.reader;
+        this.traffic = o.traffic || new HudTrafficReader();
         this.outputFactory = o.outputFactory || ((keepShown, onState) => new Output(undefined, keepShown, onState));
         this.log = o.log || { info() {}, warn() {} };
         this.font = null;
@@ -26,6 +28,7 @@ class StructuredHud extends EventEmitter {
         this.output = null;
         this.suspended = true;
         this.frame = null;
+        this.drawKey = null;
         this.lastRead = 0;
         this.busy = false;
         this.generation = 0;
@@ -73,14 +76,18 @@ class StructuredHud extends EventEmitter {
     /* 切回地图时先销毁连接，不能让 renderer 重连后重放旧导航。 */
     suspend() {
         this.suspended = true;
+        this.traffic.reset();
         this.generation++;
         this.validation = null;
         this.frame = null;
+        this.drawKey = null;
         if (this.output) this.output.close();
         this.output = null;
     }
 
     hide(state) {
+        this.traffic.reset();
+        this.drawKey = null;
         if (this.frame) {
             this.frame = null;
             if (this.output) this.output.update(null, false);
@@ -117,9 +124,12 @@ class StructuredHud extends EventEmitter {
     }
 
     draw(state, label) {
+        const key = JSON.stringify([state, label]);
+        if (this.drawKey === key) return;
         if (!this.font) this.font = new Font(require('./hud_font_data.js'));
         const frame = Buffer.from(renderer.render(state, this.font, label));
         const changed = !this.frame || !this.frame.equals(frame);
+        this.drawKey = key;
         this.frame = frame;
         if (!this.output) {
             const generation = this.generation;
@@ -156,13 +166,14 @@ class StructuredHud extends EventEmitter {
         if (this.busy || Date.now() < this.retryAt) return;
         this.busy = true;
         const generation = this.generation;
-        Promise.resolve().then(() => this.reader.read()).then((reply) => {
+        Promise.resolve().then(() => this.reader.read()).then(async (reply) => {
             if (!this.enabled || this.suspended || generation !== this.generation) return;
             const state = nav.fromBmw(reply);
             this.lastRead = Date.now();
             this.retryAt = 0;
             if (state.state === 'inactive') { this.hide('waiting'); return; }
-            this.draw(state);
+            state.trafficLight = await this.traffic.read();
+            if (this.enabled && !this.suspended && generation === this.generation) this.draw(state);
         }).catch((error) => {
             if (!this.enabled || generation !== this.generation) return;
             this.hide('unavailable');

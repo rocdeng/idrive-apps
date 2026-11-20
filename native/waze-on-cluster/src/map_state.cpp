@@ -41,6 +41,24 @@ bool valid(const std::string &key, const std::string &value)
 
 }  // namespace
 
+bool simple_hud_selected(const std::string &path)
+{
+    std::ifstream file(path);
+    std::string line;
+    bool simple = false, video_off = false;
+    while (std::getline(file, line)) {
+        const size_t eq = line.find('=');
+        if (eq == std::string::npos)
+            continue;
+        const std::string key = trim(line.substr(0, eq)), value = trim(line.substr(eq + 1));
+        if (key == "hud_simple")
+            simple = value == "1";
+        if (key == "hud")
+            video_off = value == "0";
+    }
+    return simple && video_off;
+}
+
 void load_map_state(cld::Config *cfg, const std::string &path)
 {
     if (path.empty() || access(path.c_str(), F_OK) != 0)
@@ -56,7 +74,7 @@ void load_map_state(cld::Config *cfg, const std::string &path)
             continue;
         const size_t eq = line.find('=');
         const std::string key = trim(line.substr(0, eq)), value = eq == std::string::npos ? "" : trim(line.substr(eq + 1));
-        // 简洁导航由 OAP 后台模块绘制；视频服务只读取与自己有关的设置。
+        // 简洁导航由 OAP 绘制，取帧许可由 simple_hud_selected 独立读取。
         if (key == "hud_simple")
             continue;
         const bool known = std::find_if(std::begin(kMapStateKeys), std::end(kMapStateKeys),

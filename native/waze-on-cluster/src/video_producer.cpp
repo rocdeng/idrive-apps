@@ -483,6 +483,7 @@ void VideoProducer::on_frame(const VideoFrame &f, bool late)
         back_w_ = f.w;
         back_h_ = f.h;
         back_part_ = f.part;
+        back_clean_ = f.corrupted == 0;
         back_dirty_ = true;
         repeat_ = false;
     } else {
@@ -492,7 +493,7 @@ void VideoProducer::on_frame(const VideoFrame &f, bool late)
     back_id_ = late ? decoded_total_.load() : decoded_total_.fetch_add(1) + 1;
 }
 
-bool VideoProducer::take(std::vector<uint8_t> *frame, uint64_t *id, bool *same, OutputPart *part)
+bool VideoProducer::take(std::vector<uint8_t> *frame, uint64_t *id, bool *same, OutputPart *part, bool *clean)
 {
     std::lock_guard<std::mutex> lock(frame_mutex_);
     *same = !back_dirty_;
@@ -502,6 +503,8 @@ bool VideoProducer::take(std::vector<uint8_t> *frame, uint64_t *id, bool *same, 
         return false;
     if (part)
         *part = back_part_;
+    if (clean)
+        *clean = back_dirty_ && back_clean_;
     *id = back_id_;
     back_dirty_ = repeat_ = false;
     char drain[8];

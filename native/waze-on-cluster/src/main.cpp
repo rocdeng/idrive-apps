@@ -27,6 +27,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <grp.h>
+#include <sys/stat.h>
 #include <poll.h>
 #include <pthread.h>
 #include <sys/signalfd.h>
@@ -66,6 +68,34 @@ namespace {
 /* The local conf earlier versions read, kept on the unit for a downgrade.
  * This version does not read it. */
 const char kUnreadLocalConf[] = "/var/opt/waze-on-cluster/waze-on-cluster.local.conf";
+
+// 默认 systemd RuntimeDirectory，与 OAP 取帧协议固定配对。
+void save_hud_sample(const std::vector<uint8_t> &frame, gid_t group, uint64_t sampled_ms)
+{
+    const char tmp[] = "/run/waze-on-cluster/hud-frame.tmp";
+    const char dst[] = "/run/waze-on-cluster/hud-frame.yuv";
+    const int fd = open(tmp, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) {
+        if (errno == EEXIST)
+            unlink(tmp);  // 清理上次进程中止留下的临时帧
+        return;
+    }
+    uint8_t header[12] = {'W', 'O', 'C', '1'};
+    for (unsigned i = 0; i < 8; ++i)
+        header[4 + i] = uint8_t(sampled_ms >> (8 * i));
+    auto write_all = [fd](const uint8_t *data, size_t size) {
+        while (size) {
+            const ssize_t n = write(fd, data, size);
+            if (n > 0) { data += n; size -= (size_t)n; }
+            else if (n == 0 || errno != EINTR) return false;
+        }
+        return true;
+    };
+    const bool ok = write_all(header, sizeof header) && write_all(frame.data(), frame.size()) &&
+                    fchown(fd, (uid_t)-1, group) == 0 && fchmod(fd, 0640) == 0;
+    if (close(fd) < 0 || !ok || rename(tmp, dst) < 0)
+        unlink(tmp);
+}
 
 std::string status_line(const FeedStatus &s)
 {
@@ -302,7 +332,13 @@ int serve(Config cfg)
     StreamLiveness liveness(vc.stall_ms);
     std::string last_detail;
     AltScreen::State alt_state = AltScreen::Unknown;
-    int64_t alt_read_ms = 0;
+    int64_t alt_read_ms = 0, next_hud_sample_ms = 0;
+    bool sample_hud = false, hud_selected = false;
+    struct stat map_stamp = {};
+    const std::string map_state_path = cfg.str("map_state_file");
+    const struct group *oap_group = getgrnam("tm_oap_app");
+    const gid_t oap_gid = oap_group ? oap_group->gr_gid : (gid_t)-1;
+    const bool hud_sample_size = vc.tex_width == 1088 && vc.tex_height == 480;
     for (;;) {
         std::vector<pollfd> p = {{sig_fd, POLLIN, 0}, {control.listen_fd(), POLLIN, 0}, {control.owner_fd(), POLLIN, 0},
                                  {producer.ready_fd(), POLLIN, 0}};
@@ -325,7 +361,14 @@ int serve(Config cfg)
         uint64_t id = 0;
         bool same = false;
         OutputPart part;
-        if (producer.take(&frame, &id, &same, &part)) {
+        bool clean = false;
+        if (producer.take(&frame, &id, &same, &part, &clean)) {
+            // 复用仪表已经解码的完整 CarPlay 帧。简洁模式不要求额外解码。
+            if (sample_hud && !same && clean && !part.set() && now >= next_hud_sample_ms &&
+                frame.size() == 1088 * atlas_height(480)) {
+                save_hud_sample(frame, oap_gid, (uint64_t)now);
+                next_hud_sample_ms = now + 1000;
+            }
             if (same)
                 feed.repeat(id, now);
             else if (part.set())
@@ -339,6 +382,20 @@ int serve(Config cfg)
                 log_info("CarPlay's alternate-screen connection: %s",
                          s == AltScreen::Connected ? "connected" : s == AltScreen::Absent ? "absent" : "not readable");
             alt_state = s;
+            sample_hud = false;
+            if (hud_sample_size && oap_gid != (gid_t)-1 && alt_state == AltScreen::Connected) {
+                struct stat stamp;
+                if (stat(map_state_path.c_str(), &stamp) == 0) {
+                    if (stamp.st_dev != map_stamp.st_dev || stamp.st_ino != map_stamp.st_ino ||
+                        stamp.st_mtim.tv_sec != map_stamp.st_mtim.tv_sec || stamp.st_mtim.tv_nsec != map_stamp.st_mtim.tv_nsec) {
+                        hud_selected = simple_hud_selected(map_state_path);
+                        map_stamp = stamp;
+                    }
+                    sample_hud = hud_selected;
+                } else {
+                    map_stamp = {};
+                }
+            }
             alt_read_ms = now;
         }
         const bool live = liveness.live(alt_state, producer.last_frame_ms(), now);

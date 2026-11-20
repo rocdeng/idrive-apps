@@ -1,6 +1,6 @@
 'use strict';
-// 展示页 samples.js 的 17 个输入快照，加转向和边界场景；仅供人工验证，不代表实时车机数据。
-module.exports = [
+// 覆盖展示页场景、转向、车道边界及道路提示。仅供停车验证。
+const scenarios = [
   {
     "id": "reference",
     "label": "Pencil 最新布局",
@@ -1813,3 +1813,14 @@ module.exports = [
     }
   }
 ];
+
+const reference = scenarios[0].input;
+scenarios.splice(scenarios.length - 1, 0,
+    { id: 'alerts-together', input: Object.assign({}, reference, {
+        trafficLight: { color: 'red', seconds: 59 }, speedLimitKmh: 30
+    }) },
+    { id: 'alerts-green', input: Object.assign({}, reference, {
+        trafficLight: { color: 'green', seconds: 41 }
+    }) },
+    { id: 'alerts-speed', input: Object.assign({}, reference, { speedLimitKmh: 30 }) });
+module.exports = scenarios;

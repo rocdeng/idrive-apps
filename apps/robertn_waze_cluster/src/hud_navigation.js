@@ -1,4 +1,4 @@
-/* 结构化数据适配；Node 8 和本地预览共用。无图像输入。 */
+/* 结构化数据适配。图像识别在独立模块完成。 */
 (function(root, factory) {
     if (typeof module === 'object' && module.exports) module.exports = factory();
     else root.HudNavigation = factory();
@@ -32,7 +32,16 @@
     function snapshot(raw) {
         raw = raw || {};
         var state = ['navigating', 'rerouting', 'arrived', 'inactive'].indexOf(raw.state) >= 0 ? raw.state : 'inactive';
+        var light = raw.trafficLight;
+        var trafficLight = state === 'navigating' && light && ['red', 'green', 'yellow'].indexOf(light.color) >= 0 &&
+            Number.isInteger(light.seconds) && light.seconds >= 0 && light.seconds <= 99 ? {
+                color: light.color, seconds: light.seconds,
+                direction: ['left', 'right', 'straight'].indexOf(light.direction) >= 0 ? light.direction : null
+            } : null;
+        var speedLimitKmh = state === 'navigating' && Number.isInteger(raw.speedLimitKmh) &&
+            raw.speedLimitKmh > 0 && raw.speedLimitKmh <= 199 ? raw.speedLimitKmh : null;
         return { state: state, source: text(raw.source), currentRoad: text(raw.currentRoad),
+            trafficLight: trafficLight, speedLimitKmh: speedLimitKmh,
             nextRoad: text(raw.nextRoad), instruction: text(raw.instruction), exitLabel: text(raw.exitLabel),
             direction: direction(raw.direction), distanceM: number(raw.distanceM),
             initialDistanceM: number(raw.initialDistanceM), remainingDistanceM: number(raw.remainingDistanceM),
@@ -56,6 +65,14 @@
     }
     var BMW_DISTANCE_TO_METERS = { METER: 1, KM: 1000, KILOMETER: 1000,
         MILE_UK: 1609.344, MILE_US: 1609.344, MILE: 1609.344, YARD: 0.9144, FEET: 0.3048, FOOT: 0.3048 };
+    function bmwSpeedLimit(event) {
+        var assist = event.speedLimitAssistInfo;
+        var info = assist && (assist.type === 'value' ? assist.value : !assist.type ? assist.value : null);
+        var reason = info && info.reason;
+        var limit = reason && (reason.type === 'speedLimitInfo' ? reason.value : !reason.type ? reason.speedLimitInfo : null);
+        if (!limit || ['KMH', 'KILOMETER_PER_HOUR', 'KILOMETERS_PER_HOUR'].indexOf(enumName(limit.speedUnit)) < 0) return null;
+        return limit.speedLimit;
+    }
     function fromBmw(reply) {
         var views = reply && reply.viewContent;
         var events = reply && reply.events;
@@ -82,7 +99,7 @@
             return snapshot({ state: 'navigating', source: 'BMW 导航结构化事件',
                 direction: BMW_DIRECTIONS[enumName(event.direction)] || null,
                 instruction: words(event.description), distanceM: value,
-                remainingDistanceM: number(event.distanceToDestination) });
+                remainingDistanceM: number(event.distanceToDestination), speedLimitKmh: bmwSpeedLimit(event) });
         }
         return snapshot({ state: 'inactive' });
     }

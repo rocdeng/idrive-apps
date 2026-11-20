@@ -78,6 +78,13 @@ int main()
         load_map_state(&c, path);
         ok("a state file that cannot be read: the configuration's", settings(c) == "1 0 60 0 0 0");
     }
+    chmod(path.c_str(), 0600);
+    std::ofstream(path) << "hud_simple = 1\nhud = 0\n";
+    ok("sample only in Simple HUD", simple_hud_selected(path));
+    std::ofstream(path) << "hud_simple = 1\nhud = 1\n";
+    ok("no sample in video HUD", !simple_hud_selected(path));
+    std::ofstream(path) << "hud_simple = 1\n";
+    ok("no sample with incomplete settings", !simple_hud_selected(path));
     unlink(path.c_str());
     std::ifstream shipped("waze-on-cluster.conf");
     std::string line, file;

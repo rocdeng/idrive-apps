@@ -21,6 +21,8 @@ extern const char *const kMapStateKeys[6];
 
 void load_map_state(cld::Config *cfg, const std::string &path);
 
+bool simple_hud_selected(const std::string &path);
+
 }  // namespace woc
 
 #endif

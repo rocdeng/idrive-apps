@@ -16,6 +16,8 @@
     "src/hud_validation_scenarios.js",
     "src/guidance_reader.js",
     "src/hud_navigation.js",
+    "src/hud_baidu_traffic_light.js",
+    "src/hud_traffic_reader.js",
     "src/hud_renderer.js",
     "src/hud_font.js",
     "src/hud_output.js",

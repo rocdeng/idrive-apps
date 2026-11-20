@@ -121,6 +121,29 @@
         }
         return [distance, time];
     }
+    function roadAlerts(s, state) {
+        var light = state.trafficLight;
+        if (light) {
+            var colors = {red: [255, 90, 88], green: RECOMMENDED, yellow: [255, 201, 79]};
+            var color = colors[light.color];
+            // Pencil 的左上角用实心圆显示灯色，旁边放倒计时。
+            s.rect(47, 41, 28, 28, 14, color, 1);
+            s.text(String(light.seconds), 87, 32, 38, WHITE);
+        }
+        if (state.speedLimitKmh !== null) {
+            var limit = String(state.speedLimitKmh);
+            var size = limit.length === 3 ? 25 : 37;
+            var ring = [255, 81, 76], cx = 75, cy = 375;
+            // 左下角红圈内保持透明，与 Pencil 的限速牌一致。
+            for (var y = cy - 28; y < cy + 28; y++) {
+                for (var x = cx - 28; x < cx + 28; x++) {
+                    var r = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+                    s.pixel(x, y, ring, Math.min(r - 23.5, 28 - r, 1));
+                }
+            }
+            s.text(limit, cx - s.measure(limit, size) / 2, cy - size * 0.61, size, WHITE);
+        }
+    }
     function render(raw, font, validationLabel) {
         var state = nav.snapshot(raw), s = new Surface(font);
         function rect(x, y, w, h, r, color) { s.rect(x, y, w, h, r, color, 1); }
@@ -136,6 +159,7 @@
             text(state.state === 'rerouting' ? '正在重新规划路线' : '已到达目的地', 175, 196, 31, WHITE, 575);
             return s.pixels;
         }
+        roadAlerts(s, state);
         if (state.currentRoad) {
             var cw = Math.min(400, s.measure(state.currentRoad, 29));
             text(state.currentRoad, 750 - cw, 108, 29, WHITE, 400);
@@ -164,7 +188,7 @@
             var progress = 1 - Math.min(1, state.distanceM / state.initialDistanceM);
             if (progress > 0) rect(350, 269, 400 * progress, 7, 4, WHITE);
         }
-        // 左侧原车图标不绘制；分隔线从 ETA 区开始，左侧 130 像素保持透明。
+        // 分隔线从 ETA 区开始，不延伸到左侧提示位。
         rect(130, 300, 620, 1, 0, [32, 32, 32]);
         if (state.lanes.length) {
             var laneW = 414 / state.lanes.length;
