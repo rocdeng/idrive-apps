@@ -17,9 +17,10 @@
             return parts.length === directions.length && parts.every(function(part) { return directions.indexOf(part) >= 0; });
         })[0] || null;
     }
-    var BMW_DIRECTIONS = { LEFT: 'left', RIGHT: 'right', STRAIGHT: 'straight',
+    var BMW_DIRECTIONS = { LEFT: 'left', RIGHT: 'right', STRAIGHT: 'straight', STRAIGHT_ON: 'straight',
         SLIGHT_LEFT: 'slight_left', SLIGHT_RIGHT: 'slight_right', SHARP_LEFT: 'sharp_left',
-        SHARP_RIGHT: 'sharp_right', U_TURN: 'uturn', UTURN: 'uturn' };
+        SHARP_RIGHT: 'sharp_right', HARD_LEFT: 'sharp_left', HARD_RIGHT: 'sharp_right',
+        U_TURN: 'uturn', UTURN: 'uturn', UTURN_LEFT: 'uturn', UTURN_RIGHT: 'uturn' };
     var CP_DIRECTIONS = { 1: 'left', 2: 'right', 3: 'straight', 4: 'uturn', 5: 'straight',
         10: 'arrive', 12: 'arrive', 13: 'slight_left', 14: 'slight_right', 18: 'uturn',
         20: 'left', 21: 'right', 22: 'left', 23: 'right', 24: 'arrive', 25: 'arrive',
@@ -70,7 +71,7 @@
         var info = assist && (assist.type === 'value' ? assist.value : !assist.type ? assist.value : null);
         var reason = info && info.reason;
         var limit = reason && (reason.type === 'speedLimitInfo' ? reason.value : !reason.type ? reason.speedLimitInfo : null);
-        if (!limit || ['KMH', 'KILOMETER_PER_HOUR', 'KILOMETERS_PER_HOUR'].indexOf(enumName(limit.speedUnit)) < 0) return null;
+        if (!limit || ['KMH', 'KM_P_H', 'KILOMETER_PER_HOUR', 'KILOMETERS_PER_HOUR'].indexOf(enumName(limit.speedUnit)) < 0) return null;
         return limit.speedLimit;
     }
     function fromBmw(reply) {

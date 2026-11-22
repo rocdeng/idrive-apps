@@ -34,6 +34,11 @@
       "mode": "0755"
     },
     {
+      "path": "woc-guidance",
+      "from": "build/target/woc-guidance",
+      "mode": "0755"
+    },
+    {
       "path": "waze-on-cluster.conf",
       "from": "waze-on-cluster.conf",
       "mode": "0644"
@@ -171,6 +176,11 @@
     {
       "path": "hud_daemon.js",
       "from": "hud/hud_daemon.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_someip_guidance.js",
+      "from": "hud/hud_someip_guidance.js",
       "mode": "0644"
     },
     {

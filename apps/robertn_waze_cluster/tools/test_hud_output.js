@@ -64,7 +64,7 @@ async function main() {
         await until(() => states[states.length - 1] === 'unavailable');
         assert.strictEqual(layer.target, 'hud');
         assert.deepStrictEqual([layer.x, layer.y, layer.w, layer.h, layer.iw, layer.ih, layer.sampling],
-            [173, 80, 453, 320, 800, 480, 'bilinear'], '逻辑画布按原厂 HUD 可用区域缩放并双线性采样');
+            [173, 60, 454, 272, 800, 480, 'bilinear'], '逻辑画布按 5:3 等比缩放并避开底部车速区');
         assert.strictEqual(layer.contend, 1, '沿用普通 HUD 的占用与重试策略');
         assert.strictEqual(layer.yield, 1, '默认向原厂弹窗让位');
         assert(sessions[0].frames[0].slice(-pixels.length).equals(pixels), '实际传输完整 RGBA 像素');

@@ -50,6 +50,18 @@ async function main() {
     assert.deepStrictEqual(calls.map((c) => c.name), ['getViewConfig', 'queryContent', 'queryContent']);
     assert.strictEqual(calls[0].args.viewId, VIEW);
     assert.strictEqual(nav.fromBmw(reply).distanceM, 147);
+    ['UTURN_LEFT', 'UTURN_RIGHT'].forEach((name) => {
+        const state = nav.fromBmw({ events: [{ intersection: { direction: { name } } }] });
+        assert.strictEqual(state.direction, 'uturn', `${name} 应归一化为掉头`);
+        const frame = renderer.render(state, laneFont);
+        let alpha = 0;
+        for (let i = 0; i < frame.length; i += 4) alpha += frame[i + 3];
+        assert(alpha > 0, `${name} 应绘制掉头箭头`);
+    });
+    ['STRAIGHT_ON', 'HARD_LEFT', 'HARD_RIGHT'].forEach((name) => {
+        const state = nav.fromBmw({ events: [{ intersection: { direction: { name } } }] });
+        assert(state.direction, `${name} 应识别为可绘制方向`);
+    });
     const distanceIn = (unit, distance) => nav.fromBmw({ events: [{ intersection: {
         formattedDistance: { unit: { name: unit }, distance }
     } }] }).distanceM;
@@ -99,12 +111,22 @@ async function main() {
     assert(publications[0].visible);
     engine.settings({ hud_simple: 1, hud: 0, hud_keep_shown: 1 });
     assert.strictEqual(outputs[0].keepShown, true, '沿用普通 HUD 的弹窗让位设置');
-    assert.deepStrictEqual(publications[0].frame, Buffer.from(renderer.render(nav.fromBmw(reply), new Font(require('../../../native/waze-on-cluster/hud/hud_font_data.js')))));
+    const expectedFirst = Object.assign({}, nav.fromBmw(reply), { initialDistanceM: 147 });
+    assert.deepStrictEqual(publications[0].frame, Buffer.from(renderer.render(expectedFirst, new Font(require('../../../native/waze-on-cluster/hud/hud_font_data.js')))));
     const firstFrame = engine.frame;
     engine.handleNav(nav.fromBmw(reply));
     await until(() => !engine.navBusy);
     assert.strictEqual(publications.length, 1, '重复完整状态不重复发送像素');
     assert.strictEqual(engine.frame, firstFrame, '重复完整状态不重新分配帧');
+    const halfReply = { viewContent: [{ eventsInView: [{ intersection: { direction: 'LEFT',
+        formattedDistance: { distance: '73', unit: { name: 'METER' } },
+        description: { text: '前方左转' }, distanceToDestination: 3079 } }] }] };
+    engine.handleNav(nav.fromBmw(halfReply));
+    await until(() => !engine.navBusy && publications.length === 2);
+    const barPx = Array.from(publications[1].frame.slice((272 * 800 + 450) * 4, (272 * 800 + 450) * 4 + 4));
+    assert.deepStrictEqual(barPx, [255, 255, 255, 255], '同路口距离递减时进度条应推进显示白色填充');
+    engine.handleNav(nav.fromBmw(reply));
+    await until(() => !engine.navBusy && publications.length === 3);
     outputs[0].report('unavailable');
     engine.handleNav(nav.fromBmw(reply));
     await until(() => !engine.navBusy);
@@ -137,7 +159,38 @@ async function main() {
     engine.settings(null);
     assert.strictEqual(engine.state, 'off', '后台模式配置连接断开后释放旧图层');
     engine.stop();
-    console.log('通过：原生 HudEngine 实际像素、去重、结束清屏、读取失败、模式切换和断流清屏');
+    console.log('通过：原生 HudEngine 实际像素、去重、进度条、结束清屏、读取失败、模式切换和断流清屏');
+
+    /* 原生 SOME/IP Utf8D BOM/无BOM 编码与可用状态回调通知 */
+    const someip = require('../../../native/waze-on-cluster/hud/hud_someip_guidance.js');
+    const bomBuf = someip.encodeUtf8D('HUD.RB.Main', true);
+    const rawBuf = someip.encodeUtf8D('HUD.RB.Main', false);
+    assert.strictEqual(bomBuf.readUInt32BE(0), 3 + 11 + 1, '带 BOM Utf8D 长度应包含 3 字节 BOM 和结尾 NUL');
+    assert.deepStrictEqual(Array.from(bomBuf.slice(4, 7)), [0xef, 0xbb, 0xbf]);
+    assert.strictEqual(rawBuf.readUInt32BE(0), 11 + 1, '无 BOM Utf8D 长度应为字符串 + NUL');
+    assert.strictEqual(rawBuf.slice(4, 15).toString('utf8'), 'HUD.RB.Main');
+    const availEvents = [];
+    const nativeReader = new someip.NativeGuidanceReader({
+        bin: '/nonexistent/woc-guidance',
+        onAvailability: (up) => availEvents.push(up)
+    });
+    const availChanges = [];
+    const availEngine = new HudEngine({
+        traffic: { reset() {}, read: () => Promise.resolve(null) },
+        nativeGuidance: nativeReader
+    });
+    nativeReader.onAvailability = (up) => { availEvents.push(up); availEngine._onNativeAvailability(up); };
+    availEngine.on('change', (st) => availChanges.push(st.native_guidance));
+    availEngine.nativeRetryAt = Date.now() + 3000;
+    nativeReader._onLine('avail 1');
+    assert.strictEqual(availEngine.nativeRetryAt, 0, 'SOME/IP 恢复可用时应立即清除退避重试时间');
+    assert.deepStrictEqual(availEvents, [true]);
+    assert.deepStrictEqual(availChanges, [true]);
+    nativeReader._onLine('avail 0');
+    assert.deepStrictEqual(availEvents, [true, false]);
+    assert.deepStrictEqual(availChanges, [true, false]);
+    availEngine.stop();
+    console.log('通过：原生 SOME/IP Utf8D 编码与可用状态同步回调');
 
     /* 端到端集成测试：patch.sock -> hud_daemon (hud.sock) -> OAP StructuredHud -> render.sock（含断线重连） */
     const pid = process.pid;

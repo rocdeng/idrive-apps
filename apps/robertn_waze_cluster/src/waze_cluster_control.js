@@ -477,6 +477,9 @@ class WazeClusterControl extends EventEmitter {
         if (this._askedHud != null) {
             return this._askedHud;
         }
+        if (this.shownOn() === 'simple' && this.simpleHud && this.simpleHud.hudWidthPct !== null) {
+            return this.simpleHud.hudWidthPct;
+        }
         const v = this.renderStatus && this.renderStatus.hud_width_pct;
         return typeof v === 'number' ? v : null;
     }
@@ -486,8 +489,12 @@ class WazeClusterControl extends EventEmitter {
         return t('Size: {0}', w == null ? '—' : w === 0 ? t('Standard') : t('{0} %', w));
     }
 
-    /* The size and place change only while the HUD is on and not disabled. */
+    /* The size and place change while the video HUD or simple HUD is on. */
     canChangeHudSize() {
+        if (this.shownOn() === 'simple') {
+            const hud = this.simpleHud;
+            return this.connectedPatch() && hud.enabled && !hud.suspended && hud.hudWidthPct !== null && hud.hudOffset !== null;
+        }
         return this.canChooseShownOn() && this.hudOn() === true && !this.hudDisabled();
     }
 
@@ -515,8 +522,12 @@ class WazeClusterControl extends EventEmitter {
             this._askedHud = null;
             this.emit('change');
         }, HUD_ASKED_MS);
-        this.render.send({ cmd: 'hud', hud_width_pct: String(pct) });
-        this.patch.send({ cmd: 'hud-size', hud_width_pct: pct });
+        if (this.shownOn() === 'simple') {
+            this.patch.send({ cmd: 'hud-simple-size', hud_width_pct: pct });
+        } else {
+            this.render.send({ cmd: 'hud', hud_width_pct: String(pct) });
+            this.patch.send({ cmd: 'hud-size', hud_width_pct: pct });
+        }
         this.emit('change');
     }
 
@@ -532,7 +543,7 @@ class WazeClusterControl extends EventEmitter {
     }
 
     canChangeHudFade() {
-        return this.canChangeHudSize() && this.hudFade() !== null;
+        return this.shownOn() !== 'simple' && this.canChangeHudSize() && this.hudFade() !== null;
     }
 
     hudFadeText() {
@@ -566,6 +577,9 @@ class WazeClusterControl extends EventEmitter {
         if (this._askedPos) {
             return this._askedPos;
         }
+        if (this.shownOn() === 'simple' && this.simpleHud && this.simpleHud.hudOffset !== null) {
+            return this.simpleHud.hudOffset;
+        }
         const s = this.renderStatus;
         return s && typeof s.hud_x === 'number' ? [s.hud_x, s.hud_y] : null;
     }
@@ -595,8 +609,12 @@ class WazeClusterControl extends EventEmitter {
             this._askedPos = null;
             this.emit('change');
         }, HUD_ASKED_MS);
-        this.render.send({ cmd: 'hud', hud_x: String(x), hud_y: String(y) });
-        this.patch.send({ cmd: 'hud-pos', hud_x: x, hud_y: y });
+        if (this.shownOn() === 'simple') {
+            this.patch.send({ cmd: 'hud-simple-pos', hud_x: x, hud_y: y });
+        } else {
+            this.render.send({ cmd: 'hud', hud_x: String(x), hud_y: String(y) });
+            this.patch.send({ cmd: 'hud-pos', hud_x: x, hud_y: y });
+        }
         this.emit('change');
     }
     /* ---- the HUD map over BMW's pop-ups ---- */
@@ -1122,7 +1140,7 @@ class WazeClusterControl extends EventEmitter {
             this._noteCardAsked(msg);
             this._wake();
             this.emit('change');
-        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple|hud-fade)-reply$/.test(msg.ev)) {
+        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple|hud-simple-size|hud-simple-pos|hud-fade)-reply$/.test(msg.ev)) {
             if (!msg.ok) {
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
                 if (msg.ev === 'hud-simple-reply') {

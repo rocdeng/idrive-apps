@@ -23,6 +23,7 @@ var Font = require('./hud_font.js');
 var Output = require('./hud_output.js');
 var scenarios = require('./hud_validation_scenarios.js');
 var HudTrafficReader = require('./hud_traffic_reader.js').HudTrafficReader;
+var NativeGuidanceReader = require('./hud_someip_guidance.js').NativeGuidanceReader;
 
 var HUD_SOCK = process.env.WOC_HUD_SOCK || '/dev/shm/waze-on-cluster/hud.sock';
 var PATCH_SOCK = process.env.WOC_PATCH_SOCK || '/dev/shm/waze-on-cluster/patch.sock';
@@ -133,10 +134,15 @@ LineClient.prototype._connect = function() {
 function HudEngine(options) {
     EventEmitter.call(this);
     var o = options || {};
+    var self = this;
     this.log = o.log || createLogger(null);
     this.traffic = o.traffic || new HudTrafficReader(undefined, undefined, this.log);
+    this.nativeGuidance = o.nativeGuidance !== undefined ? o.nativeGuidance : new NativeGuidanceReader({
+        log: this.log,
+        onAvailability: function(up) { self._onNativeAvailability(up); }
+    });
     this.renderSocket = o.renderSocket || RENDER_SOCK;
-    this.outputFactory = o.outputFactory || ((keepShown, onState) => new Output(this.renderSocket, keepShown, onState, this.log));
+    this.outputFactory = o.outputFactory || ((keepShown, onState, layout) => new Output(this.renderSocket, keepShown, onState, this.log, layout));
     this.fontLoader = o.fontLoader || (() => new Font(require('./hud_font_data.js')));
     this.intervalMs = o.intervalMs || 500;
     this.staleMs = o.staleMs || 5000;
@@ -147,18 +153,36 @@ function HudEngine(options) {
     this.enabled = false;
     this.suspended = true;
     this.keepShown = null;
+    this.hudWidthPct = null;
+    this.hudOffsetX = null;
+    this.hudOffsetY = null;
     this.state = 'off';
     this.reason = '';
     this.output = null;
     this.frame = null;
     this.drawKey = null;
     this.lastNav = 0;
+    this.lastOapNav = 0;
+    this.nativeBusy = false;
+    this.nativeRetryAt = 0;
+    this.maneuverKey = '';
+    this.maneuverInitialM = null;
     this.generation = 0;
     this.validation = null;
     this.timer = null;
     this.navBusy = false;
 }
 HudEngine.prototype = Object.create(EventEmitter.prototype);
+
+HudEngine.prototype._onNativeAvailability = function(up) {
+    if (up) this.nativeRetryAt = 0;
+    this._changed();
+    if (up && this.enabled && !this.suspended && !this.validation) this.tick();
+};
+
+HudEngine.prototype.layout = function() {
+    return { widthPct: this.hudWidthPct, offsetX: this.hudOffsetX, offsetY: this.hudOffsetY };
+};
 
 HudEngine.prototype.status = function() {
     return {
@@ -169,6 +193,10 @@ HudEngine.prototype.status = function() {
         state: this.state,
         reason: this.reason,
         keep_shown: this.keepShown,
+        hud_width_pct: this.hudWidthPct,
+        hud_offset_x: this.hudOffsetX,
+        hud_offset_y: this.hudOffsetY,
+        native_guidance: !!(this.nativeGuidance && this.nativeGuidance.available),
         validation: this.validation ? [this.validation.index + 1, scenarios.length] : null
     };
 };
@@ -192,12 +220,20 @@ HudEngine.prototype.stop = function() {
 HudEngine.prototype.settings = function(settings) {
     var prevSupport = this.supported;
     var prevKeepShown = this.keepShown;
+    var prevLayout = [this.hudWidthPct, this.hudOffsetX, this.hudOffsetY].join(',');
     this.supported = !!settings && (settings.hud_simple === 0 || settings.hud_simple === 1);
     var keepShown = settings && settings.hud_keep_shown;
     this.keepShown = keepShown === 0 || keepShown === 1 ? keepShown === 1 : null;
+    this.hudWidthPct = settings && typeof settings.hud_simple_width_pct === 'number' ? settings.hud_simple_width_pct
+        : settings && typeof settings.hud_width_pct === 'number' ? settings.hud_width_pct : null;
+    this.hudOffsetX = settings && typeof settings.hud_simple_offset_x === 'number' ? settings.hud_simple_offset_x
+        : settings && typeof settings.hud_offset_x === 'number' ? settings.hud_offset_x : null;
+    this.hudOffsetY = settings && typeof settings.hud_simple_offset_y === 'number' ? settings.hud_simple_offset_y
+        : settings && typeof settings.hud_offset_y === 'number' ? settings.hud_offset_y : null;
+    var nextLayout = [this.hudWidthPct, this.hudOffsetX, this.hudOffsetY].join(',');
     var enabled = this.supported && settings.hud_simple === 1 && settings.hud === 0;
     if (this.enabled !== enabled) {
-        this.log.info('settings: enabled=' + enabled + ' keep_shown=' + this.keepShown);
+        this.log.info('settings: enabled=' + enabled + ' keep_shown=' + this.keepShown + ' layout=' + nextLayout);
         this.enabled = enabled;
         this.generation++;
         this.lastNav = 0;
@@ -206,8 +242,9 @@ HudEngine.prototype.settings = function(settings) {
         this.state = enabled ? 'waiting' : 'off';
         this.reason = '';
         this._changed();
-    } else if (prevSupport !== this.supported || prevKeepShown !== this.keepShown) {
+    } else if (prevSupport !== this.supported || prevKeepShown !== this.keepShown || prevLayout !== nextLayout) {
         if (this.output && prevKeepShown !== this.keepShown) this.output.setKeepShown(this.keepShown === true);
+        if (this.output && prevLayout !== nextLayout && typeof this.output.setLayout === 'function') this.output.setLayout(this.layout());
         this._changed();
     }
 };
@@ -216,6 +253,10 @@ HudEngine.prototype.suspend = function() {
     var hadChange = !this.suspended || this.validation !== null || this.output !== null;
     this.suspended = true;
     this.traffic.reset();
+    if (this.nativeGuidance) this.nativeGuidance.stop();
+    this.nativeRetryAt = 0;
+    this.maneuverKey = '';
+    this.maneuverInitialM = null;
     this.generation++;
     this.validation = null;
     this.frame = null;
@@ -230,6 +271,8 @@ HudEngine.prototype.suspend = function() {
 
 HudEngine.prototype.hide = function(state, reason) {
     this.traffic.reset();
+    this.maneuverKey = '';
+    this.maneuverInitialM = null;
     this.drawKey = null;
     if (this.frame) {
         this.frame = null;
@@ -298,7 +341,7 @@ HudEngine.prototype.draw = function(state, label) {
                     self.reason = nextReason;
                     self._changed();
                 }
-            });
+            }, this.layout());
         }
         if (changed) this.output.update(frame, true);
     } catch (err) {
@@ -336,6 +379,15 @@ HudEngine.prototype.handleNav = function(rawState) {
         this.hide('waiting', '');
         return;
     }
+    /* 当上游未提供初始路段距离时，按当前路口跟踪初始距离以驱动进度条。 */
+    if (state.state === 'navigating' && state.initialDistanceM === null && state.distanceM !== null) {
+        var mKey = [state.direction || '', state.nextRoad || '', state.instruction || ''].join('|');
+        if (mKey !== this.maneuverKey || this.maneuverInitialM === null || state.distanceM > this.maneuverInitialM) {
+            this.maneuverKey = mKey;
+            this.maneuverInitialM = state.distanceM;
+        }
+        if (this.maneuverInitialM > 0) state.initialDistanceM = this.maneuverInitialM;
+    }
     if (this.navBusy) return;
     this.navBusy = true;
     var self = this;
@@ -358,6 +410,7 @@ HudEngine.prototype.handleNav = function(rawState) {
 
 HudEngine.prototype.handleNavError = function(reason) {
     if (!this.enabled || this.suspended || this.validation) return;
+    if (this.nativeGuidance && this.nativeGuidance.available) return;
     this.log.warn('navigation error from OAP: ' + (reason || 'unknown'));
     this.hide('unavailable', reason || 'navigation unavailable');
 };
@@ -365,8 +418,30 @@ HudEngine.prototype.handleNavError = function(reason) {
 HudEngine.prototype.tick = function() {
     if (!this.enabled || this.suspended) return;
     if (this.validation) { this.tickValidation(); return; }
-    if (this.lastNav && Date.now() - this.lastNav > this.staleMs) {
+    var now = Date.now();
+    if (this.lastNav && now - this.lastNav > this.staleMs) {
         this.hide('unavailable', 'navigation stale');
+    }
+    /* 原生 vsomeip 直连 GuidanceEventList：不依赖 OAP 是否打开，开机即可自动取数。 */
+    if (this.nativeGuidance && this.nativeGuidance.supported() && !this.nativeBusy && now >= this.nativeRetryAt) {
+        this.nativeBusy = true;
+        var self = this;
+        var generation = this.generation;
+        Promise.resolve().then(function() {
+            return self.nativeGuidance.read();
+        }).then(function(reply) {
+            if (!self.enabled || self.suspended || self.validation || generation !== self.generation) return;
+            self.nativeRetryAt = 0;
+            self.handleNav(nav.fromBmw(reply));
+        }, function(err) {
+            if (!self.enabled || self.suspended || self.validation || generation !== self.generation) return;
+            self.nativeRetryAt = Date.now() + 3000;
+            if (!self.lastOapNav || Date.now() - self.lastOapNav > self.staleMs) {
+                self.hide('unavailable', err && err.message ? err.message : 'native guidance unavailable');
+            }
+        }).then(function() {
+            self.nativeBusy = false;
+        });
     }
 };
 
@@ -379,6 +454,7 @@ function startDaemon(opts) {
         outputFactory: o.outputFactory,
         fontLoader: o.fontLoader,
         traffic: o.traffic,
+        nativeGuidance: o.nativeGuidance,
         intervalMs: o.intervalMs,
         staleMs: o.staleMs,
         validationStepMs: o.validationStepMs
@@ -427,7 +503,7 @@ function startDaemon(opts) {
                 else if (msg.cmd === 'validation-start') engine.startValidation();
                 else if (msg.cmd === 'validation-stop') engine.stopValidation();
                 else if (msg.cmd === 'suspend') engine.suspend();
-                else if (msg.cmd === 'nav') engine.handleNav(msg.state);
+                else if (msg.cmd === 'nav') { engine.lastOapNav = Date.now(); engine.handleNav(msg.state); }
                 else if (msg.cmd === 'nav-error') engine.handleNavError(msg.reason);
             }
         });

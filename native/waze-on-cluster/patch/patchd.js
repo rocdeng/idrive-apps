@@ -249,7 +249,7 @@ var LOCAL_CONF = process.env.WOC_LOCAL_CONF || '/var/opt/waze-on-cluster/waze-on
  * configuration. Not in LOCAL_CONF, which waze-on-cluster 0.8 refuses to
  * start with any of MAP_KEYS in. */
 var MAP_STATE = path.join(STATE_DIR, 'map.state.conf');
-var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'hud_simple', 'hud_edge_fade_pct'];
+var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'hud_simple', 'hud_simple_width_pct', 'hud_simple_offset_x', 'hud_simple_offset_y', 'hud_edge_fade_pct'];
 /* The opt-in settings: the render reads this file (its features_file) over
  * its configuration. Not in LOCAL_CONF, which every release up to 0.10.7
  * refuses to start with any of FEATURE_KEYS in; no release before 0.10.9
@@ -287,8 +287,8 @@ function rewriteConf(file, set, drop) {
  * range (the commands' below). */
 function mapValueOk(k, v) {
     var n = Number(v);
-    return /^-?\d+$/.test(v) && (k === 'hud_width_pct' ? n === 0 || (n >= 20 && n <= 100)
-        : /^hud_offset_/.test(k) ? n >= -800 && n <= 800 : k === 'hud_edge_fade_pct' ? n >= 0 && n <= 30 : n === 0 || n === 1);
+    return /^-?\d+$/.test(v) && ((k === 'hud_width_pct' || k === 'hud_simple_width_pct') ? n === 0 || (n >= 20 && n <= 100)
+        : /^hud_(simple_)?offset_/.test(k) ? n >= -800 && n <= 800 : k === 'hud_edge_fade_pct' ? n >= 0 && n <= 30 : n === 0 || n === 1);
 }
 
 /* Moves any of MAP_KEYS found in LOCAL_CONF into MAP_STATE, a value already
@@ -422,7 +422,7 @@ function saveLater(settings, withProfiles) {
 var PROFILES_FILE = path.join(STATE_DIR, 'profiles.json');
 var PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+={}-]{0,127}$/;
 var MAX_OWN = 16;
-var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_edge_fade_pct: 0 };
+var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_edge_fade_pct: 0 };
 var profiles = null;          /* PROFILES_FILE as read at the start, and changed since */
 var currentProfile;           /* the profile the app last told (null: none; undefined: not told since the start) */
 var restored = false;         /* MAP_STATE written from PROFILES_FILE at the start, not yet told to the app */
@@ -437,13 +437,13 @@ function profilesKept(p) { return profilesInUse(p) || !!p.shared; }
 /* The settings in effect as PROFILES_FILE keeps them. */
 function profileEntry(p) { return p.active ? p.own[p.active] : p.shared; }
 /* Settings as PROFILES_FILE holds them, or null when any key is missing or
- * out of range; hud_keep_shown missing (a set saved before it) is its default. */
+ * out of range; newer keys missing (a set saved before them) take their default. */
 function profileSettings(o) {
     if (!o || typeof o !== 'object') return null;
     var s = {};
     for (var i = 0; i < MAP_KEYS.length; i++) {
         var k = MAP_KEYS[i];
-        var v = typeof o[k] === 'number' ? String(o[k]) : (k === 'hud_keep_shown' || k === 'hud_simple' || k === 'hud_edge_fade_pct') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
+        var v = typeof o[k] === 'number' ? String(o[k]) : (k === 'hud_keep_shown' || k === 'hud_simple' || k === 'hud_simple_width_pct' || k === 'hud_simple_offset_x' || k === 'hud_simple_offset_y' || k === 'hud_edge_fade_pct') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
         if (v === null || !mapValueOk(k, v)) return null;
         s[k] = Number(v);
     }
@@ -2305,21 +2305,30 @@ function handle(line, sock) {
         saveMapSettings(sock, msg.cmd + '-reply', set, 'where the map shows');
         return;
     }
-    if (msg.cmd === 'hud-size') {
+    if (msg.cmd === 'hud-size' || msg.cmd === 'hud-simple-size') {
+        var isSimpleSize = msg.cmd === 'hud-simple-size';
+        var sizeEv = msg.cmd + '-reply';
         var pct = msg.hud_width_pct;
         if (!(pct === 0 || (typeof pct === 'number' && pct >= 20 && pct <= 100 && pct === Math.floor(pct)))) {
-            reply(sock, { ev: 'hud-size-reply', ok: false, reason: 'HUD width must be 0 or 20-100 %' });
+            reply(sock, { ev: sizeEv, ok: false, reason: 'HUD width must be 0 or 20-100 %' });
             return;
         }
-        saveMapSettings(sock, 'hud-size-reply', { hud_width_pct: Math.min(pct, HUD_MAX_PCT) }, 'the HUD map size');
+        var sizePatch = {};
+        sizePatch[isSimpleSize ? 'hud_simple_width_pct' : 'hud_width_pct'] = Math.min(pct, HUD_MAX_PCT);
+        saveMapSettings(sock, sizeEv, sizePatch, isSimpleSize ? 'the simple HUD size' : 'the HUD map size');
         return;
     }
-    if (msg.cmd === 'hud-pos') {
+    if (msg.cmd === 'hud-pos' || msg.cmd === 'hud-simple-pos') {
+        var isSimplePos = msg.cmd === 'hud-simple-pos';
+        var posEv = msg.cmd + '-reply';
         if (!isOffset(msg.hud_x) || !isOffset(msg.hud_y)) {
-            reply(sock, { ev: 'hud-pos-reply', ok: false, reason: 'HUD offsets must be whole numbers from -800 to 800' });
+            reply(sock, { ev: posEv, ok: false, reason: 'HUD offsets must be whole numbers from -800 to 800' });
             return;
         }
-        saveMapSettings(sock, 'hud-pos-reply', { hud_offset_x: msg.hud_x, hud_offset_y: msg.hud_y }, 'the HUD map position');
+        var posPatch = isSimplePos
+            ? { hud_simple_offset_x: msg.hud_x, hud_simple_offset_y: msg.hud_y }
+            : { hud_offset_x: msg.hud_x, hud_offset_y: msg.hud_y };
+        saveMapSettings(sock, posEv, posPatch, isSimplePos ? 'the simple HUD position' : 'the HUD map position');
         return;
     }
     if (msg.cmd === 'hud-fade') {

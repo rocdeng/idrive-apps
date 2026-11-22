@@ -367,6 +367,7 @@ async function main() {
         log: { info() {}, warn() {}, error() {} },
         retryMs: 50,
         traffic: { reset() {}, read: () => Promise.resolve(null) },
+        nativeGuidance: null,
         outputFactory: (keepShown, onState) => ({
             setKeepShown: (keep) => simpleKeepSettings.push(keep),
             update: (pixels, visible) => { simpleFrames.push({ pixels: visible ? Buffer.from(pixels) : null, visible }); onState(visible ? 'showing' : 'unavailable'); },
@@ -488,7 +489,7 @@ async function main() {
         await until('结构化导航已绘制', () => simpleFrames.some((f) => f.visible));
         const simpleKeep = byName.wocHudKeep;
         assert.strictEqual(simpleKeep.enabled, true);
-        assert.strictEqual(byName.wocHudSize.enabled, false);
+        assert.strictEqual(byName.wocHudSize.enabled, true);
         assert.strictEqual(byName.wocHudFade.enabled, false);
         simpleKeep.press();
         await until('在简洁模式勾选并保存弹窗设置', () => simpleKeep.selected &&

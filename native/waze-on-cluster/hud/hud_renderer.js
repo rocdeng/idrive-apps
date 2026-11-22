@@ -122,27 +122,41 @@
         }
         return [distance, time];
     }
+    var HUD_LAYER_X = 173, HUD_LAYER_Y = 60, HUD_LAYER_W = 454, HUD_LAYER_H = 272;
+    var SAFE_FRAME_X = 173.5, SAFE_FRAME_Y = 140;
+    var SAFE_SCALE_X = W / HUD_LAYER_W, SAFE_SCALE_Y = H / HUD_LAYER_H;
+    function safeX(x) { return (SAFE_FRAME_X + x - HUD_LAYER_X) * SAFE_SCALE_X; }
+    function safeY(y) { return (SAFE_FRAME_Y + y - HUD_LAYER_Y) * SAFE_SCALE_Y; }
+    function safeW(w) { return w * SAFE_SCALE_X; }
+    function safeH(h) { return h * SAFE_SCALE_Y; }
+    function safeFont(size) { return size * SAFE_SCALE_Y; }
+    function drawSafeRing(s, cx, cy, w, h, color) {
+        var rx = w / 2, ry = h / 2, inner = 1 - 4 / Math.min(rx, ry);
+        for (var y = Math.floor(cy - ry); y < Math.ceil(cy + ry); y++) {
+            for (var x = Math.floor(cx - rx); x < Math.ceil(cx + rx); x++) {
+                var r = Math.hypot((x + 0.5 - cx) / rx, (y + 0.5 - cy) / ry);
+                var alpha = Math.min((r - inner) * 8, (1 - r) * 8, 1);
+                s.pixel(x, y, color, Math.max(0, alpha));
+            }
+        }
+    }
     function roadAlerts(s, state) {
         var light = state.trafficLight;
         if (light) {
             var colors = {red: [255, 90, 88], green: RECOMMENDED, yellow: [255, 201, 79]};
             var color = colors[light.color];
-            // Pencil 的左上角用实心圆显示灯色，旁边放倒计时。
-            s.rect(47, 41, 28, 28, 14, color, 1);
-            s.text(String(light.seconds), 87, 32, 38, WHITE);
+            // Pencil「453×200 安全区」左侧的实心灯和两位倒计时。
+            s.rect(safeX(0), safeY(20), safeW(28), safeH(28), Math.min(safeW(28), safeH(28)) / 2, color, 1);
+            s.text(String(light.seconds), safeX(35), safeY(20), safeFont(28), color);
         }
         if (state.speedLimitKmh !== null) {
             var limit = String(state.speedLimitKmh);
-            var size = limit.length === 3 ? 25 : 37;
-            var ring = [255, 81, 76], cx = 75, cy = 375;
-            // 左下角红圈内保持透明，与 Pencil 的限速牌一致。
-            for (var y = cy - 28; y < cy + 28; y++) {
-                for (var x = cx - 28; x < cx + 28; x++) {
-                    var r = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
-                    s.pixel(x, y, ring, Math.min(r - 23.5, 28 - r, 1));
-                }
-            }
-            s.text(limit, cx - s.measure(limit, size) / 2, cy - size * 0.61, size, WHITE);
+            var size = limit.length === 3 ? 22 : 25;
+            var ring = [255, 81, 76], cx = safeX(18), cy = safeY(94), w = safeW(36), h = safeH(36);
+            // 限速标志位于信号灯正下方，保持透明圆心。
+            drawSafeRing(s, cx, cy, w, h, ring);
+            s.text(limit, cx - s.measure(limit, safeFont(size)) / 2, cy - safeFont(size) * 0.61,
+                safeFont(size), WHITE);
         }
     }
     function render(raw, font, validationLabel) {
@@ -215,8 +229,8 @@
             });
         }
         var eta = trip(state);
-        if (eta[0]) text(eta[0], 130, 348, 25, WHITE, 180);
-        if (eta[1]) text(eta[1], 130, eta[0] ? 382 : 348, 23, GRAY, 180);
+        if (eta[0]) text(eta[0], safeX(0), safeY(153), safeFont(15), WHITE, safeW(65));
+        if (eta[1]) text(eta[1], safeX(0), safeY(eta[0] ? 175 : 153), safeFont(13.8), GRAY, safeW(47));
         return s.pixels;
     }
     function strings(state) {

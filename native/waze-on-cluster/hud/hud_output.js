@@ -1,11 +1,29 @@
 'use strict';
 var ClusterRender = require('./hud_cluster_render_client.js').ClusterRender;
 
+function computeLayout(layout) {
+    var l = layout || {};
+    var pct = typeof l.widthPct === 'number' && l.widthPct >= 20 && l.widthPct <= 100 ? l.widthPct : 0;
+    var w = pct ? Math.round(800 * pct / 100) : 454;
+    var h = Math.min(480, Math.round(w * 480 / 800));
+    var x0 = Math.round((800 - w) / 2);
+    var y0 = pct ? Math.round((480 - h) / 2) : 60;
+    var ox = typeof l.offsetX === 'number' ? l.offsetX : 0;
+    var oy = typeof l.offsetY === 'number' ? l.offsetY : 0;
+    return {
+        x: Math.max(0, Math.min(800 - w, x0 + ox)),
+        y: Math.max(0, Math.min(480 - h, y0 + oy)),
+        w: w,
+        h: h
+    };
+}
+
 // 沿用 Waze on Cluster 的 HUD target，身份、场景与弹窗让位由现有 renderer 管理。
-function HudOutput(socket, keepShown, onState, log) {
+function HudOutput(socket, keepShown, onState, log, layout) {
     this.client = new ClusterRender('robertn_waze_cluster_simple', socket);
     this.layer = null; this.frame = null; this.visible = false;
     this.keepShown = keepShown === true;
+    this.layout = computeLayout(layout);
     this.onState = onState || function() {};
     this.log = log || {
         info: function(m) { console.log(m); },
@@ -38,12 +56,11 @@ function HudOutput(socket, keepShown, onState, log) {
         }
         // 先通过 hello 核对尺寸，再创建图层，避免把 ID7 布局发给 ID8。
         if (!self.layer) {
-            // 逻辑画布仍为 800×480（5:3），按 ID7 HUD 居中安全区（453×320）等比缩放，
-            // 并显式使用 bilinear 采样，避免缩小后中文细笔画锯齿或断笔。
+            var r = self.layout;
             self.layer = self.client.image({ target: 'hud', klass: 'content', z: 1,
-                x: 173, y: 80, w: 453, h: 320, iw: 800, ih: 480, fps: 2, sampling: 'bilinear',
+                x: r.x, y: r.y, w: r.w, h: r.h, iw: 800, ih: 480, fps: 2, sampling: 'bilinear',
                 visible: false, exclusive: false, contend: true, yield: !self.keepShown });
-            self.log.info('created hud image layer ref=' + self.layer + ' yield=' + (!self.keepShown));
+            self.log.info('created hud image layer ref=' + self.layer + ' rect=' + r.x + ',' + r.y + ' ' + r.w + 'x' + r.h + ' yield=' + (!self.keepShown));
         }
         self.flush();
     });
@@ -92,6 +109,15 @@ HudOutput.prototype.setKeepShown = function(keepShown) {
     this.keepShown = keepShown;
     if (this.layer) this.client.set(this.layer, { yield: !keepShown });
 };
+HudOutput.prototype.setLayout = function(layout) {
+    var r = computeLayout(layout);
+    if (r.x === this.layout.x && r.y === this.layout.y && r.w === this.layout.w && r.h === this.layout.h) return;
+    this.layout = r;
+    if (this.layer) {
+        this.log.info('updating hud image layer rect=' + r.x + ',' + r.y + ' ' + r.w + 'x' + r.h);
+        this.client.set(this.layer, { x: r.x, y: r.y, w: r.w, h: r.h });
+    }
+};
 HudOutput.prototype.flush = function() {
     if (!this.layer || !this.client.ready) return;
     if (this.frame && this.visible) this.client.pixels(this.layer, null, this.frame);
@@ -102,4 +128,5 @@ HudOutput.prototype.close = function() {
     this.client.close();
     this.report();
 };
+HudOutput.computeLayout = computeLayout;
 module.exports = HudOutput;

@@ -76,8 +76,9 @@ void load_map_state(cld::Config *cfg, const std::string &path)
             continue;
         const size_t eq = line.find('=');
         const std::string key = trim(line.substr(0, eq)), value = eq == std::string::npos ? "" : trim(line.substr(eq + 1));
-        // 简洁导航由 waze-on-cluster-hud 绘制，取帧许可由 simple_hud_selected 独立读取。
-        if (key == "hud_simple")
+        // 简洁导航及其独立缩放/位移由 waze-on-cluster-hud 持有，取帧许可由 simple_hud_selected 独立读取。
+        if (key == "hud_simple" || key == "hud_simple_width_pct" ||
+            key == "hud_simple_offset_x" || key == "hud_simple_offset_y")
             continue;
         const bool known = std::find_if(std::begin(kMapStateKeys), std::end(kMapStateKeys),
                                         [&](const char *k) { return key == k; }) != std::end(kMapStateKeys);

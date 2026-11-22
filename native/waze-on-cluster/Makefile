@@ -268,7 +268,7 @@ target:
 	docker run --rm --platform linux/amd64 --user "$$(id -u):$$(id -g)" -v "$(CURDIR):/w" -v "$(abspath $(CR)):/cr" -w /w $(IMAGE) \
 		make -s -j$(JOBS) BUILD=$(BUILD) CR=/cr target-in-docker
 
-target-in-docker: $(T)/waze-on-cluster $(T)/libwocpatch.so
+target-in-docker: $(T)/waze-on-cluster $(T)/woc-guidance $(T)/libwocpatch.so
 
 # The in-memory carplay patch (preload/wocpatch.c, PATCH.md "In memory"):
 # C, no C++ runtime, exports nothing, libc only.
@@ -321,6 +321,11 @@ $(T)/stub/libias-media_transport-avb_ufipc_bridge.so.1: abi/libias_avb.symbols
 	$(PYTHON) $(CR)/tools/ramses_abi.py stub-source $< > $(@D)/ias_avb_stub.c
 	gcc -shared -Wl,-soname,libias-media_transport-avb_ufipc_bridge.so.1 -o $@ $(@D)/ias_avb_stub.c
 
+$(T)/stub/libvsomeip3.so.3: $(CR)/dcsm/abi/libvsomeip3.so.3.symbols
+	mkdir -p $(@D)
+	$(PYTHON) $(CR)/dcsm/tools/abi.py stub $< $(@D)/vsomeip_stub.S
+	g++ -shared -nostdlib -Wl,-soname,libvsomeip3.so.3 -o $@ $(@D)/vsomeip_stub.S
+
 STUBS = $(T)/stub/libmfxhw64.so $(T)/stub/libva.so.1 $(T)/stub/libva-drm.so.1 \
         $(T)/stub/libias-media_transport-avb_ufipc_bridge.so.1
 
@@ -342,6 +347,11 @@ $(T)/waze-on-cluster: $(call objs,$(SRC),$(T)/obj) $(STUBS)
 	$(PYTHON) $(CR)/dcsm/tools/abi.py check $@ $(CR)/dcsm/abi/libvsomeip3.so.3.symbols   # loader, glibc/libstdc++ limits
 	$(PYTHON) tools/woc_abi.py check-imports $@ --prefix MFX va ias_ -- \
 		abi/libmfx.symbols abi/libva.symbols abi/libva-drm.symbols abi/libias_avb.symbols
+
+$(T)/woc-guidance: src/guidance_bridge.cpp $(T)/stub/libvsomeip3.so.3
+	@mkdir -p $(@D)
+	g++ $(CXXFLAGS) -isystem $(CR)/dcsm/third_party/vsomeip/interface -pthread -Wl,--dynamic-linker=/lib/ld-linux-x86-64.so.2 -o $@ $^
+	$(PYTHON) $(CR)/dcsm/tools/abi.py check $@ $(CR)/dcsm/abi/libvsomeip3.so.3.symbols
 
 clean:
 	rm -rf $(BUILD)
