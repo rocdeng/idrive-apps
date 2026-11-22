@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-新增原生 `vsomeip3` 导航桥接工具 `woc-guidance` 与 `hud_someip_guidance.js`，简洁 HUD 后台服务可直接以 `hmi_5000` 查询 `GuidanceEventList`（`0xfb1b:0x0080`），熄火再点火后无需打开 OAP 应用即可自动恢复显示；补齐 `KM_P_H` 限速单位映射与实车路口距离进度条跟踪；支持在简洁模式下实时调节 HUD 大小与位置。
-
 ## 0.13.4
+
+新增原生 `vsomeip3` 导航桥接工具 `woc-guidance` 与 `hud_someip_guidance.js`，简洁 HUD 后台服务可直接以 `hmi_5000` 查询 `GuidanceEventList`（`0xfb1b:0x0080`），熄火再点火后无需打开 OAP 应用即可自动恢复显示；补齐 `KM_P_H` 限速单位映射与实车路口距离进度条跟踪；支持在简洁模式下实时调节 HUD 大小与位置。
 
 修复 0.13.3 实际打包仍使用 `453×320` 导致的 18% 纵向拉伸，改为严格 5:3 等比 `454×272`（`x=173, y=60`，保留 `bilinear` 采样），同时使左下角剩余里程/时间避开原厂 `0 km/h` 车速条。
 
