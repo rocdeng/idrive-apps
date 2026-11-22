@@ -16,11 +16,19 @@ function monotonicMs() {
 }
 
 class HudTrafficReader {
-    constructor(path = '/run/waze-on-cluster/hud-frame.yuv', clock = monotonicMs) {
+    constructor(path = '/run/waze-on-cluster/hud-frame.yuv', clock = monotonicMs, log) {
         this.path = path;
         this.clock = clock;
+        this.log = log || { info: function() {}, warn: function() {} };
         this.header = Buffer.alloc(12);
+        this.lastDiagnostic = '';
         this.reset();
+    }
+
+    diagnostic(level, message) {
+        if (message === this.lastDiagnostic) return;
+        this.lastDiagnostic = message;
+        (this.log[level] || this.log.warn).call(this.log, 'traffic frame: ' + message);
     }
 
     reset() {
@@ -31,6 +39,7 @@ class HudTrafficReader {
         this.pending = null;
         this.shown = null;
         this.generation = (this.generation || 0) + 1;
+        this.lastDiagnostic = '';
     }
 
     async read() {
@@ -56,6 +65,7 @@ class HudTrafficReader {
             if (this.clock() - stamp >= FRESH) throw Error('frame age');
             this.nextParse = now + INTERVAL;
             const observed = recognizeBaiduTrafficLight(bytes, WIDTH, HEIGHT, 0, false);
+            this.diagnostic('info', observed ? ('recognized ' + observed.color + ' ' + observed.seconds + 's at stamp ' + stamp) : 'recognizer found no traffic-light card');
             const previous = this.pending;
             // 过期或有歧义即留白，不从旧值自行递减。
             this.shown = observed && previous && stamp > this.stamp && stamp - this.stamp < FRESH &&
@@ -64,8 +74,9 @@ class HudTrafficReader {
             this.pending = observed;
             this.stamp = stamp;
             return this.shown;
-        } catch (_) {
+        } catch (err) {
             if (generation === this.generation) this.pending = this.shown = null;
+            this.diagnostic('warn', err && err.message ? err.message : String(err));
             return null;
         } finally {
             if (fd !== undefined) await close(fd).catch(() => {});

@@ -38,8 +38,10 @@ function HudOutput(socket, keepShown, onState, log) {
         }
         // 先通过 hello 核对尺寸，再创建图层，避免把 ID7 布局发给 ID8。
         if (!self.layer) {
+            // 逻辑画布仍为 800×480（5:3），按 ID7 HUD 居中安全区（453×320）等比缩放，
+            // 并显式使用 bilinear 采样，避免缩小后中文细笔画锯齿或断笔。
             self.layer = self.client.image({ target: 'hud', klass: 'content', z: 1,
-                x: 0, y: 0, w: 800, h: 480, iw: 800, ih: 480, fps: 2,
+                x: 173, y: 80, w: 453, h: 320, iw: 800, ih: 480, fps: 2, sampling: 'bilinear',
                 visible: false, exclusive: false, contend: true, yield: !self.keepShown });
             self.log.info('created hud image layer ref=' + self.layer + ' yield=' + (!self.keepShown));
         }

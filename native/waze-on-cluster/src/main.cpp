@@ -70,7 +70,7 @@ namespace {
 const char kUnreadLocalConf[] = "/var/opt/waze-on-cluster/waze-on-cluster.local.conf";
 
 // 默认 systemd RuntimeDirectory，与 OAP 取帧协议固定配对。
-void save_hud_sample(const std::vector<uint8_t> &frame, gid_t group, uint64_t sampled_ms)
+bool save_hud_sample(const std::vector<uint8_t> &frame, gid_t group, uint64_t sampled_ms)
 {
     const char tmp[] = "/run/waze-on-cluster/hud-frame.tmp";
     const char dst[] = "/run/waze-on-cluster/hud-frame.yuv";
@@ -78,7 +78,7 @@ void save_hud_sample(const std::vector<uint8_t> &frame, gid_t group, uint64_t sa
     if (fd < 0) {
         if (errno == EEXIST)
             unlink(tmp);  // 清理上次进程中止留下的临时帧
-        return;
+        return false;
     }
     uint8_t header[12] = {'W', 'O', 'C', '1'};
     for (unsigned i = 0; i < 8; ++i)
@@ -93,8 +93,11 @@ void save_hud_sample(const std::vector<uint8_t> &frame, gid_t group, uint64_t sa
     };
     const bool ok = write_all(header, sizeof header) && write_all(frame.data(), frame.size()) &&
                     fchown(fd, (uid_t)-1, group) == 0 && fchmod(fd, 0640) == 0;
-    if (close(fd) < 0 || !ok || rename(tmp, dst) < 0)
+    if (close(fd) < 0 || !ok || rename(tmp, dst) < 0) {
         unlink(tmp);
+        return false;
+    }
+    return true;
 }
 
 std::string status_line(const FeedStatus &s)
@@ -351,6 +354,7 @@ int serve(Config cfg)
     AltScreen::State alt_state = AltScreen::Unknown;
     int64_t alt_read_ms = 0, next_hud_sample_ms = 0;
     bool sample_hud = false, hud_selected = false;
+    int hud_sample_log = 0;   /* 0: none yet, 1: ok, -1: failed */
     struct stat map_stamp = {};
     const std::string map_state_path = cfg.str("map_state_file");
     const struct group *oap_group = getgrnam("tm_oap_app");
@@ -384,7 +388,14 @@ int serve(Config cfg)
             // 复用仪表已经解码的完整 CarPlay 帧。简洁模式不要求额外解码。
             if (sample_hud && !same && clean && !part.set() && now >= next_hud_sample_ms &&
                 frame.size() == 1088 * atlas_height(480)) {
-                save_hud_sample(frame, oap_gid, (uint64_t)now);
+                const bool wrote = save_hud_sample(frame, oap_gid, (uint64_t)now);
+                if (wrote && hud_sample_log != 1) {
+                    log_info("hud sample: publishing %zu-byte frames", frame.size());
+                    hud_sample_log = 1;
+                } else if (!wrote && hud_sample_log != -1) {
+                    log_warn("hud sample: failed to publish frame");
+                    hud_sample_log = -1;
+                }
                 next_hud_sample_ms = now + 1000;
             }
             if (same)

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.13.3
+
+简洁 HUD 图层覆盖 iDrive 7 的 453×320 可用区域（居中 `173,80`），逻辑画布按物理区域缩放；启用 `waze-on-cluster-hud.service` 开机自启；为红绿灯取帧与识别补充不刷屏的诊断日志。
+
 ## 0.13.2
 
 新增原生后台服务 `waze-on-cluster-hud`（`/dev/shm/waze-on-cluster/hud.sock`），将简洁 HUD 的字库、渲染、停车验证、红绿灯识别和 `cluster-render` 直连迁入原生后端，并补齐 `hud-simple.log` 与 `journalctl` 日志采集。

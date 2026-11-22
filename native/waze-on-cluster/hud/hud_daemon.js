@@ -134,7 +134,7 @@ function HudEngine(options) {
     EventEmitter.call(this);
     var o = options || {};
     this.log = o.log || createLogger(null);
-    this.traffic = o.traffic || new HudTrafficReader();
+    this.traffic = o.traffic || new HudTrafficReader(undefined, undefined, this.log);
     this.renderSocket = o.renderSocket || RENDER_SOCK;
     this.outputFactory = o.outputFactory || ((keepShown, onState) => new Output(this.renderSocket, keepShown, onState, this.log));
     this.fontLoader = o.fontLoader || (() => new Font(require('./hud_font_data.js')));
