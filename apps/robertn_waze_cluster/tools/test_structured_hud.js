@@ -158,14 +158,25 @@ async function main() {
     assert(stops >= 4);
     console.log('通过：实际像素、去重、结束清屏、读取失败、模式切换竞态、独立输出连接和断流清屏');
 
-    /* 按正式链接器的扁平模块名执行整份清单，防止包内漏文件或相对引用失效。 */
+    /* 按正式链接器的扁平模块名和静态 require 规则校验整份清单，防止包内漏文件、相对引用失效或注释误触发链接失败。 */
     const root = path.join(__dirname, '..');
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'mgu-app.json'), 'utf8'));
+    const builtins = require('module').builtinModules || [];
     const modules = {};
     manifest.modules.forEach((name) => {
         const key = './' + path.basename(name);
         assert(!modules[key], '模块重名：' + key);
         modules[key] = fs.readFileSync(path.join(root, name), 'utf8');
+    });
+    manifest.modules.forEach((name) => {
+        const source = modules['./' + path.basename(name)];
+        const re = /require\('([^']+)'\)/g;
+        let m;
+        while ((m = re.exec(source)) !== null) {
+            const dep = m[1];
+            assert(modules[dep] || manifest.sdk.includes(dep) || builtins.includes(dep),
+                `${name} 包含未登记的 require('${dep}')（与 oap_link.js 静态扫描冲突）`);
+        }
     });
     const cache = {};
     const load = (key) => {

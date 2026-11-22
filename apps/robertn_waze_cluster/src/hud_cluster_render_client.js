@@ -6,7 +6,7 @@
  * src/ and bundle it like any other module; it needs only the `net` and
  * `events` builtins.
  *
- *   const { ClusterRender } = require('./cluster_render_client.js');
+ *   Import ClusterRender from hud_cluster_render_client.js before using it.
  *   const cr = new ClusterRender('robertn_myapp');
  *   const badge = cr.image({ target: 'panel', klass: 'overlay', x: 1700, y: 40, w: 160, h: 64, iw: 160, ih: 64 });
  *   cr.on('layer', (ref, state, reason) => { ... });   // shown, waiting, suspended, stalled, hidden, error

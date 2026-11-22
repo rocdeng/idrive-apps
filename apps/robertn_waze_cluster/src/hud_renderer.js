@@ -78,11 +78,12 @@
         Array.from(str).forEach(function(ch) {
             var g = self.font.glyph(ch);
             if (!g) { x += size; return; }
-            var scale = size / 64, width = g.w * scale, height = g.h * scale;
+            var scale = size / 64, pxScale = size / (g.s || 64);
+            var width = g.w * pxScale, height = g.h * pxScale;
             var left = x + g.x * scale, top = y + g.y * scale;
             for (var py = Math.floor(top); py < Math.ceil(top + height); py++) {
                 for (var px = Math.floor(left); px < Math.ceil(left + width); px++) {
-                    var sx = (px + 0.5 - left) / scale - 0.5, sy = (py + 0.5 - top) / scale - 0.5;
+                    var sx = (px + 0.5 - left) / pxScale - 0.5, sy = (py + 0.5 - top) / pxScale - 0.5;
                     if (sx < -0.5 || sy < -0.5 || sx > g.w - 0.5 || sy > g.h - 0.5) continue;
                     var ix = Math.floor(sx), iy = Math.floor(sy), fx = sx - ix, fy = sy - iy;
                     function at(xx, yy) { return xx < 0 || yy < 0 || xx >= g.w || yy >= g.h ? 0 : g.pixels[yy * g.w + xx]; }
