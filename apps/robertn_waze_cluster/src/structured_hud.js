@@ -12,6 +12,9 @@ class StructuredHud extends EventEmitter {
         super();
         const o = options;
         this.reader = o.reader;
+        this.parkingReader = o.parkingReader;
+        this.parkingRead = null;
+        this.nativeNeedsLanes = false;
         this.log = o.log || { info() {}, warn() {} };
         this.interval = o.intervalMs || 500;
         this.enabled = false;
@@ -65,7 +68,9 @@ class StructuredHud extends EventEmitter {
         this.hudFontPct = null;
         this.hudStyle = null;
         this.nativeGuidance = false;
+        this.nativeNeedsLanes = false;
         this.validation = null;
+        this._stopParkingReader();
         this.retryAt = 0;
         if (changed) this.emit('change');
     }
@@ -73,6 +78,7 @@ class StructuredHud extends EventEmitter {
     _applyStatus(msg) {
         const prevKey = JSON.stringify([this.supported, this.enabled, this.suspended, this.state, this.keepShown, this.hudWidthPct, this.hudOffset, this.hudFontPct, this.hudStyle, this.nativeGuidance, this.validation]);
         const prevReason = this.reason;
+        const wasValidating = this.validation !== null;
         this.supported = msg.supported === true;
         this.enabled = msg.enabled === true;
         this.suspended = msg.suspended !== false;
@@ -84,8 +90,10 @@ class StructuredHud extends EventEmitter {
         this.hudFontPct = typeof msg.hud_simple_font_pct === 'number' ? msg.hud_simple_font_pct : null;
         this.hudStyle = (typeof msg.hud_simple_style === 'number' && msg.hud_simple_style >= 1 && msg.hud_simple_style <= 4) ? msg.hud_simple_style : null;
         this.nativeGuidance = msg.native_guidance === true;
+        this.nativeNeedsLanes = msg.native_needs_lanes === true;
         this.validation = Array.isArray(msg.validation) && msg.validation.length === 2 ? msg.validation : null;
-        if (!this.enabled || this.suspended || this.validation || this.nativeGuidance) {
+        if (wasValidating && !this.validation) this._stopParkingReader();
+        if (!this.enabled || this.suspended || this.validation || (this.nativeGuidance && !this.nativeNeedsLanes)) {
             this.reader.stop();
             this.retryAt = 0;
         }
@@ -118,9 +126,7 @@ class StructuredHud extends EventEmitter {
 
     startValidation() {
         if (!this.enabled || this.suspended || this.validation) return;
-        this.reader.stop();
-        this.retryAt = 0;
-        this.hud.send({ cmd: 'validation-start' });
+        this._checkParking(true);
     }
 
     stopValidation() {
@@ -130,12 +136,41 @@ class StructuredHud extends EventEmitter {
         this.hud.send({ cmd: 'validation-stop' });
     }
 
+    _stopParkingReader() {
+        this.parkingRead = null;
+        if (this.parkingReader) this.parkingReader.stop();
+    }
+
+    _checkParking(starting) {
+        if (this.parkingRead || !this.parkingReader) return;
+        const read = this.parkingRead = this.parkingReader.read();
+        read.catch(() => false).then((parked) => {
+            if (this.parkingRead !== read) return;
+            this.parkingRead = null;
+            if (!this.enabled || this.suspended || this.hud.link !== 'up') {
+                this._stopParkingReader();
+                return;
+            }
+            if (starting && !parked) {
+                this.log.warn('HUD 停车验证需要零车速并拉紧驻车制动');
+                this._stopParkingReader();
+                return;
+            }
+            if (starting || this.validation) this.hud.send({
+                cmd: starting ? 'validation-start' : 'validation-parking', parked: parked === true
+            });
+            if (!parked) this._stopParkingReader();
+        });
+    }
+
     validationProgress() {
         return this.validation;
     }
 
     tick() {
-        if (!this.enabled || this.suspended || this.validation || this.nativeGuidance || this.hud.link !== 'up') return;
+        if (!this.enabled || this.suspended || this.hud.link !== 'up') return;
+        if (this.validation) { this._checkParking(false); return; }
+        if (this.nativeGuidance && !this.nativeNeedsLanes) return;
         if (this.busy || Date.now() < this.retryAt) return;
         this.busy = true;
         const generation = this.generation;
@@ -159,6 +194,7 @@ class StructuredHud extends EventEmitter {
         this.timer = null;
         this.enabled = false;
         this.reader.stop();
+        this._stopParkingReader();
         this.hud.close();
     }
 }

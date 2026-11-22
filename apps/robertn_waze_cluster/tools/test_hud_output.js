@@ -100,7 +100,8 @@ async function main() {
             traffic: { reset() {}, read: () => Promise.resolve(null) },
             outputFactory: (keepShown, onState) => new Output(socketPath, keepShown, onState) });
         validation.settings({ hud_simple: 1, hud: 0 });
-        validation.startValidation();
+        const parkedOwner = {};
+        validation.startValidation(parkedOwner, true);
         await until(() => validation.state === 'showing' && sessions[sessions.length - 1].frames.length > 0);
         const session = sessions[sessions.length - 1];
         for (let i = 0; i < scenarios.length; i++) {
@@ -110,6 +111,7 @@ async function main() {
                 assert(session.frames[i].slice(-800 * 480 * 4).equals(validation.frame), scenarios[i].id + ' 的完整像素通过正式二进制协议传输');
             } else await until(() => session.commands.some(c => c.op === 'set' && c.visible === 0));
             validation.validation.since = Date.now() - 5001;
+            validation.updateParking(parkedOwner, true);
             validation.tick();
         }
         assert.strictEqual(validation.validation, null);

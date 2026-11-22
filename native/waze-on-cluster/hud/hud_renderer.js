@@ -151,6 +151,25 @@
     function safeW(w) { return w * SAFE_SCALE_X; }
     function safeH(h) { return h * SAFE_SCALE_Y; }
     function safeFont(size) { return size * SAFE_SCALE_Y; }
+    function etaBounds(s, value) {
+        return Array.from(value + '…').reduce(function(bounds, ch) {
+            var glyph = s.font.glyph(ch);
+            if (!glyph) return bounds;
+            return [Math.min(bounds[0], glyph.y / 64),
+                Math.max(bounds[1], glyph.y / 64 + glyph.h / (glyph.s || 64))];
+        }, [Infinity, 0]);
+    }
+    function etaSecondLine(s, value, y, size, maxWidth, first, firstY, firstSize) {
+        var safeBottom = Math.floor(safeY(200));
+        var bounds = etaBounds(s, value);
+        if (first) {
+            // 先测第一行的实际字形底部。行距不足时压缩第二行字号，避免两行重叠。
+            var firstBottom = safeY(firstY) + etaBounds(s, first)[1] * firstSize + safeH(2);
+            var height = bounds[1] - bounds[0];
+            if (height > 0) size = Math.min(size, (safeBottom - firstBottom) / height);
+        }
+        if (size > 0) s.text(value, safeX(0), Math.min(safeY(y), safeBottom - bounds[1] * size), size, GRAY, safeW(maxWidth));
+    }
     function drawSafeRing(s, cx, cy, w, h, color) {
         var rx = w / 2, ry = h / 2, inner = 1 - 4 / Math.min(rx, ry);
         for (var y = Math.floor(cy - ry); y < Math.ceil(cy + ry); y++) {
@@ -263,7 +282,7 @@
         var eta = trip(state);
         if (eta[1]) {
             text(eta[1], safeX(0), safeY(148), safeFont(19 * fs), WHITE, safeW(140));
-            if (eta[0]) text(eta[0], safeX(0), safeY(148 + Math.round(26 * fs)), safeFont(15 * fs), GRAY, safeW(140));
+            if (eta[0]) etaSecondLine(s, eta[0], 148 + Math.round(26 * fs), safeFont(15 * fs), 140, eta[1], 148, safeFont(19 * fs));
         } else if (eta[0]) {
             text(eta[0], safeX(0), safeY(152), safeFont(18 * fs), WHITE, safeW(140));
         }
@@ -639,7 +658,7 @@
         }
         var eta = trip(state);
         if (eta[0]) text(eta[0], safeX(0), safeY(152), safeFont(16 * fs), WHITE, safeW(110));
-        if (eta[1]) text(eta[1], safeX(0), safeY(eta[0] ? 152 + Math.round(23 * fs) : 152), safeFont(14.8 * fs), GRAY, safeW(100));
+        if (eta[1]) etaSecondLine(s, eta[1], eta[0] ? 152 + Math.round(23 * fs) : 152, safeFont(14.8 * fs), 100, eta[0], 152, safeFont(16 * fs));
         return s.pixels;
     }
     function strings(state) {

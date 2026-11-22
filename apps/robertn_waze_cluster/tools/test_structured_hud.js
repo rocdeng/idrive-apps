@@ -261,6 +261,49 @@ async function main() {
         { directions: ['straight'], recommended: false, leftBoundary: null },
         { directions: ['right', 'straight'], recommended: true, leftBoundary: 'dashed' }
     ], '原生 SOME/IP laneGuiding 二进制解码应与 fromBmw 无缝衔接');
+    const quiet = { info() {}, warn() {}, error() {} };
+    let finishTraffic;
+    const staleFrames = [];
+    const staleEngine = new HudEngine({ nativeGuidance: null, log: quiet,
+        traffic: { reset() {}, read: () => new Promise(resolve => { finishTraffic = resolve; }) },
+        outputFactory: () => ({ update: (_, visible) => staleFrames.push(visible), close() {} }) });
+    staleEngine.settings({ hud_simple: 1, hud: 0 });
+    staleEngine.handleNav(laneState);
+    await until(() => !!finishTraffic);
+    staleEngine.handleNav({ state: 'inactive' });
+    finishTraffic(null);
+    await until(() => !staleEngine.navBusy);
+    assert.deepStrictEqual(staleFrames, [], '导航结束后旧画面不能重新出现');
+    staleEngine.stop();
+
+    let nativeWithoutLanes = { events: [laneReply.viewContent[0].eventsInView[0]] };
+    const laneEngine = new HudEngine({ log: quiet,
+        traffic: { reset() {}, read: () => Promise.resolve(null) },
+        nativeGuidance: { available: true, supported: () => true, read: () => Promise.resolve(nativeWithoutLanes), stop() {} },
+        outputFactory: () => ({ update() {}, close() {} }) });
+    laneEngine.settings({ hud_simple: 1, hud: 0 });
+    laneEngine.handleOapNav(laneState);
+    await until(() => !laneEngine.navBusy);
+    laneEngine.tick();
+    await until(() => !laneEngine.nativeBusy && !laneEngine.navBusy);
+    assert(laneEngine.status().native_needs_lanes, '原生缺少车道时继续请求 OAP');
+    assert.deepStrictEqual(laneEngine.lastState.lanes, laneState.lanes, '保留同一路口的车道和虚实线');
+    nativeWithoutLanes = { events: [{ intersection: { direction: 'RIGHT', distanceToDestination: 7000 } }] };
+    laneEngine.tick();
+    await until(() => !laneEngine.nativeBusy && !laneEngine.navBusy);
+    assert.deepStrictEqual(laneEngine.lastState.lanes, [], '切换路口立即清除旧车道');
+    laneEngine.stop();
+    for (const [type, direction] of [['roundabout', 'roundabout'], ['destinationManeuver', 'arrive']]) {
+        const state = nav.fromBmw({ events: [{ type, value: { direction: direction.toUpperCase() } }] });
+        assert.strictEqual(state.state, 'navigating');
+        assert.strictEqual(state.direction, direction);
+    }
+    for (const style of [1, 2]) {
+        const frame = renderer.render(laneState, laneFont, null, 150, style);
+        for (let i = 417 * 800 * 4 + 3; i < frame.length; i += 4) {
+            assert.strictEqual(frame[i], 0, '最大字号 ETA 留在 453×200 安全区内');
+        }
+    }
     const availEvents = [];
     const nativeReader = new someip.NativeGuidanceReader({
         bin: '/nonexistent/woc-guidance',
@@ -355,7 +398,8 @@ async function main() {
     });
     const bridge = new StructuredHud({
         control, hudPath: hSock, retryMs: 50, intervalMs: 50,
-        reader: { read: () => { reads++; return Promise.resolve(laneReply); }, stop: () => stops++ }
+        reader: { read: () => { reads++; return Promise.resolve(laneReply); }, stop: () => stops++ },
+        parkingReader: { read: () => Promise.resolve(true), stop() {} }
     });
     try {
         bridge.start();
@@ -367,6 +411,12 @@ async function main() {
         await until(() => renderSessions.length >= 2 && renderSessions[1].frames > 0 && bridge.state === 'showing');
         bridge.settings({ hud_simple: 0, hud: 1 });
         await until(() => !bridge.enabled && bridge.state === 'off');
+        bridge.settings({ hud_simple: 1, hud: 0 });
+        await until(() => bridge.enabled && !bridge.suspended);
+        bridge.startValidation();
+        await until(() => !!daemon.engine.validation);
+        bridge.stop();
+        await until(() => !daemon.engine.validation && !daemon.engine.output);
         console.log('通过：端到端集成（patch.sock -> hud_daemon -> hud.sock -> OAP 桥接 -> render.sock 建层/推帧/断连重连/配置切换）');
     } finally {
         bridge.stop();

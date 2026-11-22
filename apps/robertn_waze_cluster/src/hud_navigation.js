@@ -20,7 +20,8 @@
     var BMW_DIRECTIONS = { LEFT: 'left', RIGHT: 'right', STRAIGHT: 'straight', STRAIGHT_ON: 'straight',
         SLIGHT_LEFT: 'slight_left', SLIGHT_RIGHT: 'slight_right', SHARP_LEFT: 'sharp_left',
         SHARP_RIGHT: 'sharp_right', HARD_LEFT: 'sharp_left', HARD_RIGHT: 'sharp_right',
-        U_TURN: 'uturn', UTURN: 'uturn', UTURN_LEFT: 'uturn', UTURN_RIGHT: 'uturn' };
+        U_TURN: 'uturn', UTURN: 'uturn', UTURN_LEFT: 'uturn', UTURN_RIGHT: 'uturn',
+        ROUNDABOUT: 'roundabout', ARRIVE: 'arrive' };
     var CP_DIRECTIONS = { 1: 'left', 2: 'right', 3: 'straight', 4: 'uturn', 5: 'straight',
         10: 'arrive', 12: 'arrive', 13: 'slight_left', 14: 'slight_right', 18: 'uturn',
         20: 'left', 21: 'right', 22: 'left', 23: 'right', 24: 'arrive', 25: 'arrive',
@@ -167,7 +168,8 @@
             });
             var timeS = destTimeS !== null ? destTimeS : (typeof event.travelTime === 'number' && event.travelTime > 0 ? event.travelTime : null);
             return snapshot({ state: 'navigating', source: 'BMW 导航结构化事件',
-                direction: BMW_DIRECTIONS[enumName(event.direction)] || null,
+                direction: BMW_DIRECTIONS[enumName(event.direction)] ||
+                    (kind === 'roundabout' ? 'roundabout' : kind === 'destinationManeuver' ? 'arrive' : null),
                 instruction: words(event.description), distanceM: value,
                 remainingDistanceM: position,
                 remainingTimeS: number(timeS),

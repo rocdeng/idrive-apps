@@ -311,7 +311,12 @@ class FakePatch extends LineServer {
             return;
         }
         if (msg.cmd === 'hud-simple') {
-            this.map = Object.assign({}, this.map, { hud_simple: msg.on }, msg.on ? { hud: 0 } : {});
+            if (this.hudModeFailure) {
+                this._send(socket, { ev: 'hud-simple-reply', ok: false, reason: 'write failed' });
+                return;
+            }
+            const display = msg.hud === undefined ? (msg.on ? { hud: 0 } : {}) : { hud: msg.hud, cluster: msg.cluster };
+            this.map = Object.assign({}, this.map, { hud_simple: msg.on }, display);
             this._send(socket, { ev: 'hud-simple-reply', ok: true });
             this._broadcast({ ev: 'map-settings', settings: this.map });
             return;

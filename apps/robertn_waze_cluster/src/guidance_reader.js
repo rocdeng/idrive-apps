@@ -81,4 +81,43 @@ class GuidanceReader {
     }
 }
 
-module.exports = { GuidanceReader, IFACE, INSTANCE, VIEW };
+class ParkingReader {
+    constructor(builders) {
+        this.builders = builders;
+        this.proxy = null;
+        this.generation = 0;
+    }
+
+    read() {
+        const generation = this.generation;
+        return within(Promise.resolve().then(async () => {
+            if (!this.proxy) {
+                const proxy = await this.builders.buildTypedProxy('de.bmw.infotainment.vehicle.Vehicle2', '1');
+                if (generation !== this.generation) {
+                    if (proxy.shutdown) proxy.shutdown();
+                    return false;
+                }
+                this.proxy = proxy;
+                await proxy.init();
+                await proxy.waitUntilAvailable(700);
+            }
+            if (generation !== this.generation) return false;
+            const [speed, standstill] = await Promise.all([
+                this.proxy.statusCarSpeed2.getValue(), this.proxy.statusStandstillFunctions.getValue()
+            ]);
+            const brake = standstill && standstill.statusParkingBrake;
+            const engaged = 'PARKBREMSE_MECHANISCH_FESTGESTELLT';
+            return generation === this.generation && !!speed && speed.speedVehicleCentreOfGravity === 0 &&
+                (brake === 1 || brake === engaged || (brake && brake.name === engaged));
+        }), 700);
+    }
+
+    stop() {
+        this.generation++;
+        const proxy = this.proxy;
+        this.proxy = null;
+        try { if (proxy && proxy.shutdown) proxy.shutdown(); } catch (_) { /* 服务可能已经断开。 */ }
+    }
+}
+
+module.exports = { GuidanceReader, ParkingReader, IFACE, INSTANCE, VIEW };

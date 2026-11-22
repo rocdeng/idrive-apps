@@ -315,8 +315,17 @@ class WazeClusterControl extends EventEmitter {
         };
         this.render.on('connect', reset);
         this.render.on('close', reset);
-        this.patch.on('connect', () => { this._forget(); this.emit('change'); });
-        this.patch.on('close', () => { this._forget(); this._restartRequested = false; this.emit('change'); });
+        this.patch.on('connect', () => {
+            this._forget();
+            if (this._pendingHudMode) this.patch.send({ cmd: 'hud-simple-status' });
+            this.emit('change');
+        });
+        this.patch.on('close', () => {
+            this._forget();
+            if (this._pendingHudMode) this._pendingHudMode.failed = true;
+            this._restartRequested = false;
+            this.emit('change');
+        });
     }
 
     /* Open both sockets, each reconnecting while open. */
@@ -414,19 +423,17 @@ class WazeClusterControl extends EventEmitter {
         if (!SHOWN_ON.includes(choice) || !this.canChooseShownOn() || choice === this.shownOn()) {
             return;
         }
-        if (choice === 'simple') {
-            if (!this.simpleHud || !this.simpleHud.supported) return;
-            this._askedShownOn = choice;
-            this.render.send({ cmd: 'hud', on: '0' });
-            this.patch.send({ cmd: 'hud-simple', on: 1 });
-            this.emit('change');
+        const current = this.shownOn();
+        const want = { cluster: choice === 'cluster' || choice === 'both', hud: choice === 'hud' || choice === 'both' };
+        if (choice === 'simple' || current === 'simple') {
+            if (!this.simpleHud || !this.simpleHud.supported || (this._pendingHudMode && !this._pendingHudMode.failed)) return;
+            if (choice === 'simple') want.cluster = this.clusterOn();
+            this._pendingHudMode = { hud_simple: choice === 'simple' ? 1 : 0, cluster: want.cluster ? 1 : 0, hud: want.hud ? 1 : 0 };
+            this.patch.send({ cmd: 'hud-simple', on: this._pendingHudMode.hud_simple,
+                cluster: this._pendingHudMode.cluster, hud: this._pendingHudMode.hud });
             return;
         }
-        if (this.simpleHud && this.simpleHud.supported) {
-            this.simpleHud.suspend();
-            this.patch.send({ cmd: 'hud-simple', on: 0 });
-        }
-        const want = { cluster: choice === 'cluster' || choice === 'both', hud: choice === 'hud' || choice === 'both' };
+        this._pendingHudMode = null;
         const changes = ['cluster', 'hud'].filter((d) => this._shows(d) !== want[d]).sort((a, b) => want[b] - want[a]);
         this._askedShownOn = choice;
         changes.forEach((d) => {
@@ -1203,7 +1210,19 @@ class WazeClusterControl extends EventEmitter {
     }
 
     _onPatch(msg) {
-        if (msg.ev === 'capture') {
+        if (msg.ev === 'map-settings' && this._pendingHudMode && msg.settings) {
+            const mode = this._pendingHudMode;
+            const saved = msg.settings;
+            if (mode.hud_simple !== saved.hud_simple || mode.cluster !== saved.cluster || mode.hud !== saved.hud) return;
+            this._pendingHudMode = null;
+            if (saved.hud_simple) this.render.send({ cmd: 'hud', on: '0' });
+            if (this.simpleHud) this.simpleHud.settings(saved);
+            if (!saved.hud_simple) {
+                const displays = ['cluster', 'hud'].sort((a, b) => saved[b] - saved[a]);
+                displays.forEach((display) => this.render.send({ cmd: display, on: String(saved[display]) }));
+            }
+            this.emit('change');
+        } else if (msg.ev === 'capture') {
             this.captureState = msg.capture;
             this.emit('change');
         } else if (msg.ev === 'status') {
@@ -1219,6 +1238,7 @@ class WazeClusterControl extends EventEmitter {
             if (!msg.ok) {
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
                 if (msg.ev === 'hud-simple-reply') {
+                    if (this._pendingHudMode) this._pendingHudMode.failed = true;
                     this._askedShownOn = null;
                     this.emit('change');
                 }

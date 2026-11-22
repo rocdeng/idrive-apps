@@ -61,7 +61,7 @@ const someipBuilders = require('oap-sdk/src/someip/someipBuilders');
 const i18n = require('./i18n.js');
 const { WazeClusterControl, ZOOM_STEP, SHOWN_ON } = require('./waze_cluster_control.js');
 const { StructuredHud } = require('./structured_hud.js');
-const { GuidanceReader } = require('./guidance_reader.js');
+const { GuidanceReader, ParkingReader } = require('./guidance_reader.js');
 const { LogsControl, ROWS: LOGS_ROWS } = require('./logs_control.js');
 const { qrPng } = require('./qr.js');
 const { ProfileSync, sessionReader } = require('./profile_sync.js');
@@ -144,7 +144,8 @@ class WazeClusterApp extends OnlineApp {
         this._shutdownPromise = null;
         this._control = new WazeClusterControl({ log: logger });
         this._control.on('change', () => this._render());
-        this._simpleHud = new StructuredHud({ control: this._control, reader: new GuidanceReader(someipBuilders), log: logger });
+        this._simpleHud = new StructuredHud({ control: this._control, reader: new GuidanceReader(someipBuilders),
+            parkingReader: new ParkingReader(someipBuilders), log: logger });
         this._simpleHud.on('change', () => this._render());
         this._logs = new LogsControl({ log: logger });
         this._logs.on('change', () => this._renderLogs());

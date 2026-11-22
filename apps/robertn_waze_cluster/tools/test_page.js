@@ -245,11 +245,18 @@ let displayLanguage = null;
 let sessionUser = '';
 let navigationDistance = '147';
 let navigationReads = 0;
+let speed = 0, parkingBrake = 1;
 const someipBuilders = {
     buildTypedProxy: (iface, instance) => Promise.resolve(iface === 'de.bmw.infotainment.personalization.SessionManager' ? {
         init: () => Promise.resolve(),
         waitUntilAvailable: () => Promise.resolve(),
         currentUserAccountReference: { getValue: () => Promise.resolve(sessionUser) }
+    } : iface === 'de.bmw.infotainment.vehicle.Vehicle2' ? {
+        init: () => Promise.resolve(),
+        shutdown: () => {},
+        waitUntilAvailable: () => Promise.resolve(),
+        statusCarSpeed2: { getValue: () => Promise.resolve({ speedVehicleCentreOfGravity: speed }) },
+        statusStandstillFunctions: { getValue: () => Promise.resolve({ statusParkingBrake: parkingBrake }) }
     } : iface === 'de.bmw.infotainment.navigation.guiding.GuidanceEventList' ? {
         init: () => Promise.resolve(),
         shutdown: () => {},
@@ -501,6 +508,13 @@ async function main() {
             patch.map.hud_keep_shown === 0 && simpleKeepSettings[simpleKeepSettings.length - 1] === false);
         const validationButton = byName.wocHudValidation;
         assert.strictEqual(validationButton.enabled, true);
+        speed = 25;
+        validationButton.press();
+        await sleep(400);
+        assert(!OnlineApp.instance._simpleHud.validation, '车辆移动时不能启动停车验证');
+        speed = 0;
+        parkingBrake = 1;
+        await sleep(450);
         validationButton.press();
         await until('验证按钮启动并显示进度', () => /^Stop HUD validation \(1\//.test(validationButton.text));
         const validationReads = navigationReads;
@@ -512,8 +526,8 @@ async function main() {
         assert.strictEqual(navigationReads, validationReads);
         byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: true });
         await until('返回验证菜单', () => OnlineApp.instance._visible && render._clients.size > 0);
-        validationButton.press();
-        await until('停止验证恢复真实数据', () => validationButton.text === 'Run HUD validation (parked)' && navigationReads > validationReads);
+        parkingBrake = 0;
+        await until('松开驻车制动后停止验证并恢复真实数据', () => validationButton.text === 'Run HUD validation (parked)' && navigationReads > validationReads);
         const inactiveAtSimple = inactiveReports;
         byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: false });
         await until('简洁模式页面隐藏', () => OnlineApp.instance._visible === false);
@@ -523,6 +537,15 @@ async function main() {
         await until('后台释放视频控制连接', () => render._clients.size === 0 && patch._clients.size === 1);
         assert.strictEqual(inactiveReports, inactiveAtSimple + 1, '简洁模式沿用普通 HUD 的页面生命周期');
         byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: true });
+        await sleep(450);
+        patch.hudModeFailure = true;
+        showOn.pick(0);
+        await until('模拟配置保存失败', () => OnlineApp.instance._control._pendingHudMode &&
+            OnlineApp.instance._control._pendingHudMode.failed);
+        assert.strictEqual(showOn.shown(), 'Show on: HUD simple mode');
+        assert(OnlineApp.instance._simpleHud.enabled && !OnlineApp.instance._simpleHud.suspended);
+        assert.strictEqual(render.hud, 0);
+        patch.hudModeFailure = false;
         await sleep(450);
         showOn.pick(0);
         await until('离开简洁模式', () => patch.map.hud_simple === 0 && showOn.shown() === 'Show on: Cluster');

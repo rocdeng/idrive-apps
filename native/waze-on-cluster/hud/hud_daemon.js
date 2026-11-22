@@ -31,6 +31,11 @@ var RENDER_SOCK = process.env.WOC_RENDER_SOCK || '/dev/shm/cluster-render/render
 var LOG_FILE = process.env.WOC_HUD_LOG === '' ? null : (process.env.WOC_HUD_LOG || '/var/opt/waze-on-cluster/log/hud-simple.log');
 var LOG_MAX_BYTES = 512 * 1024;
 var MAX_LINE = 64 * 1024;
+var PARKING_TIMEOUT_MS = 1500;
+function monotonicMs() {
+    var time = process.hrtime();
+    return time[0] * 1000 + time[1] / 1000000;
+}
 
 function createLogger(filePath) {
     function write(level, msg) {
@@ -167,6 +172,12 @@ function HudEngine(options) {
     this.lastLabel = undefined;
     this.lastNav = 0;
     this.lastOapNav = 0;
+    this.oapState = null;
+    this.nativeState = null;
+    this.nativeAt = 0;
+    this.navRevision = 0;
+    this.nextNav = null;
+    this.clock = o.clock || monotonicMs;
     this.nativeBusy = false;
     this.nativeRetryAt = 0;
     this.nativeVerified = false;
@@ -181,7 +192,10 @@ HudEngine.prototype = Object.create(EventEmitter.prototype);
 
 HudEngine.prototype._onNativeAvailability = function(up) {
     if (up) this.nativeRetryAt = 0;
-    else this.nativeVerified = false;
+    else {
+        this.nativeVerified = false;
+        this.nativeState = null;
+    }
     this._changed();
     if (up && this.enabled && !this.suspended && !this.validation) this.tick();
 };
@@ -205,6 +219,7 @@ HudEngine.prototype.status = function() {
         hud_simple_font_pct: this.hudFontPct,
         hud_simple_style: this.hudStyle,
         native_guidance: !!(this.nativeGuidance && this.nativeGuidance.available && this.nativeVerified),
+        native_needs_lanes: !!(this.nativeState && !this.nativeState.lanes.length),
         validation: this.validation ? [this.validation.index + 1, scenarios.length] : null
     };
 };
@@ -269,6 +284,11 @@ HudEngine.prototype.suspend = function() {
     if (this.nativeGuidance) this.nativeGuidance.stop();
     this.nativeRetryAt = 0;
     this.nativeVerified = false;
+    this.nativeState = null;
+    this.oapState = null;
+    this.lastOapNav = 0;
+    this.navRevision++;
+    this.nextNav = null;
     this.maneuverKey = '';
     this.maneuverInitialM = null;
     this.generation++;
@@ -284,6 +304,8 @@ HudEngine.prototype.suspend = function() {
 };
 
 HudEngine.prototype.hide = function(state, reason) {
+    this.navRevision++;
+    this.nextNav = null;
     this.traffic.reset();
     this.maneuverKey = '';
     this.maneuverInitialM = null;
@@ -300,8 +322,8 @@ HudEngine.prototype.hide = function(state, reason) {
     }
 };
 
-HudEngine.prototype.startValidation = function() {
-    if (!this.enabled || this.suspended || this.validation) {
+HudEngine.prototype.startValidation = function(owner, parked) {
+    if (!owner || parked !== true || !this.enabled || this.suspended || this.validation) {
         this.log.warn('startValidation ignored: enabled=' + this.enabled + ' suspended=' + this.suspended + ' validation=' + !!this.validation);
         return;
     }
@@ -309,11 +331,17 @@ HudEngine.prototype.startValidation = function() {
     this.suspend();
     this.suspended = false;
     this.lastNav = 0;
-    this.validation = { index: 0, since: null };
+    this.validation = { index: 0, since: null, owner: owner, parkedUntil: this.clock() + PARKING_TIMEOUT_MS };
     this.state = 'unavailable';
     this.reason = 'starting validation';
     this._changed();
     this.tick();
+};
+
+HudEngine.prototype.updateParking = function(owner, parked) {
+    if (!this.validation || this.validation.owner !== owner) return;
+    if (parked !== true || this.clock() >= this.validation.parkedUntil) this.stopValidation();
+    else this.validation.parkedUntil = this.clock() + PARKING_TIMEOUT_MS;
 };
 
 HudEngine.prototype.stopValidation = function() {
@@ -404,38 +432,77 @@ HudEngine.prototype.handleNav = function(rawState) {
         }
         if (this.maneuverInitialM > 0) state.initialDistanceM = this.maneuverInitialM;
     }
-    if (this.navBusy) return;
+    if (this.navBusy) {
+        this.nextNav = state;
+        return;
+    }
+    this.readTraffic(state);
+};
+
+HudEngine.prototype.readTraffic = function(state) {
     this.navBusy = true;
     var self = this;
-    var generation = this.generation;
+    var revision = this.navRevision;
     Promise.resolve().then(function() {
         return self.traffic.read();
     }).then(function(light) {
-        if (!self.enabled || self.suspended || self.validation || generation !== self.generation) return;
+        if (revision !== self.navRevision || self.nextNav) return;
         state.trafficLight = light;
         self.draw(state);
     }, function(err) {
         self.log.warn('traffic read error: ' + (err && err.message ? err.message : String(err)));
-        if (self.enabled && !self.suspended && !self.validation && generation === self.generation) {
-            self.draw(state);
-        }
+        if (revision === self.navRevision && !self.nextNav) self.draw(state);
     }).then(function() {
         self.navBusy = false;
+        var next = self.nextNav;
+        self.nextNav = null;
+        if (next) self.readTraffic(next);
     });
+};
+
+HudEngine.prototype.withOapLanes = function(state) {
+    var oap = this.oapState;
+    if (state.lanes.length || !oap || !oap.lanes.length || Date.now() - this.lastOapNav >= this.staleMs ||
+        state.remainingDistanceM === null || state.remainingDistanceM !== oap.remainingDistanceM ||
+        !state.direction || state.direction !== oap.direction) return state;
+    return Object.assign({}, state, { lanes: oap.lanes });
+};
+
+HudEngine.prototype.handleOapNav = function(rawState) {
+    if (!this.enabled || this.suspended || this.validation) return;
+    var state = nav.snapshot(rawState);
+    this.oapState = state.state === 'inactive' ? null : state;
+    this.lastOapNav = this.oapState ? Date.now() : 0;
+    if (this.nativeVerified && this.nativeState && Date.now() - this.nativeAt < this.staleMs) {
+        if (!this.nativeState.lanes.length) this.handleNav(this.withOapLanes(this.nativeState));
+        return;
+    }
+    this.handleNav(state);
 };
 
 HudEngine.prototype.handleNavError = function(reason) {
     if (!this.enabled || this.suspended || this.validation) return;
-    if (this.nativeGuidance && this.nativeGuidance.available && this.nativeVerified) return;
+    var hadOapLanes = this.oapState && this.oapState.lanes.length;
+    this.oapState = null;
+    this.lastOapNav = 0;
+    if (this.nativeVerified && this.nativeState && Date.now() - this.nativeAt < this.staleMs) {
+        if (hadOapLanes && !this.nativeState.lanes.length) this.handleNav(this.nativeState);
+        return;
+    }
     this.log.warn('navigation error from OAP: ' + (reason || 'unknown'));
     this.hide('unavailable', reason || 'navigation unavailable');
 };
 
 HudEngine.prototype.tick = function() {
     if (!this.enabled || this.suspended) return;
-    if (this.validation) { this.tickValidation(); return; }
+    if (this.validation) {
+        if (this.clock() >= this.validation.parkedUntil) this.stopValidation();
+        else this.tickValidation();
+        return;
+    }
     var now = Date.now();
     if (this.lastNav && now - this.lastNav > this.staleMs) {
+        this.lastNav = 0;
         this.hide('unavailable', 'navigation stale');
     }
     /* 原生 vsomeip 直连 GuidanceEventList：不依赖 OAP 是否打开，开机即可自动取数。 */
@@ -450,12 +517,15 @@ HudEngine.prototype.tick = function() {
             self.nativeRetryAt = 0;
             var parsed = nav.fromBmw(reply);
             if (parsed.state !== 'inactive') {
-                if (!self.nativeVerified) {
-                    self.nativeVerified = true;
-                    self._changed();
-                }
-                self.handleNav(parsed);
+                var changed = !self.nativeVerified || !self.nativeState ||
+                    !!self.nativeState.lanes.length !== !!parsed.lanes.length;
+                self.nativeVerified = true;
+                self.nativeState = parsed;
+                self.nativeAt = Date.now();
+                if (changed) self._changed();
+                self.handleNav(self.withOapLanes(parsed));
             } else {
+                self.nativeState = null;
                 if (self.nativeVerified) {
                     self.nativeVerified = false;
                     self._changed();
@@ -467,6 +537,7 @@ HudEngine.prototype.tick = function() {
             }
         }, function(err) {
             if (!self.enabled || self.suspended || self.validation || generation !== self.generation) return;
+            self.nativeState = null;
             if (self.nativeVerified) {
                 self.nativeVerified = false;
                 self._changed();
@@ -536,15 +607,19 @@ function startDaemon(opts) {
                 if (!msg || typeof msg.cmd !== 'string') continue;
                 if (msg.cmd === 'status') send(sock, engine.status());
                 else if (msg.cmd === 'settings') engine.settings(msg.settings);
-                else if (msg.cmd === 'validation-start') engine.startValidation();
-                else if (msg.cmd === 'validation-stop') engine.stopValidation();
+                else if (msg.cmd === 'validation-start') engine.startValidation(sock, msg.parked);
+                else if (msg.cmd === 'validation-parking') engine.updateParking(sock, msg.parked);
+                else if (msg.cmd === 'validation-stop') engine.updateParking(sock, false);
                 else if (msg.cmd === 'suspend') engine.suspend();
-                else if (msg.cmd === 'nav') { engine.lastOapNav = Date.now(); engine.handleNav(msg.state); }
+                else if (msg.cmd === 'nav') engine.handleOapNav(msg.state);
                 else if (msg.cmd === 'nav-error') engine.handleNavError(msg.reason);
             }
         });
         sock.on('error', function() {});
-        sock.on('close', function() { clients.delete(sock); });
+        sock.on('close', function() {
+            clients.delete(sock);
+            engine.updateParking(sock, false);
+        });
     });
 
     server.on('error', function(err) {

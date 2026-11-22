@@ -7,8 +7,11 @@ const scenarios = require('../../../native/waze-on-cluster/hud/hud_validation_sc
 
 async function main() {
     let acknowledge = false;
+    const owner = {};
+    let monotonic = 0;
     const outputs = [], frames = [];
     const hud = new HudEngine({
+        clock: () => monotonic,
         traffic: { reset() {}, read: () => Promise.resolve(null) },
         outputFactory: (keepShown, onState) => {
             const output = { onState, closed: false, setKeepShown() {}, close() { this.closed = true; },
@@ -19,10 +22,20 @@ async function main() {
     let clock = 100000;
     Date.now = () => clock;
     try {
-        hud.startValidation();
+        hud.startValidation(owner, true);
         assert.strictEqual(hud.validation, null, '模式关闭时不能开始验证');
         hud.settings({ hud_simple: 1, hud: 0 });
-        hud.startValidation();
+        hud.startValidation(owner, false);
+        assert.strictEqual(hud.validation, null, '未确认停车不能启动验证');
+        hud.startValidation(owner, true);
+        hud.updateParking({}, false);
+        assert(hud.validation, '其他连接不能停止已启动的验证');
+        monotonic += 1600;
+        hud.tick();
+        assert.strictEqual(hud.validation, null, '车辆状态超时停止验证');
+        monotonic = 0;
+        outputs.length = frames.length = 0;
+        hud.startValidation(owner, true);
         assert.strictEqual(hud.validation.index, 0);
         const firstFrameCount = frames.length;
         hud.handleNav(nav.fromBmw({ events: [{ intersection: { direction: 'LEFT', formattedDistance: { distance: '147', unit: 'METER' } } }] }));
@@ -43,7 +56,7 @@ async function main() {
         outputs[0].onState('showing');
         assert.strictEqual(hud.state, 'waiting', '停止后的迟到事件无效');
         acknowledge = true;
-        hud.startValidation();
+        hud.startValidation(owner, true);
         const seen = [];
         for (let i = 0; i < scenarios.length; i++) {
             assert.strictEqual(hud.validation.index, i);
@@ -66,17 +79,17 @@ async function main() {
         assert.strictEqual(hud.validation, null, '完整序列自动结束，不循环');
         assert(hud.enabled && !hud.output, '结束后保留简洁模式，释放测试图层');
 
-        hud.startValidation();
+        hud.startValidation(owner, true);
         hud.settings({ hud_simple: 0, hud: 1 });
         assert.strictEqual(hud.validation, null, '切回视频模式取消验证');
         assert(outputs[outputs.length - 1].closed);
         hud.settings({ hud_simple: 1, hud: 0 });
         assert.strictEqual(hud.validation, null, '重新开启不恢复验证');
-        hud.startValidation();
+        hud.startValidation(owner, true);
         hud.settings(null);
         assert.strictEqual(hud.validation, null, '配置连接丢失取消验证');
         hud.settings({ hud_simple: 1, hud: 0 });
-        hud.startValidation(); hud.stop();
+        hud.startValidation(owner, true); hud.stop();
         assert.strictEqual(hud.validation, null, '应用关闭取消验证');
 
         const states = scenarios.map(s => nav.fromInput(s.input));

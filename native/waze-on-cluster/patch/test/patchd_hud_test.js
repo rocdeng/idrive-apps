@@ -202,6 +202,14 @@ function ok(name, cond) {
     ok('简洁模式拒绝非法值', !r.ok && fs.readFileSync(STATE, 'utf8') === state);
     r = await ask({ cmd: 'hud', on: 1 });
     ok('开启 HUD 地图同时退出简洁模式', r.ok && r.hud === 1 && r.hud_simple === 0);
+    r = await ask({ cmd: 'hud-simple', on: 1, cluster: 1, hud: 0 });
+    ok('简洁模式、仪表和视频 HUD 一起保存', r.ok && r.hud_simple === 1 && r.cluster === 1 && r.hud === 0);
+    r = await ask({ cmd: 'hud-simple', on: 0, cluster: 0, hud: 1 });
+    var mode = fs.readFileSync(STATE, 'utf8');
+    ok('退出简洁模式和切换显示位置仅写入一组配置', r.ok && r.hud_simple === 0 && r.cluster === 0 && r.hud === 1 &&
+        /hud_simple = 0\n/.test(mode) && /cluster = 0\n/.test(mode) && /hud = 1\n/.test(mode));
+    r = await ask({ cmd: 'hud-simple', on: 1, cluster: 0, hud: 1 });
+    ok('拒绝同时打开简洁 HUD 和视频 HUD', !r.ok && fs.readFileSync(STATE, 'utf8') === mode);
 })().catch(function (e) {
     ok('no error: ' + e.message, false);
 }).then(function () {

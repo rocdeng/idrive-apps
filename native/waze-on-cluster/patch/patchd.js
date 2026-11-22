@@ -2284,7 +2284,16 @@ function handle(line, sock) {
     }
     if (msg.cmd === 'hud-simple') {
         if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: 'hud-simple-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
-        saveMapSettings(sock, 'hud-simple-reply', msg.on ? { hud: 0, hud_simple: 1 } : { hud_simple: 0 }, 'HUD simple mode');
+        var display = msg.on ? { hud: 0, hud_simple: 1 } : { hud_simple: 0 };
+        if (msg.hud !== undefined || msg.cluster !== undefined) {
+            if ((msg.hud !== 0 && msg.hud !== 1) || (msg.cluster !== 0 && msg.cluster !== 1) || (msg.on && msg.hud)) {
+                reply(sock, { ev: 'hud-simple-reply', ok: false, reason: 'invalid display settings' });
+                return;
+            }
+            display.hud = msg.hud;
+            display.cluster = msg.cluster;
+        }
+        saveMapSettings(sock, 'hud-simple-reply', display, 'HUD simple mode');
         return;
     }
     if (msg.cmd === 'status') { status(); return; }
