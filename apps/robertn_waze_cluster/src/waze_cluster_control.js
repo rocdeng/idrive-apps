@@ -624,12 +624,14 @@ class WazeClusterControl extends EventEmitter {
 
     hudStyleText() {
         const v = this.hudStyle();
-        return t('HUD style: {0}', v == null ? '—' : v === 2 ? t('Style 2') : t('Style 1'));
+        const name = v === 1 ? t('Style 1') : v === 2 ? t('Style 2') : v === 3 ? t('Style 3') : v === 4 ? t('Style 4') : '—';
+        return t('HUD style: {0}', name);
     }
 
     cycleHudStyle() {
         if (!this.canChangeHudStyle()) return;
-        const next = this.hudStyle() === 2 ? 1 : 2;
+        const cur = this.hudStyle();
+        const next = cur >= 1 && cur < 4 ? cur + 1 : 1;
         this._clearAskedStyle();
         this._askedStyle = next;
         this._askedStyleTimer = setTimeout(() => {

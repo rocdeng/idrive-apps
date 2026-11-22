@@ -289,7 +289,7 @@ function mapValueOk(k, v) {
     var n = Number(v);
     return /^-?\d+$/.test(v) && ((k === 'hud_width_pct' || k === 'hud_simple_width_pct') ? n === 0 || (n >= 20 && n <= 100)
         : k === 'hud_simple_font_pct' ? n === 0 || (n >= 80 && n <= 150)
-        : k === 'hud_simple_style' ? n === 1 || n === 2
+        : k === 'hud_simple_style' ? n >= 1 && n <= 4
         : /^hud_(simple_)?offset_/.test(k) ? n >= -800 && n <= 800 : k === 'hud_edge_fade_pct' ? n >= 0 && n <= 30 : n === 0 || n === 1);
 }
 
@@ -2344,8 +2344,8 @@ function handle(line, sock) {
     }
     if (msg.cmd === 'hud-simple-style') {
         var st = msg.style;
-        if (st !== 1 && st !== 2) {
-            reply(sock, { ev: 'hud-simple-style-reply', ok: false, reason: 'HUD style must be 1 or 2' });
+        if (!(typeof st === 'number' && st >= 1 && st <= 4 && st === Math.floor(st))) {
+            reply(sock, { ev: 'hud-simple-style-reply', ok: false, reason: 'HUD style must be 1-4' });
             return;
         }
         saveMapSettings(sock, 'hud-simple-style-reply', { hud_simple_style: st }, 'the simple HUD style');

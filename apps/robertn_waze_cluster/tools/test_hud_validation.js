@@ -53,8 +53,10 @@ async function main() {
                 const last = frames[frames.length - 1];
                 assert(last.visible && last.pixels.length === 800 * 480 * 4);
                 let marked = false;
-                for (let y = 55; y < 82; y++) for (let x = 175; x < 400; x++) {
-                    if (last.pixels[(y * 800 + x) * 4 + 3]) marked = true;
+                for (let y = 26; y < 63; y++) for (let x = 0; x < 160; x++) {
+                    const p = (y * 800 + x) * 4;
+                    if (last.pixels[p + 3] && last.pixels[p] > 245 && last.pixels[p + 1] > 185 &&
+                        last.pixels[p + 1] < 205 && last.pixels[p + 2] < 70) marked = true;
                 }
                 assert(marked, scenarios[i].id + ' 带 TEST 标记');
             } else assert.strictEqual(frames[frames.length - 1].visible, false, '结束导航场景清屏');

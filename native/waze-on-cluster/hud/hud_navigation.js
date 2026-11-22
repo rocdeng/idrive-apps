@@ -78,6 +78,50 @@
         if (!limit || ['KMH', 'KM_P_H', 'KILOMETER_PER_HOUR', 'KILOMETERS_PER_HOUR'].indexOf(enumName(limit.speedUnit)) < 0) return null;
         return limit.speedLimit;
     }
+    function bmwLaneMarker(v) {
+        var name = enumName(v);
+        return name === 'SOLID' ? 'solid' : name === 'DASHED' ? 'dashed' : null;
+    }
+    function bmwLaneFollowDirs(lane) {
+        var out = [];
+        function add(raw) {
+            var mapped = BMW_DIRECTIONS[enumName(raw)];
+            if (mapped && out.indexOf(mapped) < 0) out.push(mapped);
+        }
+        if (Array.isArray(lane.directionsToFollow)) lane.directionsToFollow.forEach(add);
+        if (lane.directionToFollow !== undefined) add(lane.directionToFollow);
+        return out;
+    }
+    function bmwLanes(laneEvent) {
+        var rawLanes = laneEvent && Array.isArray(laneEvent.lanes) ? laneEvent.lanes : [];
+        if (!rawLanes.length) return [];
+        var markers = Array.isArray(laneEvent.laneMarkers) ? laneEvent.laneMarkers : [];
+        var markerOffset = markers.length === rawLanes.length - 1 ? -1 : 0;
+        var anyHighlighted = rawLanes.some(function(l) { return l && l.isHighlighted === true; });
+        var anyFollow = !anyHighlighted && rawLanes.some(function(l) { return l && bmwLaneFollowDirs(l).length > 0; });
+        var carIdx = typeof laneEvent.recommendedCarPositionLaneIndex === 'number' &&
+            laneEvent.recommendedCarPositionLaneIndex >= 0 &&
+            laneEvent.recommendedCarPositionLaneIndex < rawLanes.length ? laneEvent.recommendedCarPositionLaneIndex : -1;
+        return rawLanes.slice(0, 8).map(function(lane, idx) {
+            lane = lane || {};
+            var follow = bmwLaneFollowDirs(lane);
+            var dirs = follow.slice();
+            if (Array.isArray(lane.otherDirections)) {
+                lane.otherDirections.forEach(function(raw) {
+                    var mapped = BMW_DIRECTIONS[enumName(raw)];
+                    if (mapped && dirs.indexOf(mapped) < 0) dirs.push(mapped);
+                });
+            }
+            var recommended = anyHighlighted ? lane.isHighlighted === true
+                : anyFollow ? follow.length > 0
+                : idx === carIdx;
+            return {
+                directions: dirs,
+                recommended: recommended,
+                leftBoundary: idx > 0 ? bmwLaneMarker(markers[idx + markerOffset]) : null
+            };
+        });
+    }
     function fromBmw(reply) {
         var views = reply && reply.viewContent;
         var events = reply && reply.events;
@@ -88,15 +132,19 @@
             });
         }
         var kinds = ['intersection', 'roundabout', 'branch', 'destinationManeuver', 'laneChange', 'passiveManeuver'];
-        var destTimeS = null;
+        var destTimeS = null, laneEvents = [];
         for (var j = 0; j < (events || []).length; j++) {
             var du = events[j], dk = du.type, de = du.value;
             if (!dk && du.destinationManeuver && typeof du.destinationManeuver === 'object') {
                 dk = 'destinationManeuver'; de = du.destinationManeuver;
+            } else if (!dk && du.laneGuiding && typeof du.laneGuiding === 'object') {
+                dk = 'laneGuiding'; de = du.laneGuiding;
             }
-            if (dk === 'destinationManeuver' && de && typeof de.travelTime === 'number' && de.travelTime > 0) {
+            if (dk === 'destinationManeuver' && de && typeof de.travelTime === 'number' && de.travelTime > 0 && destTimeS === null) {
                 destTimeS = de.travelTime;
-                break;
+            }
+            if (dk === 'laneGuiding' && de && de.unreliable !== true && Array.isArray(de.lanes) && de.lanes.length) {
+                laneEvents.push(de);
             }
         }
         for (var i = 0; i < (events || []).length; i++) {
@@ -112,13 +160,19 @@
             if (typeof metersPerUnit === 'number' && /^\d+(\.\d+)?$/.test(fd.distance || '')) {
                 value = Number(fd.distance) * metersPerUnit;
             }
+            // 两种事件共用路线剩余里程。只有同一位置且唯一的一条车道引导可用于这个转向。
+            var position = number(event.distanceToDestination);
+            var matchingLanes = position === null ? [] : laneEvents.filter(function(lane) {
+                return lane.distanceToDestination === position;
+            });
             var timeS = destTimeS !== null ? destTimeS : (typeof event.travelTime === 'number' && event.travelTime > 0 ? event.travelTime : null);
             return snapshot({ state: 'navigating', source: 'BMW 导航结构化事件',
                 direction: BMW_DIRECTIONS[enumName(event.direction)] || null,
                 instruction: words(event.description), distanceM: value,
-                remainingDistanceM: number(event.distanceToDestination),
+                remainingDistanceM: position,
                 remainingTimeS: number(timeS),
-                speedLimitKmh: bmwSpeedLimit(event) });
+                speedLimitKmh: bmwSpeedLimit(event),
+                lanes: matchingLanes.length === 1 ? bmwLanes(matchingLanes[0]) : [] });
         }
         return snapshot({ state: 'inactive' });
     }

@@ -82,7 +82,7 @@ class StructuredHud extends EventEmitter {
         this.hudWidthPct = typeof msg.hud_width_pct === 'number' ? msg.hud_width_pct : null;
         this.hudOffset = typeof msg.hud_offset_x === 'number' && typeof msg.hud_offset_y === 'number' ? [msg.hud_offset_x, msg.hud_offset_y] : null;
         this.hudFontPct = typeof msg.hud_simple_font_pct === 'number' ? msg.hud_simple_font_pct : null;
-        this.hudStyle = (msg.hud_simple_style === 1 || msg.hud_simple_style === 2) ? msg.hud_simple_style : null;
+        this.hudStyle = (typeof msg.hud_simple_style === 'number' && msg.hud_simple_style >= 1 && msg.hud_simple_style <= 4) ? msg.hud_simple_style : null;
         this.nativeGuidance = msg.native_guidance === true;
         this.validation = Array.isArray(msg.validation) && msg.validation.length === 2 ? msg.validation : null;
         if (!this.enabled || this.suspended || this.validation || this.nativeGuidance) {

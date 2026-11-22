@@ -2,8 +2,9 @@
 
 const IFACE = 'de.bmw.infotainment.navigation.guiding.GuidanceEventList';
 const INSTANCE = 'Main_Instance', VIEW = 'HUD.RB.Main';
+const INCLUDE_LANES = 'INCLUDE_LANE_GUIDINGS';
 const FALLBACK_CONFIG = { viewport: { startPoint: { anchorPoint: { standardReferencePoint: 'CCP' }, offsets: [] },
-    maxElementCount: 4, endPoints: [], includedTypes: ['INCLUDE_DESTINATIONS', 'INCLUDE_ACTIVE_MANEUVERS'] },
+    maxElementCount: 6, endPoints: [], includedTypes: ['INCLUDE_DESTINATIONS', 'INCLUDE_ACTIVE_MANEUVERS', INCLUDE_LANES] },
     options: ['ENABLE_PRIORITIZED_VIEW'], minimumUpdateIntervalMs: 500, segmentItemRasterLength: 0 };
 
 function within(promise, ms) {
@@ -58,8 +59,15 @@ class GuidanceReader {
                     () => FALLBACK_CONFIG);
             return config.then((value) => {
                 current();
-                this.config = value;
-                return this.call(proxy, 'queryContent', { viewConfigs: [value] });
+                if (!this.config) {
+                    const viewport = value.viewport || FALLBACK_CONFIG.viewport;
+                    const types = viewport.includedTypes || FALLBACK_CONFIG.viewport.includedTypes;
+                    const hasLanes = types.some((type) => type === INCLUDE_LANES || type === 0 || (type && type.name === INCLUDE_LANES));
+                    this.config = Object.assign({}, value, { viewport: Object.assign({}, viewport, {
+                        includedTypes: hasLanes ? types : types.concat(INCLUDE_LANES)
+                    }) });
+                }
+                return this.call(proxy, 'queryContent', { viewConfigs: [this.config] });
             });
         }).then((reply) => { current(); return reply; });
     }

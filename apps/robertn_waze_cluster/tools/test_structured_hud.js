@@ -34,12 +34,36 @@ async function main() {
     assert.strictEqual(at(322, 311)[3], 0, '推荐车道保持透明底');
     assert.strictEqual(nav.snapshot({ lanes: [{ directions: [] }, lanes[2]] }).lanes.length, 2, '无箭头车道保留边界位置');
     console.log('通过：最新画布推荐绿线、透明底、实际虚实边界与未知边界隐藏');
+    for (const [style, x, y] of [[3, 192, 78], [4, 215, 74]]) {
+        const view = { state: 'navigating', lanes: lanes.map(lane => ({ ...lane, recommended: false })) };
+        const alpha = (frame, px, py) => frame[(Math.floor((py + 36) * 480 / 272) * 800 +
+            Math.ceil((px + 0.5) * 800 / 454)) * 4 + 3];
+        for (const boundary of ['solid', 'dashed', null]) {
+            view.lanes[1].leftBoundary = boundary;
+            const frame = renderer.render(view, laneFont, null, 100, style);
+            assert.strictEqual(alpha(frame, x, y + 2) > 0, boundary !== null, '已知车道边界可见');
+            assert.strictEqual(alpha(frame, x, y + 9) > 0, boundary === 'solid', '仅实线连续');
+        }
+    }
+    const hints = (recommended) => {
+        const frame = renderer.render({ state: 'navigating', lanes: Array.from({ length: 6 }, (_, i) => ({
+            directions: ['straight'], recommended: recommended.includes(i)
+        })) }, laneFont, null, 100, 4);
+        for (let y = 295; y < 328; y++) for (let x = 296; x < 790; x++) {
+            if (frame[(y * 800 + x) * 4 + 3]) return true;
+        }
+        return false;
+    };
+    assert(hints([1, 2]), '连续的中间推荐车道显示提示');
+    assert(!hints([0, 5]), '分散的推荐车道不显示错误的中间提示');
+    const stockConfig = { minimumUpdateIntervalMs: 500, viewport: { maxElementCount: 4,
+        includedTypes: ['INCLUDE_ACTIVE_MANEUVERS', 'INCLUDE_DESTINATIONS'] } };
     const calls = [];
     let down = 0, query = () => Promise.resolve(reply);
     const proxy = { init: () => Promise.resolve(), waitUntilAvailable: () => Promise.resolve(),
         shutdown: () => down++, _someIpProxy: { callMethod: (name, args) => {
             calls.push({ name, args });
-            return name === 'getViewConfig' ? Promise.resolve({ viewConfig: { minimumUpdateIntervalMs: 500 } }) : query();
+            return name === 'getViewConfig' ? Promise.resolve({ viewConfig: stockConfig }) : query();
         } } };
     const reader = new GuidanceReader({ buildTypedProxy: (iface, instance) => {
         assert.strictEqual(iface, IFACE); assert.strictEqual(instance, INSTANCE);
@@ -49,6 +73,12 @@ async function main() {
     await reader.read();
     assert.deepStrictEqual(calls.map((c) => c.name), ['getViewConfig', 'queryContent', 'queryContent']);
     assert.strictEqual(calls[0].args.viewId, VIEW);
+    const queryConfig = calls[1].args.viewConfigs[0];
+    assert.deepStrictEqual(queryConfig.viewport.includedTypes,
+        ['INCLUDE_ACTIVE_MANEUVERS', 'INCLUDE_DESTINATIONS', 'INCLUDE_LANE_GUIDINGS']);
+    assert.strictEqual(queryConfig.viewport.maxElementCount, 4);
+    assert.strictEqual(calls[2].args.viewConfigs[0], queryConfig, '复用补齐车道事件的查询配置');
+    assert(!stockConfig.viewport.includedTypes.includes('INCLUDE_LANE_GUIDINGS'), '不修改原厂视图配置');
     assert.strictEqual(nav.fromBmw(reply).distanceM, 147);
     ['UTURN_LEFT', 'UTURN_RIGHT'].forEach((name) => {
         const state = nav.fromBmw({ events: [{ intersection: { direction: { name } } }] });
@@ -71,6 +101,42 @@ async function main() {
     assert.strictEqual(distanceIn('KM', '1.2'), 1200);
     assert.strictEqual(distanceIn('NONE', '1'), null);
     assert.strictEqual(distanceIn('KM', '—'), null);
+    const laneReply = { viewContent: [{ eventsInView: [
+        { intersection: { direction: { name: 'RIGHT' }, formattedDistance: { distance: '250', unit: { name: 'METER' } },
+            description: { text: '科技园路' }, distanceToDestination: 7400 } },
+        { destinationManeuver: { travelTime: 1080 } },
+        { laneGuiding: {
+            distanceToDestination: 7400,
+            lanes: [
+                { directionToFollow: { name: 'NONE' }, otherDirections: [{ name: 'LEFT' }], isHighlighted: false },
+                { directionToFollow: { name: 'NONE' }, otherDirections: [{ name: 'STRAIGHT_ON' }], isHighlighted: false },
+                { directionToFollow: { name: 'RIGHT' }, otherDirections: [{ name: 'STRAIGHT_ON' }], isHighlighted: true },
+                { directionsToFollow: [{ name: 'RIGHT' }], otherDirections: [], isHighlighted: true }
+            ],
+            laneMarkers: [{ name: 'SOLID' }, { name: 'DASHED' }, { name: 'SOLID' }, { name: 'DASHED' }, { name: 'SOLID' }],
+            recommendedCarPositionLaneIndex: 2
+        } }
+    ] }] };
+    const laneState = nav.fromBmw(laneReply);
+    assert.strictEqual(laneState.remainingTimeS, 1080, '同时含 destinationManeuver 与 laneGuiding 时应保留剩余时间');
+    assert.deepStrictEqual(laneState.lanes, [
+        { directions: ['left'], recommended: false, leftBoundary: null },
+        { directions: ['straight'], recommended: false, leftBoundary: 'dashed' },
+        { directions: ['right', 'straight'], recommended: true, leftBoundary: 'solid' },
+        { directions: ['right'], recommended: true, leftBoundary: 'dashed' }
+    ], 'fromBmw 应解析 laneGuiding 车道方向、推荐高亮与虚实分隔线');
+    const [turn, destination, currentLanes] = laneReply.viewContent[0].eventsInView;
+    const laterLanes = { laneGuiding: { ...currentLanes.laneGuiding, distanceToDestination: 7150 } };
+    const uncertain = { laneGuiding: { ...currentLanes.laneGuiding, unreliable: true } };
+    for (const adapter of [nav, require('../../../native/waze-on-cluster/hud/hud_navigation.js')]) {
+        assert.deepStrictEqual(adapter.fromBmw({ events: [turn, laterLanes, destination, currentLanes] }).lanes,
+            laneState.lanes, '选当前路口车道，忽略后一路口');
+        for (const entries of [[laterLanes], [uncertain], [currentLanes, currentLanes],
+            [{ laneGuiding: { ...currentLanes.laneGuiding, distanceToDestination: undefined } }]]) {
+            assert.deepStrictEqual(adapter.fromBmw({ events: [turn, ...entries] }).lanes, [],
+                '错配、不可信、重复或缺少位置时隐藏车道');
+        }
+    }
     query = () => new Promise(() => {});
     let failed = false;
     try { await reader.read(); } catch (error) { failed = /timed out/.test(error.message); }
@@ -169,6 +235,32 @@ async function main() {
     assert.deepStrictEqual(Array.from(bomBuf.slice(4, 7)), [0xef, 0xbb, 0xbf]);
     assert.strictEqual(rawBuf.readUInt32BE(0), 11 + 1, '无 BOM Utf8D 长度应为字符串 + NUL');
     assert.strictEqual(rawBuf.slice(4, 15).toString('utf8'), 'HUD.RB.Main');
+    const u32be = (v) => { const b = Buffer.alloc(4); b.writeUInt32BE(v, 0); return b; };
+    const f64be = (v) => { const b = Buffer.alloc(8); b.writeDoubleBE(v, 0); return b; };
+    const subWrap = (parts) => { const body = Buffer.concat(parts); return Buffer.concat([u32be(body.length), body]); };
+    const lane0 = Buffer.concat([u32be(0), subWrap([u32be(1)]), Buffer.from([0]), u32be(0), subWrap([])]);
+    const lane1 = Buffer.concat([u32be(5), subWrap([u32be(1)]), Buffer.from([1]), u32be(0), subWrap([u32be(5)])]);
+    const lgBody = Buffer.concat([
+        Buffer.alloc(8), f64be(7400), Buffer.from([0]),
+        u32be(8), u32be(3), Buffer.alloc(8),
+        f64be(200),
+        subWrap([lane0, lane1]),
+        subWrap([u32be(2)]),
+        Buffer.from([1, 50])
+    ]);
+    const viewStruct = Buffer.concat([
+        u32be(1), Buffer.from([1]), u32be(0), u32be(1),
+        subWrap([u32be(lgBody.length), u32be(15), lgBody])
+    ]);
+    const lgDecoded = someip.decodeGetViewContent(Buffer.concat([u32be(0), subWrap([bomBuf, viewStruct])]));
+    assert.strictEqual(lgDecoded.error, 0);
+    assert.strictEqual(lgDecoded.events.length, 1);
+    assert.strictEqual(lgDecoded.events[0].type, 'laneGuiding');
+    assert.strictEqual(lgDecoded.events[0].value.unreliable, false);
+    assert.deepStrictEqual(nav.fromBmw({ events: [{ type: 'intersection', value: { direction: 'RIGHT', distanceToDestination: 7400 } }, lgDecoded.events[0]] }).lanes, [
+        { directions: ['straight'], recommended: false, leftBoundary: null },
+        { directions: ['right', 'straight'], recommended: true, leftBoundary: 'dashed' }
+    ], '原生 SOME/IP laneGuiding 二进制解码应与 fromBmw 无缝衔接');
     const availEvents = [];
     const nativeReader = new someip.NativeGuidanceReader({
         bin: '/nonexistent/woc-guidance',
@@ -263,13 +355,14 @@ async function main() {
     });
     const bridge = new StructuredHud({
         control, hudPath: hSock, retryMs: 50, intervalMs: 50,
-        reader: { read: () => { reads++; return Promise.resolve(reply); }, stop: () => stops++ }
+        reader: { read: () => { reads++; return Promise.resolve(laneReply); }, stop: () => stops++ }
     });
     try {
         bridge.start();
         await until(() => bridge.supported && bridge.enabled && bridge.state === 'showing' && renderSessions[0] && renderSessions[0].frames > 0);
         assert(renderSessions[0].cmds.some((c) => c.op === 'hello' && c.app === 'robertn_waze_cluster_simple'));
         assert(renderSessions[0].cmds.some((c) => c.op === 'layer' && c.target === 'hud' && c.kind === 'image'));
+        assert.deepStrictEqual(daemon.engine.lastState.lanes, laneState.lanes, '实际 OAP 桥接和 HUD 推帧保留车道及虚实线');
         renderPeers[0].destroy();
         await until(() => renderSessions.length >= 2 && renderSessions[1].frames > 0 && bridge.state === 'showing');
         bridge.settings({ hud_simple: 0, hud: 1 });

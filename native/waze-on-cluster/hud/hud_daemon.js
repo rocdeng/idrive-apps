@@ -241,7 +241,7 @@ HudEngine.prototype.settings = function(settings) {
     this.hudOffsetY = settings && typeof settings.hud_simple_offset_y === 'number' ? settings.hud_simple_offset_y
         : settings && typeof settings.hud_offset_y === 'number' ? settings.hud_offset_y : null;
     this.hudFontPct = settings && typeof settings.hud_simple_font_pct === 'number' ? settings.hud_simple_font_pct : (this.supported ? 0 : null);
-    this.hudStyle = settings && (settings.hud_simple_style === 1 || settings.hud_simple_style === 2) ? settings.hud_simple_style : (this.supported ? 1 : null);
+    this.hudStyle = settings && typeof settings.hud_simple_style === 'number' && settings.hud_simple_style >= 1 && settings.hud_simple_style <= 4 ? settings.hud_simple_style : (this.supported ? 1 : null);
     var nextLayout = [this.hudWidthPct, this.hudOffsetX, this.hudOffsetY].join(',');
     var enabled = this.supported && settings.hud_simple === 1 && settings.hud === 0;
     if (this.enabled !== enabled) {

@@ -111,7 +111,9 @@ module.exports = [
    "HUD text size: {0}": "حجم نص HUD: {0}",
    "HUD style: {0}": "نمط HUD: {0}",
    "Style 1": "نمط 1",
-   "Style 2": "نمط 2"
+   "Style 2": "نمط 2",
+   "Style 3": "نمط 3",
+   "Style 4": "نمط 4"
   }
  },
  {
@@ -224,7 +226,9 @@ module.exports = [
    "HUD text size: {0}": "Velikost textu HUD: {0}",
    "HUD style: {0}": "Styl HUD: {0}",
    "Style 1": "Styl 1",
-   "Style 2": "Styl 2"
+   "Style 2": "Styl 2",
+   "Style 3": "Styl 3",
+   "Style 4": "Styl 4"
   }
  },
  {
@@ -337,7 +341,9 @@ module.exports = [
    "HUD text size: {0}": "HUD-tekststørrelse: {0}",
    "HUD style: {0}": "HUD-stil: {0}",
    "Style 1": "Stil 1",
-   "Style 2": "Stil 2"
+   "Style 2": "Stil 2",
+   "Style 3": "Stil 3",
+   "Style 4": "Stil 4"
   }
  },
  {
@@ -450,7 +456,9 @@ module.exports = [
    "HUD text size: {0}": "HUD-Textgröße: {0}",
    "HUD style: {0}": "HUD-Stil: {0}",
    "Style 1": "Stil 1",
-   "Style 2": "Stil 2"
+   "Style 2": "Stil 2",
+   "Style 3": "Stil 3",
+   "Style 4": "Stil 4"
   }
  },
  {
@@ -563,7 +571,9 @@ module.exports = [
    "HUD text size: {0}": "Μέγεθος κειμένου HUD: {0}",
    "HUD style: {0}": "Στυλ HUD: {0}",
    "Style 1": "Στυλ 1",
-   "Style 2": "Στυλ 2"
+   "Style 2": "Στυλ 2",
+   "Style 3": "Στυλ 3",
+   "Style 4": "Στυλ 4"
   }
  },
  {
@@ -676,7 +686,9 @@ module.exports = [
    "HUD text size: {0}": "Tamaño de texto HUD: {0}",
    "HUD style: {0}": "Estilo HUD: {0}",
    "Style 1": "Estilo 1",
-   "Style 2": "Estilo 2"
+   "Style 2": "Estilo 2",
+   "Style 3": "Estilo 3",
+   "Style 4": "Estilo 4"
   }
  },
  {
@@ -789,7 +801,9 @@ module.exports = [
    "HUD text size: {0}": "Tamaño de texto HUD: {0}",
    "HUD style: {0}": "Estilo HUD: {0}",
    "Style 1": "Estilo 1",
-   "Style 2": "Estilo 2"
+   "Style 2": "Estilo 2",
+   "Style 3": "Estilo 3",
+   "Style 4": "Estilo 4"
   }
  },
  {
@@ -902,7 +916,9 @@ module.exports = [
    "HUD text size: {0}": "HUD-tekstikoko: {0}",
    "HUD style: {0}": "HUD-tyyli: {0}",
    "Style 1": "Tyyli 1",
-   "Style 2": "Tyyli 2"
+   "Style 2": "Tyyli 2",
+   "Style 3": "Tyyli 3",
+   "Style 4": "Tyyli 4"
   }
  },
  {
@@ -1015,7 +1031,9 @@ module.exports = [
    "HUD text size: {0}": "Taille du texte HUD : {0}",
    "HUD style: {0}": "Style HUD : {0}",
    "Style 1": "Style 1",
-   "Style 2": "Style 2"
+   "Style 2": "Style 2",
+   "Style 3": "Style 3",
+   "Style 4": "Style 4"
   }
  },
  {
@@ -1128,7 +1146,9 @@ module.exports = [
    "HUD text size: {0}": "Taille du texte HUD : {0}",
    "HUD style: {0}": "Style HUD : {0}",
    "Style 1": "Style 1",
-   "Style 2": "Style 2"
+   "Style 2": "Style 2",
+   "Style 3": "Style 3",
+   "Style 4": "Style 4"
   }
  },
  {
@@ -1241,7 +1261,9 @@ module.exports = [
    "HUD text size: {0}": "גודל טקסט תצוגה עילית: {0}",
    "HUD style: {0}": "סגנון תצוגה עילית: {0}",
    "Style 1": "סגנון 1",
-   "Style 2": "סגנון 2"
+   "Style 2": "סגנון 2",
+   "Style 3": "סגנון 3",
+   "Style 4": "סגנון 4"
   }
  },
  {
@@ -1354,7 +1376,9 @@ module.exports = [
    "HUD text size: {0}": "HUD szövegméret: {0}",
    "HUD style: {0}": "HUD stílus: {0}",
    "Style 1": "1. stílus",
-   "Style 2": "2. stílus"
+   "Style 2": "2. stílus",
+   "Style 3": "3. stílus",
+   "Style 4": "4. stílus"
   }
  },
  {
@@ -1467,7 +1491,9 @@ module.exports = [
    "HUD text size: {0}": "Ukuran teks HUD: {0}",
    "HUD style: {0}": "Gaya HUD: {0}",
    "Style 1": "Gaya 1",
-   "Style 2": "Gaya 2"
+   "Style 2": "Gaya 2",
+   "Style 3": "Gaya 3",
+   "Style 4": "Gaya 4"
   }
  },
  {
@@ -1580,7 +1606,9 @@ module.exports = [
    "HUD text size: {0}": "Dimensione testo HUD: {0}",
    "HUD style: {0}": "Stile HUD: {0}",
    "Style 1": "Stile 1",
-   "Style 2": "Stile 2"
+   "Style 2": "Stile 2",
+   "Style 3": "Stile 3",
+   "Style 4": "Stile 4"
   }
  },
  {
@@ -1693,7 +1721,9 @@ module.exports = [
    "HUD text size: {0}": "HUD 文字サイズ: {0}",
    "HUD style: {0}": "HUD スタイル: {0}",
    "Style 1": "スタイル 1",
-   "Style 2": "スタイル 2"
+   "Style 2": "スタイル 2",
+   "Style 3": "スタイル 3",
+   "Style 4": "スタイル 4"
   }
  },
  {
@@ -1806,7 +1836,9 @@ module.exports = [
    "HUD text size: {0}": "HUD 글자 크기: {0}",
    "HUD style: {0}": "HUD 스타일: {0}",
    "Style 1": "스타일 1",
-   "Style 2": "스타일 2"
+   "Style 2": "스타일 2",
+   "Style 3": "스타일 3",
+   "Style 4": "스타일 4"
   }
  },
  {
@@ -1919,7 +1951,9 @@ module.exports = [
    "HUD text size: {0}": "HUD-tekststørrelse: {0}",
    "HUD style: {0}": "HUD-stil: {0}",
    "Style 1": "Stil 1",
-   "Style 2": "Stil 2"
+   "Style 2": "Stil 2",
+   "Style 3": "Stil 3",
+   "Style 4": "Stil 4"
   }
  },
  {
@@ -2034,7 +2068,9 @@ module.exports = [
    "HUD text size: {0}": "HUD-tekstgrootte: {0}",
    "HUD style: {0}": "HUD-stijl: {0}",
    "Style 1": "Stijl 1",
-   "Style 2": "Stijl 2"
+   "Style 2": "Stijl 2",
+   "Style 3": "Stijl 3",
+   "Style 4": "Stijl 4"
   }
  },
  {
@@ -2147,7 +2183,9 @@ module.exports = [
    "HUD text size: {0}": "Rozmiar tekstu HUD: {0}",
    "HUD style: {0}": "Styl HUD: {0}",
    "Style 1": "Styl 1",
-   "Style 2": "Styl 2"
+   "Style 2": "Styl 2",
+   "Style 3": "Styl 3",
+   "Style 4": "Styl 4"
   }
  },
  {
@@ -2260,7 +2298,9 @@ module.exports = [
    "HUD text size: {0}": "Tamanho do texto HUD: {0}",
    "HUD style: {0}": "Estilo HUD: {0}",
    "Style 1": "Estilo 1",
-   "Style 2": "Estilo 2"
+   "Style 2": "Estilo 2",
+   "Style 3": "Estilo 3",
+   "Style 4": "Estilo 4"
   }
  },
  {
@@ -2373,7 +2413,9 @@ module.exports = [
    "HUD text size: {0}": "Tamanho do texto HUD: {0}",
    "HUD style: {0}": "Estilo HUD: {0}",
    "Style 1": "Estilo 1",
-   "Style 2": "Estilo 2"
+   "Style 2": "Estilo 2",
+   "Style 3": "Estilo 3",
+   "Style 4": "Estilo 4"
   }
  },
  {
@@ -2486,7 +2528,9 @@ module.exports = [
    "HUD text size: {0}": "Dimensiune text HUD: {0}",
    "HUD style: {0}": "Stil HUD: {0}",
    "Style 1": "Stil 1",
-   "Style 2": "Stil 2"
+   "Style 2": "Stil 2",
+   "Style 3": "Stil 3",
+   "Style 4": "Stil 4"
   }
  },
  {
@@ -2599,7 +2643,9 @@ module.exports = [
    "HUD text size: {0}": "Размер шрифта HUD: {0}",
    "HUD style: {0}": "Стиль HUD: {0}",
    "Style 1": "Стиль 1",
-   "Style 2": "Стиль 2"
+   "Style 2": "Стиль 2",
+   "Style 3": "Стиль 3",
+   "Style 4": "Стиль 4"
   }
  },
  {
@@ -2712,7 +2758,9 @@ module.exports = [
    "HUD text size: {0}": "Veľkosť textu HUD: {0}",
    "HUD style: {0}": "Štýl HUD: {0}",
    "Style 1": "Štýl 1",
-   "Style 2": "Štýl 2"
+   "Style 2": "Štýl 2",
+   "Style 3": "Štýl 3",
+   "Style 4": "Štýl 4"
   }
  },
  {
@@ -2825,7 +2873,9 @@ module.exports = [
    "HUD text size: {0}": "Velikost besedila HUD: {0}",
    "HUD style: {0}": "Slog HUD: {0}",
    "Style 1": "Slog 1",
-   "Style 2": "Slog 2"
+   "Style 2": "Slog 2",
+   "Style 3": "Slog 3",
+   "Style 4": "Slog 4"
   }
  },
  {
@@ -2938,7 +2988,9 @@ module.exports = [
    "HUD text size: {0}": "HUD-textstorlek: {0}",
    "HUD style: {0}": "HUD-stil: {0}",
    "Style 1": "Stil 1",
-   "Style 2": "Stil 2"
+   "Style 2": "Stil 2",
+   "Style 3": "Stil 3",
+   "Style 4": "Stil 4"
   }
  },
  {
@@ -3051,7 +3103,9 @@ module.exports = [
    "HUD text size: {0}": "ขนาดตัวอักษร HUD: {0}",
    "HUD style: {0}": "รูปแบบ HUD: {0}",
    "Style 1": "แบบที่ 1",
-   "Style 2": "แบบที่ 2"
+   "Style 2": "แบบที่ 2",
+   "Style 3": "แบบที่ 3",
+   "Style 4": "แบบที่ 4"
   }
  },
  {
@@ -3164,7 +3218,9 @@ module.exports = [
    "HUD text size: {0}": "HUD metin boyutu: {0}",
    "HUD style: {0}": "HUD stili: {0}",
    "Style 1": "Stil 1",
-   "Style 2": "Stil 2"
+   "Style 2": "Stil 2",
+   "Style 3": "Stil 3",
+   "Style 4": "Stil 4"
   }
  },
  {
@@ -3277,7 +3333,9 @@ module.exports = [
    "HUD text size: {0}": "Розмір шрифту HUD: {0}",
    "HUD style: {0}": "Стиль HUD: {0}",
    "Style 1": "Стиль 1",
-   "Style 2": "Стиль 2"
+   "Style 2": "Стиль 2",
+   "Style 3": "Стиль 3",
+   "Style 4": "Стиль 4"
   }
  },
  {
@@ -3390,7 +3448,9 @@ module.exports = [
    "HUD text size: {0}": "Cỡ chữ HUD: {0}",
    "HUD style: {0}": "Kiểu HUD: {0}",
    "Style 1": "Kiểu 1",
-   "Style 2": "Kiểu 2"
+   "Style 2": "Kiểu 2",
+   "Style 3": "Kiểu 3",
+   "Style 4": "Kiểu 4"
   }
  },
  {
@@ -3505,7 +3565,9 @@ module.exports = [
    "HUD text size: {0}": "HUD 字号：{0}",
    "HUD style: {0}": "HUD 风格：{0}",
    "Style 1": "风格 1",
-   "Style 2": "风格 2"
+   "Style 2": "风格 2",
+   "Style 3": "风格 3",
+   "Style 4": "风格 4"
   }
  },
  {
@@ -3620,7 +3682,9 @@ module.exports = [
    "HUD text size: {0}": "HUD 字體大小：{0}",
    "HUD style: {0}": "HUD 風格：{0}",
    "Style 1": "風格 1",
-   "Style 2": "風格 2"
+   "Style 2": "風格 2",
+   "Style 3": "風格 3",
+   "Style 4": "風格 4"
   }
  }
 ];

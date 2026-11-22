@@ -25,14 +25,15 @@ var DIRECTIONS = {
     0: 'NONE', 1: 'STRAIGHT_ON', 2: 'LEFT', 3: 'SLIGHT_LEFT', 4: 'HARD_LEFT',
     5: 'RIGHT', 6: 'SLIGHT_RIGHT', 7: 'HARD_RIGHT', 8: 'UTURN_RIGHT', 9: 'UTURN_LEFT'
 };
+var LANE_MARKERS = { 1: 'SOLID', 2: 'DASHED' };
 var MANEUVER_BY_FORWARD = {
     2: 'intersection', 4: 'branch', 5: 'roundabout',
-    6: 'destinationManeuver', 12: 'laneChange', 16: 'passiveManeuver'
+    6: 'destinationManeuver', 8: 'laneGuiding', 12: 'laneChange', 16: 'passiveManeuver'
 };
 // CommonAPI-SOME/IP 3.1.12 numbers union members 1..N in reverse declaration order (22 members -> 23 - idx).
 var MANEUVER_BY_REVERSE = {
     21: 'intersection', 19: 'branch', 18: 'roundabout',
-    17: 'destinationManeuver', 11: 'laneChange', 7: 'passiveManeuver'
+    17: 'destinationManeuver', 15: 'laneGuiding', 11: 'laneChange', 7: 'passiveManeuver'
 };
 
 /* ---- SOME/IP binary helpers (big-endian, CommonAPI 3.1.12) ---------------- */
@@ -196,6 +197,66 @@ function decodeManeuver(kind, r) {
     return { type: kind, value: ev };
 }
 
+function decodeDirectionArray(sub) {
+    var out = [];
+    while (sub.left() > 0) {
+        var code = sub.u32();
+        var name = DIRECTIONS[code];
+        if (!name) throw new Error('invalid lane direction ' + code);
+        if (name !== 'NONE') out.push(name);
+    }
+    return out;
+}
+
+function decodeLaneGuiding(r) {
+    r.u64();                                  // uid
+    var distanceToDestination = r.f64();      // Double
+    var unreliable = r.u8();                  // unreliable (Bool)
+    if (unreliable > 1) throw new Error('invalid bool');
+    r.union();                                // sourceId (Union)
+    var length = r.f64();                     // length (Double)
+    var lanesBuf = r.sub();                   // lanes: ArrayD<Struct>
+    var lanes = [];
+    while (lanesBuf.left() > 0) {
+        var dirCode = lanesBuf.u32();
+        var directionToFollow = DIRECTIONS[dirCode];
+        if (!directionToFollow) throw new Error('invalid lane directionToFollow ' + dirCode);
+        var otherDirections = decodeDirectionArray(lanesBuf.sub());
+        var hi = lanesBuf.u8();
+        if (hi > 1) throw new Error('invalid isHighlighted');
+        var addInfo = lanesBuf.u32();         // additionalLaneInfo (Enum 0..9)
+        if (addInfo > 9) throw new Error('invalid additionalLaneInfo ' + addInfo);
+        var directionsToFollow = decodeDirectionArray(lanesBuf.sub());
+        lanes.push({
+            directionToFollow: directionToFollow,
+            otherDirections: otherDirections,
+            isHighlighted: hi === 1,
+            directionsToFollow: directionsToFollow
+        });
+    }
+    var markersBuf = r.sub();                 // laneMarkers: ArrayD<Enum>
+    var laneMarkers = [];
+    while (markersBuf.left() > 0) {
+        var mCode = markersBuf.u32();
+        laneMarkers.push(LANE_MARKERS[mCode] || 'NONE');
+    }
+    var recommendedCarPositionLaneIndex = r.u8();
+    var bargraphProgress = r.u8();
+    if (r.left() !== 0 || lanes.length === 0) throw new Error('laneGuiding mismatch');
+    return {
+        type: 'laneGuiding',
+        value: {
+            distanceToDestination: distanceToDestination,
+            length: length,
+            unreliable: unreliable === 1,
+            lanes: lanes,
+            laneMarkers: laneMarkers,
+            recommendedCarPositionLaneIndex: recommendedCarPositionLaneIndex,
+            bargraphProgress: bargraphProgress
+        }
+    };
+}
+
 function decodeViewContentStruct(r) {
     r.u32(); // configSequenceId
     r.u8();  // indexedPosition.valid
@@ -208,7 +269,7 @@ function decodeViewContentStruct(r) {
         var kind = MANEUVER_BY_REVERSE[u.typeId] || MANEUVER_BY_FORWARD[u.typeId];
         if (!kind) continue;
         try {
-            events.push(decodeManeuver(kind, u.body));
+            events.push(kind === 'laneGuiding' ? decodeLaneGuiding(u.body) : decodeManeuver(kind, u.body));
         } catch (_) {
             /* If forward/reverse union ID collided with a non-maneuver member, skip safely. */
         }
