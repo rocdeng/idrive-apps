@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.16
+
 配套后端同步上游的 CarPlay 和 Android Auto 内存补丁，保留 HUD 简洁模式、红绿灯倒计时和普通 HUD 边缘羽化。
 
 ## 0.6.15
