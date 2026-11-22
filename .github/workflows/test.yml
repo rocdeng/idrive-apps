@@ -149,7 +149,7 @@ jobs:
       - name: 获取上游迁移测试的历史版本
         if: needs.changes.outputs.waze-on-cluster == 'true'
         run: |
-          for version in 0.10.6 0.11.0 0.12.0 0.12.1 0.13.0; do
+          for version in 0.10.6 0.10.7 0.10.8 0.10.9 0.11.0 0.12.0 0.12.1 0.13.0; do
             ref=refs/tags/waze-on-cluster@$version
             git fetch --no-tags --depth=1 https://github.com/robertnisipeanu/idrive-apps.git "$ref:$ref"
           done

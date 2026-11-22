@@ -6,15 +6,6 @@
 
 同步上游 0.13.0。CarPlay 和 Android Auto 改用内存补丁，旧版本升级时恢复原厂文件。保留简洁 HUD 的红绿灯取帧和普通 HUD 的边缘羽化。
 
-## 0.10.14
-
-普通 HUD 地图支持边缘羽化，默认关闭，可选轻度、中度和强度，并随驾驶员设置保存。
-
-HUD 简洁模式最多每秒提供一帧已解码的 CarPlay 仪表地图给红绿灯识别，沿用已有解码负载。
-
-## 0.10.13
-
-将上游的内存日志和导出改进合入 HUD 简洁版后端。
 ## 0.13.0
 
 Android Auto's cluster map patch is applied in aapd's memory each time it
@@ -45,9 +36,18 @@ partition to patch, remove or recover it. Updating from an earlier version
 puts the original file back and keeps the map, with at most one head-unit
 restart; where CarPlay already runs the earlier patch, none.
 
+## 0.10.14
+
+普通 HUD 地图支持边缘羽化，默认关闭，可选轻度、中度和强度，并随驾驶员设置保存。
+
+HUD 简洁模式最多每秒提供一帧已解码的 CarPlay 仪表地图给红绿灯识别，沿用已有解码负载。
+
+## 0.10.13
+
+将上游的内存日志和导出改进合入 HUD 简洁版后端。
+
 ## 0.10.12
 
 The diagnostic journal is kept in memory and written to storage only around
 failures and at shutdown, which greatly reduces writes to the head unit's
 storage.
-
