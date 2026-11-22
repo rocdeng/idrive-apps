@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "robertn_waze_cluster",
-  "version": "0.6.17",
+  "version": "0.6.18",
   "tree": "package",
   "modules": [
     "src/robertn_waze_cluster.js",
@@ -13,17 +13,8 @@
     "src/qrcodegen.js",
     "src/profile_sync.js",
     "src/structured_hud.js",
-    "src/hud_validation_scenarios.js",
     "src/guidance_reader.js",
-    "src/hud_navigation.js",
-    "src/hud_baidu_traffic_light.js",
-    "src/hud_traffic_reader.js",
-    "src/hud_renderer.js",
-    "src/hud_font.js",
-    "src/hud_output.js",
-    "src/hud_cluster_render_client.js",
-    "src/hud_font_data.js",
-    "src/hud_turn_icons.js"
+    "src/hud_navigation.js"
   ],
   "sdk": [
     "oap-sdk/src/core/OnlineApp.js",

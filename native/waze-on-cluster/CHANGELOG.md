@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.13.2
+
+新增原生后台服务 `waze-on-cluster-hud`（`/dev/shm/waze-on-cluster/hud.sock`），将简洁 HUD 的字库、渲染、停车验证、红绿灯识别和 `cluster-render` 直连迁入原生后端，并补齐 `hud-simple.log` 与 `journalctl` 日志采集。
+
 商店使用「R·地图仪表盘后端」，便于区分配套应用和上游包。
 
 ## 0.13.1

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Robert Nisipeanu
+[Unit]
+Description=waze-on-cluster simple HUD renderer and parked validation daemon
+RequiresMountsFor=/var/opt
+Requires=waze-on-cluster-hud.socket
+Wants=cluster-render.socket
+After=local-fs.target waze-on-cluster-hud.socket cluster-render.socket
+
+[Service]
+# Same user and group as waze-on-cluster.service: opens
+# /dev/shm/cluster-render/render.sock, /dev/shm/waze-on-cluster/patch.sock,
+# /run/waze-on-cluster/hud-frame.yuv and /var/opt/waze-on-cluster/log.
+User=hmi_5000
+Group=hmi_5000
+SupplementaryGroups=tm_oap_app
+ExecStartPre=-+/bin/sh -c 'mkdir -p /var/opt/waze-on-cluster/log && chown hmi_5000:hmi_5000 /var/opt/waze-on-cluster/log'
+ExecStart=/usr/bin/node /var/opt/waze-on-cluster/current/hud_daemon.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+LimitCORE=1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -108,12 +108,12 @@ var KEEP_MAX = 256 * 1024;
 var KEEP_FILES = 16;
 var KEEP_TOTAL = 2 * 1024 * 1024;
 
-var UNITS = ['waze-on-cluster.service', 'waze-on-cluster-patchd.service', 'waze-on-cluster-boot.service',
+var UNITS = ['waze-on-cluster.service', 'waze-on-cluster-hud.service', 'waze-on-cluster-patchd.service', 'waze-on-cluster-boot.service',
     'waze-on-cluster-recovery.service', 'waze-on-cluster-capture.service', 'waze-on-cluster-journal.service',
     'waze-on-cluster-logs.service', 'waze-on-cluster-logs-fw.service', 'waze-on-cluster-aa-boot.service', 'cluster-render.service', 'carplay.service',
     'aapd.service', 'recmgr.service', 'crashhandler.service'];
 /* units with no process of their own: only systemd's lines about them */
-var QUIET = ['waze-on-cluster.socket', 'waze-on-cluster-logs.socket', 'cluster-render.socket', 'waze-on-cluster-journal.timer'];
+var QUIET = ['waze-on-cluster.socket', 'waze-on-cluster-hud.socket', 'waze-on-cluster-logs.socket', 'cluster-render.socket', 'waze-on-cluster-journal.timer'];
 
 /* journalctl's arguments: the units' own entries, systemd's, and the
  * kernel's. follow: null reads this boot so far and ends; a cursor (or ''

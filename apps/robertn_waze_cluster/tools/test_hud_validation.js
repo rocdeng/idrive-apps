@@ -1,16 +1,15 @@
 'use strict';
 
 const assert = require('assert');
-const { StructuredHud } = require('../src/structured_hud.js');
-const nav = require('../src/hud_navigation.js');
-const scenarios = require('../src/hud_validation_scenarios.js');
+const { HudEngine } = require('../../../native/waze-on-cluster/hud/hud_daemon.js');
+const nav = require('../../../native/waze-on-cluster/hud/hud_navigation.js');
+const scenarios = require('../../../native/waze-on-cluster/hud/hud_validation_scenarios.js');
 
 async function main() {
-    const liveReply = { events: [{ intersection: { direction: 'LEFT', formattedDistance: { distance: '147', unit: 'METER' } } }] };
-    let reads = 0, resolveRead, acknowledge = false;
+    let acknowledge = false;
     const outputs = [], frames = [];
-    const hud = new StructuredHud({ control: { patch: { path: '/tmp/unused-validation.sock' } },
-        reader: { read: () => { reads++; return new Promise(resolve => { resolveRead = resolve; }); }, stop() {} },
+    const hud = new HudEngine({
+        traffic: { reset() {}, read: () => Promise.resolve(null) },
         outputFactory: (keepShown, onState) => {
             const output = { onState, closed: false, setKeepShown() {}, close() { this.closed = true; },
                 update(pixels, visible) { frames.push({ pixels, visible }); if (acknowledge) onState(visible ? 'showing' : 'unavailable'); } };
@@ -23,14 +22,12 @@ async function main() {
         hud.startValidation();
         assert.strictEqual(hud.validation, null, '模式关闭时不能开始验证');
         hud.settings({ hud_simple: 1, hud: 0 });
-        hud.tick(); await Promise.resolve(); await Promise.resolve();
-        assert.strictEqual(reads, 1);
         hud.startValidation();
         assert.strictEqual(hud.validation.index, 0);
         const firstFrameCount = frames.length;
-        resolveRead(liveReply);
+        hud.handleNav(nav.fromBmw({ events: [{ intersection: { direction: 'LEFT', formattedDistance: { distance: '147', unit: 'METER' } } }] }));
         for (let i = 0; i < 10; i++) await Promise.resolve();
-        assert.strictEqual(frames.length, firstFrameCount, '开始前的真实导航响应不能覆盖验证画面');
+        assert.strictEqual(frames.length, firstFrameCount, '验证期间真实导航数据不能覆盖验证画面');
         clock += 20000; hud.tick();
         assert.strictEqual(hud.validation.index, 0, '服务未确认显示时不跳过场景');
         outputs[0].onState('showing'); hud.tick();
@@ -45,14 +42,9 @@ async function main() {
         assert(outputs[0].closed, '手动停止释放图层连接');
         outputs[0].onState('showing');
         assert.strictEqual(hud.state, 'waiting', '停止后的迟到事件无效');
-        hud.tick(); await Promise.resolve(); await Promise.resolve();
-        assert.strictEqual(reads, 2, '手动停止后恢复真实导航查询');
-        resolveRead(liveReply);
-        for (let i = 0; i < 10; i++) await Promise.resolve();
-
         acknowledge = true;
         hud.startValidation();
-        const validationReads = reads, seen = [];
+        const seen = [];
         for (let i = 0; i < scenarios.length; i++) {
             assert.strictEqual(hud.validation.index, i);
             seen.push(scenarios[i].id);
@@ -69,7 +61,6 @@ async function main() {
             clock += 5001; hud.tick();
         }
         assert.strictEqual(new Set(seen).size, scenarios.length, '所有场景各播放一次');
-        assert.strictEqual(reads, validationReads, '全程不读取真实导航');
         assert.strictEqual(hud.validation, null, '完整序列自动结束，不循环');
         assert(hud.enabled && !hud.output, '结束后保留简洁模式，释放测试图层');
 

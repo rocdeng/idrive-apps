@@ -62,6 +62,8 @@ const path = require('path');
 const { FakeRender, FakePatch, FakeLogs, RENDER_PAGE, RENDER_FPS } = require('./fakes.js');
 const { RENDER_PATH, PATCH_PATH, PENDING_PATH, SIZE, SAFE, HUD_SIZE_STEPS } = require('../src/waze_cluster_control.js');
 const { LOGS_PATH } = require('../src/logs_control.js');
+const { HUD_PATH } = require('../src/structured_hud.js');
+const { startDaemon } = require('../../../native/waze-on-cluster/hud/hud_daemon.js');
 
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'mgu-app.json'), 'utf8'));
 const PKG = path.join(__dirname, '..', MANIFEST.tree);
@@ -75,7 +77,8 @@ const RSOCK = `/tmp/woc-pr-${process.pid}.sock`;
 const PSOCK = `/tmp/woc-pp-${process.pid}.sock`;
 const PENDING = `/tmp/woc-ppend-${process.pid}.json`;
 const LSOCK = `/tmp/woc-pl-${process.pid}.sock`;
-const SOCKETS = { [RENDER_PATH]: RSOCK, [PATCH_PATH]: PSOCK, [LOGS_PATH]: LSOCK };
+const HSOCK = `/tmp/woc-ph-${process.pid}.sock`;
+const SOCKETS = { [RENDER_PATH]: RSOCK, [PATCH_PATH]: PSOCK, [LOGS_PATH]: LSOCK, [HUD_PATH]: HSOCK };
 const realConnect = net.connect;
 const exit = process.exit.bind(process);
 net.connect = (p, ...rest) => realConnect.call(net, SOCKETS[p] || p, ...rest);
@@ -323,7 +326,7 @@ async function main() {
         'the on/off settings are checkboxes');
     assert.deepStrictEqual([widgets.wocShowOn, widgets.wocHudSize], ['LT_DropDownMenu_1Row_2Col3070', 'LT_Slider_LeftJustified_Fill_Steps'],
         'where the map shows: a drop-down of four; the HUD\'s size: a slider');
-    assert.deepStrictEqual(components['62'].rows.map((r) => r.ItemText.value), ['Cluster', 'HUD (experimental)', 'Cluster and HUD (experimental)', 'Off', 'HUD simple mode']);
+    assert.deepStrictEqual(components['62'].rows.map((r) => r.ItemText.value), ['Cluster', 'HUD (experimental)', 'Cluster and HUD (experimental)', 'HUD simple mode', 'Off']);
     assert.deepStrictEqual(['MinValue', 'MaxValue', 'NumberOfSteps'].map((k) => components['52'].rows[0][k].value), [0, HUD_SIZE_STEPS, HUD_SIZE_STEPS],
         'the slider: one step for each 5 %');
     /* every info row reads "Name: Value" */
@@ -356,6 +359,20 @@ async function main() {
     delete patch.map.hud_simple; // 模拟旧版 patchd 不识别简洁模式。
     await render.listen();
     await patch.listen();
+    const simpleFrames = [], simpleKeepSettings = [];
+    const hudDaemon = startDaemon({
+        hudSocket: HSOCK,
+        patchSocket: PSOCK,
+        logFile: null,
+        log: { info() {}, warn() {}, error() {} },
+        retryMs: 50,
+        traffic: { reset() {}, read: () => Promise.resolve(null) },
+        outputFactory: (keepShown, onState) => ({
+            setKeepShown: (keep) => simpleKeepSettings.push(keep),
+            update: (pixels, visible) => { simpleFrames.push({ pixels: visible ? Buffer.from(pixels) : null, visible }); onState(visible ? 'showing' : 'unavailable'); },
+            close: () => simpleFrames.push({ visible: false })
+        })
+    });
     patch.res = SIZE;
     patch.safe = SAFE;
     patch.announce('patched', 'high', null);
@@ -454,23 +471,17 @@ async function main() {
 
         /* ---- where the map shows, and the HUD ---- */
         const showOn = byName.wocShowOn;
-        const simpleFrames = [], simpleKeepSettings = [];
-        OnlineApp.instance._simpleHud.outputFactory = (keepShown, onState) => ({
-            setKeepShown: (keep) => simpleKeepSettings.push(keep),
-            update: (pixels, visible) => { simpleFrames.push({ pixels: visible ? Buffer.from(pixels) : null, visible }); onState(visible ? 'showing' : 'unavailable'); },
-            close: () => simpleFrames.push({ visible: false })
-        });
         await until('旧版服务提示需要更新', () => patch.count('hud-simple-status') > 0 &&
-            showOn.cells['4:ItemText'] === 'HUD simple mode: Update needed');
+            showOn.cells['3:ItemText'] === 'HUD simple mode: Update needed');
         const blockedCommands = patch.count('hud-simple');
-        showOn.pick(4);
+        showOn.pick(3);
         assert.strictEqual(showOn.shown(), 'Show on: Cluster');
         assert.strictEqual(patch.count('hud-simple'), blockedCommands);
         patch.map.hud_simple = 0;
         patch._broadcast({ ev: 'map-settings', settings: patch.map });
-        await until('收到能力通知后恢复选项', () => showOn.cells['4:ItemText'] === 'HUD simple mode');
+        await until('收到能力通知后恢复选项', () => showOn.cells['3:ItemText'] === 'HUD simple mode');
         await sleep(450);
-        showOn.pick(4);
+        showOn.pick(3);
         await until('选择简洁导航，仪表保持开启', () => showOn.shown() === 'Show on: HUD simple mode' &&
             patch.map.hud_simple === 1 && render.hud === 0 && render.cluster === 1 &&
             byName.wocHud.text.indexOf('HUD simple mode:') === 0);
@@ -611,7 +622,7 @@ async function main() {
         const saves = () => patch.received.filter((m) => /^(cluster|hud)$/.test(m.cmd)).length;
         let saved = saves();
         await sleep(450);
-        showOn.pick(3);
+        showOn.pick(4);
         await until('off from the cluster', () => render.cluster === 0 && render.hud === 0 && offShown());
         assert.deepStrictEqual(render.received, [{ cmd: 'cluster', on: '0' }], 'only the cluster off');
         await until('off saved', () => saves() === saved + 1);
@@ -628,7 +639,7 @@ async function main() {
         render.received.length = 0;
         saved = saves();
         await sleep(450);
-        showOn.pick(3);
+        showOn.pick(4);
         await until('off from both', () => render.cluster === 0 && render.hud === 0 && offShown());
         assert.deepStrictEqual(render.received, [{ cmd: 'cluster', on: '0' }, { cmd: 'hud', on: '0' }], 'both off');
         await until('off from both saved', () => saves() === saved + 2);
@@ -675,7 +686,7 @@ async function main() {
         await until('A: the HUD alone, saved', () => render.hud === 1 && render.cluster === 0 && showOn.shown() === 'Show on: HUD (experimental)' &&
             patch.map.hud === 1 && patch.map.cluster === 0);
         await sleep(450);
-        showOn.pick(4);
+        showOn.pick(3);
         await until('A 保存简洁模式', () => patch.map.hud_simple === 1 && OnlineApp.instance._simpleHud.state === 'showing');
         byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: false });
         await until('A 后台不占控制连接', () => OnlineApp.instance._visible === false && render._clients.size === 0);
@@ -907,9 +918,10 @@ async function main() {
         console.log('ok   a display language change writes every row again in its words, English for a word it lacks');
         await lserver.close();
     } finally {
+        hudDaemon.close();
         await render.close();
         await patch.close();
-        [RSOCK, PSOCK, PENDING, LSOCK].forEach((p) => { try { fs.unlinkSync(p); } catch (e) { /* gone */ } });
+        [RSOCK, PSOCK, PENDING, LSOCK, HSOCK].forEach((p) => { try { fs.unlinkSync(p); } catch (e) { /* gone */ } });
     }
 }
 

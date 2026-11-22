@@ -89,13 +89,13 @@
             },
             {
               "ItemText": {
-                "value": "Off",
+                "value": "HUD simple mode",
                 "type": "Text"
               }
             },
             {
               "ItemText": {
-                "value": "HUD simple mode",
+                "value": "Off",
                 "type": "Text"
               }
             }

@@ -1,7 +1,7 @@
 {
   "id": "waze-on-cluster",
   "kind": "tool",
-  "version": "0.13.1",
+  "version": "0.13.2",
   "license": "GPL-3.0-or-later",
   "title": "R·Maps on cluster backend",
   "description": "Runs the cluster map in the background. It is installed with the R·Maps on cluster app, which you use to control it.",
@@ -169,6 +169,61 @@
       "mode": "0755"
     },
     {
+      "path": "hud_daemon.js",
+      "from": "hud/hud_daemon.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_output.js",
+      "from": "hud/hud_output.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_cluster_render_client.js",
+      "from": "hud/hud_cluster_render_client.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_renderer.js",
+      "from": "hud/hud_renderer.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_font.js",
+      "from": "hud/hud_font.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_font_data.js",
+      "from": "hud/hud_font_data.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_turn_icons.js",
+      "from": "hud/hud_turn_icons.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_navigation.js",
+      "from": "hud/hud_navigation.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_validation_scenarios.js",
+      "from": "hud/hud_validation_scenarios.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_baidu_traffic_light.js",
+      "from": "hud/hud_baidu_traffic_light.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud_traffic_reader.js",
+      "from": "hud/hud_traffic_reader.js",
+      "mode": "0644"
+    },
+    {
       "path": "LICENSE",
       "from": "LICENSE",
       "mode": "0644"
@@ -225,6 +280,14 @@
     {
       "name": "waze-on-cluster-logs-fw.service",
       "from": "systemd/waze-on-cluster-logs-fw.service"
+    },
+    {
+      "name": "waze-on-cluster-hud.socket",
+      "from": "systemd/waze-on-cluster-hud.socket"
+    },
+    {
+      "name": "waze-on-cluster-hud.service",
+      "from": "systemd/waze-on-cluster-hud.service"
     }
   ],
   "enable": [
@@ -263,6 +326,10 @@
     {
       "unit": "waze-on-cluster-logs.socket",
       "target": "sockets.target"
+    },
+    {
+      "unit": "waze-on-cluster-hud.socket",
+      "target": "sockets.target"
     }
   ],
   "dropins": [
@@ -293,13 +360,15 @@
     "waze-on-cluster-capture",
     "waze-on-cluster-journal",
     "waze-on-cluster-logs",
-    "waze-on-cluster-logs-fw"
+    "waze-on-cluster-logs-fw",
+    "waze-on-cluster-hud"
   ],
   "crashNames": [
     "aapd"
   ],
   "restart": [
     "waze-on-cluster.service",
+    "waze-on-cluster-hud.service",
     "waze-on-cluster-patchd.service",
     "waze-on-cluster-recovery.service",
     "waze-on-cluster-capture.service",

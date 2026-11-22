@@ -78,6 +78,9 @@ for tool in cluster-render waze-on-cluster; do
     done
     copy "$ROOT/var/opt/$tool/$tool.local.conf" "$tool.local.conf"
 done
+for f in hud-simple.log hud-simple.log.1; do
+    copy "$ROOT/var/opt/waze-on-cluster/log/$f" "$f"
+done
 for f in "$ROOT"/run/waze-on-cluster-journal/journal.log* "$ROOT"/var/opt/waze-on-cluster/journal/journal-*.log; do
     copy "$f" "kept-${f##*/}"
 done
@@ -92,7 +95,7 @@ for f in status.json probe.txt; do
 done
 
 if command -v journalctl >/dev/null 2>&1; then
-    for unit in cluster-render waze-on-cluster waze-on-cluster-patchd waze-on-cluster-boot waze-on-cluster-recovery \
+    for unit in cluster-render waze-on-cluster waze-on-cluster-hud waze-on-cluster-patchd waze-on-cluster-boot waze-on-cluster-recovery \
             waze-on-cluster-capture waze-on-cluster-journal waze-on-cluster-journal.timer waze-on-cluster-logs \
             waze-on-cluster-logs-fw waze-on-cluster-aa-boot carplay aapd; do
         journalctl -b -o short-precise --no-pager -u "$unit" 2>/dev/null |

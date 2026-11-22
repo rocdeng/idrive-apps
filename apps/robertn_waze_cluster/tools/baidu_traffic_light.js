@@ -1,3 +1,3 @@
 'use strict';
 
-module.exports = require('../src/hud_baidu_traffic_light.js');
+module.exports = require('../../../native/waze-on-cluster/hud/hud_baidu_traffic_light.js');

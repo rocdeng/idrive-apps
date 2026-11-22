@@ -418,7 +418,7 @@ int serve(Config cfg)
         }
         const bool live = liveness.live(alt_state, producer.last_frame_ms(), now);
         producer.set_live(live, now);
-        producer.set_pictures(feed.wants_frames());
+        producer.set_pictures(feed.wants_frames() || sample_hud);
         feed.set_stream(live, producer.frozen(now), producer.picture(now));
         feed.poll(now);
         if (feed.fps_cap() != fps_cap) {

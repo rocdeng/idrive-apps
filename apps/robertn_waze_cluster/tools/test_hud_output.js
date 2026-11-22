@@ -2,9 +2,9 @@
 
 const assert = require('assert');
 const net = require('net');
-const Output = require('../src/hud_output.js');
-const { StructuredHud } = require('../src/structured_hud.js');
-const scenarios = require('../src/hud_validation_scenarios.js');
+const Output = require('../../../native/waze-on-cluster/hud/hud_output.js');
+const { HudEngine } = require('../../../native/waze-on-cluster/hud/hud_daemon.js');
+const scenarios = require('../../../native/waze-on-cluster/hud/hud_validation_scenarios.js');
 const socketPath = '/tmp/woc-simple-output-' + process.pid + '.sock';
 const peers = [], sessions = [];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -94,8 +94,8 @@ async function main() {
         console.log('通过：普通 HUD 连接策略、实际像素、弹窗设置、断连恢复、隐藏与退出后的重连行为、ID7 限制');
 
         backend = 'id7'; acknowledgeLayers = true;
-        validation = new StructuredHud({ control: { patch: { path: '/tmp/unused-validation-output.sock' } },
-            reader: { read() { throw new Error('验证模式不应查询实车导航'); }, stop() {} },
+        validation = new HudEngine({
+            traffic: { reset() {}, read: () => Promise.resolve(null) },
             outputFactory: (keepShown, onState) => new Output(socketPath, keepShown, onState) });
         validation.settings({ hud_simple: 1, hud: 0 });
         validation.startValidation();

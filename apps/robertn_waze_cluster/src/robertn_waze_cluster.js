@@ -571,7 +571,7 @@ class WazeClusterApp extends OnlineApp {
         this._writeCell(SHOW_ON_NAME, 'HeaderText', t('Show on'), 'Text');
         const simpleLabel = this._simpleHud.supported ? t('HUD simple mode') :
             t('HUD simple mode: {0}', c.connectedPatch() ? t('Update needed') : t('Unavailable'));
-        [t('Cluster'), t('HUD (experimental)'), t('Cluster and HUD (experimental)'), t('Off'), simpleLabel].forEach((text, row) =>
+        [t('Cluster'), t('HUD (experimental)'), t('Cluster and HUD (experimental)'), simpleLabel, t('Off')].forEach((text, row) =>
             this._writeCell(SHOW_ON_NAME, 'ItemText', row === 0 && shownOn < 0 ? '—' : text, 'Text', row));
         this._writeCell(SHOW_ON_NAME, 'SelectedItem', Math.max(shownOn, 0), 'UInt');
         this._setEnabled(SHOW_ON_NAME, c.canChooseShownOn());

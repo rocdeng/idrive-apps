@@ -64,6 +64,7 @@
     "de.bmw.infotainment.vehicle.Vehicle": "*",
     "de.bmw.infrastructure.EnvironmentalInformation": "*",
     "de.bmw.infotainment.certification.Certification": "*",
+    "de.bmw.infotainment.navigation.guiding.GuidanceEventList": "*",
     "de.bmw.infotainment.personalization.SessionManager": {
       "instances": "*",
       "attributes": "*"

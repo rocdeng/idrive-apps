@@ -2,12 +2,13 @@
 
 const assert = require('assert');
 const EventEmitter = require('events');
-const fs = require('fs'), path = require('path'), vm = require('vm');
+const fs = require('fs'), net = require('net'), path = require('path'), vm = require('vm');
 const { StructuredHud } = require('../src/structured_hud.js');
 const { GuidanceReader, IFACE, INSTANCE, VIEW } = require('../src/guidance_reader.js');
 const nav = require('../src/hud_navigation.js');
-const renderer = require('../src/hud_renderer.js');
-const Font = require('../src/hud_font.js');
+const { HudEngine, startDaemon } = require('../../../native/waze-on-cluster/hud/hud_daemon.js');
+const renderer = require('../../../native/waze-on-cluster/hud/hud_renderer.js');
+const Font = require('../../../native/waze-on-cluster/hud/hud_font.js');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function until(check) {
@@ -19,7 +20,7 @@ const reply = { viewContent: [{ eventsInView: [{ intersection: { direction: 'LEF
     description: { text: '前方左转' }, distanceToDestination: 3153 } }] }] };
 
 async function main() {
-    const laneFont = new Font(require('../src/hud_font_data.js'));
+    const laneFont = new Font(require('../../../native/waze-on-cluster/hud/hud_font_data.js'));
     const lanes = [{ directions: ['left'], recommended: true },
         { directions: ['left'], recommended: true, leftBoundary: 'dashed' },
         { directions: ['straight'], leftBoundary: 'solid' }, { directions: ['right'] }];
@@ -73,90 +74,142 @@ async function main() {
     control.patch = { path: '/tmp/unused-woc-simple.sock' };
     let reads = 0, stops = 0, input = () => Promise.resolve(reply);
     const outputs = [], publications = [];
-    const hud = new StructuredHud({ control, reader: { read: () => { reads++; return input(); }, stop: () => stops++ },
+    const engine = new HudEngine({
+        traffic: { reset() {}, read: () => Promise.resolve(null) },
         outputFactory: (keepShown, onState) => {
             const output = { closed: false, setKeepShown: (keep) => { output.keepShown = keep; },
                 report: onState,
                 update: (frame, visible) => publications.push({ frame: visible ? Buffer.from(frame) : frame, visible }),
                 close: () => { output.closed = true; } };
             outputs.push(output); return output;
-        } });
-    hud.tick();
-    assert.strictEqual(reads, 0, '未启用时不查询导航');
-    assert.strictEqual(hud.font, null, '未启用时不加载字体');
-    hud.settings({ hud_simple: 1, hud: 0 });
-    input = () => Promise.resolve({ viewContent: [] });
-    hud.tick(); await until(() => !hud.busy);
-    assert.strictEqual(hud.font, null, '等待导航时仍未加载字体');
-    input = () => Promise.resolve(reply);
-    hud.tick(); await until(() => !hud.busy);
-    assert(hud.font, '首个有效引导绘制时加载字体');
-    assert.strictEqual(hud.state, 'unavailable', '提交图像后，仍须等待实际图层状态');
+        }
+    });
+    engine.tick();
+    assert.strictEqual(engine.font, null, '未启用时不加载字体');
+    engine.settings({ hud_simple: 1, hud: 0 });
+    engine.handleNav(nav.fromBmw({ viewContent: [] }));
+    await until(() => !engine.navBusy);
+    assert.strictEqual(engine.font, null, '等待导航时仍未加载字体');
+    engine.handleNav(nav.fromBmw(reply));
+    await until(() => !engine.navBusy && publications.length === 1);
+    assert(engine.font, '首个有效引导绘制时加载字体');
+    assert.strictEqual(engine.state, 'unavailable', '提交图像后，仍须等待实际图层状态');
     outputs[0].report('showing');
-    assert.strictEqual(hud.state, 'showing');
+    assert.strictEqual(engine.state, 'showing');
     assert(publications[0].visible);
-    hud.settings({ hud_simple: 1, hud: 0, hud_keep_shown: 1 });
+    engine.settings({ hud_simple: 1, hud: 0, hud_keep_shown: 1 });
     assert.strictEqual(outputs[0].keepShown, true, '沿用普通 HUD 的弹窗让位设置');
-    assert.deepStrictEqual(publications[0].frame, Buffer.from(renderer.render(nav.fromBmw(reply), new Font(require('../src/hud_font_data.js')))));
-    const firstFrame = hud.frame;
-    hud.tick(); await until(() => !hud.busy);
+    assert.deepStrictEqual(publications[0].frame, Buffer.from(renderer.render(nav.fromBmw(reply), new Font(require('../../../native/waze-on-cluster/hud/hud_font_data.js')))));
+    const firstFrame = engine.frame;
+    engine.handleNav(nav.fromBmw(reply));
+    await until(() => !engine.navBusy);
     assert.strictEqual(publications.length, 1, '重复完整状态不重复发送像素');
-    assert.strictEqual(hud.frame, firstFrame, '重复完整状态不重新分配帧');
+    assert.strictEqual(engine.frame, firstFrame, '重复完整状态不重新分配帧');
     outputs[0].report('unavailable');
-    hud.tick(); await until(() => !hud.busy);
-    assert.strictEqual(hud.state, 'unavailable', '相同导航数据不能掩盖输出断连');
+    engine.handleNav(nav.fromBmw(reply));
+    await until(() => !engine.navBusy);
+    assert.strictEqual(engine.state, 'unavailable', '相同导航数据不能掩盖输出断连');
     outputs[0].report('showing');
-    input = () => Promise.resolve({ viewContent: [] });
-    hud.tick(); await until(() => !hud.busy);
-    assert.strictEqual(hud.state, 'waiting');
+    engine.handleNav(nav.fromBmw({ viewContent: [] }));
+    assert.strictEqual(engine.state, 'waiting');
     assert.deepStrictEqual(publications[publications.length - 1], { frame: null, visible: false }, '导航结束只更新可见性');
     const hiddenPublications = publications.length;
-    hud.tick(); await until(() => !hud.busy);
+    engine.handleNav(nav.fromBmw({ viewContent: [] }));
     assert.strictEqual(publications.length, hiddenPublications, '重复等待不再提交隐藏帧');
     outputs[0].report('showing');
-    assert.strictEqual(hud.state, 'waiting', '结束导航后的迟到回调不能恢复显示状态');
-    input = () => Promise.reject(new Error('navigation unavailable'));
-    hud.tick(); await until(() => !hud.busy);
-    assert.strictEqual(hud.state, 'unavailable');
-    assert.strictEqual(publications[publications.length - 1].visible, false);
-
-    let finish;
-    input = () => new Promise((resolve) => { finish = resolve; });
-    hud.retryAt = 0;
-    hud.tick(); await until(() => !!finish);
-    const published = publications.length;
-    hud.settings({ hud_simple: 0, hud: 0 });
-    finish(reply); await until(() => !hud.busy);
-    assert.strictEqual(publications.length, published, '关闭后返回的旧请求不能恢复导航');
+    assert.strictEqual(engine.state, 'waiting', '结束导航后的迟到回调不能恢复显示状态');
+    engine.handleNavError('navigation unavailable');
+    assert.strictEqual(engine.state, 'unavailable');
+    engine.settings({ hud_simple: 0, hud: 0 });
     assert(outputs[0].closed);
     outputs[0].report('showing');
-    assert.strictEqual(hud.state, 'off', '旧输出不能在关闭后改写状态');
+    assert.strictEqual(engine.state, 'off', '旧输出不能在关闭后改写状态');
+    engine.settings({ hud_simple: 1, hud: 1 });
+    assert.strictEqual(engine.enabled, false, '视频模式配置开启时不输出简洁导航');
+    engine.settings({ hud_simple: 1, hud: 0 });
+    engine.handleNav(nav.fromBmw(reply));
+    await until(() => !engine.navBusy && outputs.length === 2);
+    outputs[1].report('showing');
+    assert.strictEqual(engine.state, 'showing');
+    engine.lastNav = Date.now() - 6000;
+    engine.tick();
+    assert.strictEqual(engine.state, 'unavailable', '断流超过 5 秒清除旧引导');
+    engine.settings(null);
+    assert.strictEqual(engine.state, 'off', '后台模式配置连接断开后释放旧图层');
+    engine.stop();
+    console.log('通过：原生 HudEngine 实际像素、去重、结束清屏、读取失败、模式切换和断流清屏');
 
-    hud.settings({ hud_simple: 1, hud: 1 });
-    assert.strictEqual(hud.enabled, false, '视频模式配置开启时不输出简洁导航');
-    hud.settings({ hud_simple: 1, hud: 0 });
-    input = () => Promise.resolve(reply);
-    connected = false;
-    control.renderStatus = null;
-    hud.tick();
-    await until(() => !hud.busy);
-    outputs[outputs.length - 1].report('showing');
-    assert.strictEqual(hud.state, 'showing', '和普通 HUD 一样，设置页控制连接关闭不影响绘制');
-    hud.suspend();
-    const before = reads;
-    hud.tick();
-    assert.strictEqual(reads, before, '切回地图等待保存期间也不重新输出导航');
-    hud.settings({ hud_simple: 0, hud: 0 });
-    hud.settings({ hud_simple: 1, hud: 0 });
-    input = () => new Promise(() => {});
-    hud.lastRead = Date.now() - 6000;
-    hud.tick();
-    assert.strictEqual(hud.state, 'unavailable', '断流超过 5 秒清除旧引导');
-    hud.settings(null);
-    assert.strictEqual(hud.state, 'off', '后台模式配置连接断开后释放旧图层');
-    hud.stop();
-    assert(stops >= 4);
-    console.log('通过：实际像素、去重、结束清屏、读取失败、模式切换竞态、独立输出连接和断流清屏');
+    /* 端到端集成测试：patch.sock -> hud_daemon (hud.sock) -> OAP StructuredHud -> render.sock（含断线重连） */
+    const pid = process.pid;
+    const pSock = `/tmp/woc-e2e-patch-${pid}.sock`;
+    const hSock = `/tmp/woc-e2e-hud-${pid}.sock`;
+    const rSock = `/tmp/woc-e2e-render-${pid}.sock`;
+    [pSock, hSock, rSock].forEach((p) => { try { fs.unlinkSync(p); } catch (_) {} });
+    const patchPeers = new Set();
+    const patchSrv = net.createServer((s) => {
+        patchPeers.add(s); s.setEncoding('utf8');
+        s.on('data', (d) => {
+            if (d.indexOf('hud-simple-status') >= 0) {
+                s.write(JSON.stringify({ ev: 'map-settings', settings: { hud_simple: 1, hud: 0, hud_keep_shown: 0 } }) + '\n');
+            }
+        });
+        s.on('close', () => patchPeers.delete(s));
+    });
+    const renderSessions = [], renderPeers = [];
+    const crMsg = (obj) => {
+        const b = Buffer.from(JSON.stringify(obj)), m = Buffer.alloc(b.length + 5);
+        m.writeUInt32LE(b.length + 1, 0); m[4] = 74; b.copy(m, 5); return m;
+    };
+    const renderSrv = net.createServer((peer) => {
+        const sess = { cmds: [], frames: 0 };
+        renderSessions.push(sess); renderPeers.push(peer);
+        let buf = Buffer.alloc(0);
+        peer.on('error', () => {});
+        peer.on('data', (d) => {
+            buf = Buffer.concat([buf, d]);
+            while (buf.length >= 5 && buf.length >= buf.readUInt32LE(0) + 4) {
+                const sz = buf.readUInt32LE(0), t = buf[4], body = buf.slice(5, sz + 4);
+                buf = buf.slice(sz + 4);
+                if (t === 70) { sess.frames++; continue; }
+                const cmd = JSON.parse(body.toString());
+                sess.cmds.push(cmd);
+                if (cmd.op === 'hello') peer.write(crMsg({ ev: 'hello', backend: 'id7', proto: 1, targets: 'hud:800x480' }));
+                if (cmd.op === 'set' && cmd.visible !== undefined) {
+                    peer.write(crMsg({ ev: 'layer', ref: cmd.ref, state: cmd.visible === 1 ? 'shown' : 'hidden' }));
+                }
+            }
+        });
+    });
+    await new Promise((r) => patchSrv.listen(pSock, r));
+    await new Promise((r) => renderSrv.listen(rSock, r));
+    const daemon = startDaemon({
+        hudSocket: hSock, patchSocket: pSock, renderSocket: rSock, logFile: null,
+        log: { info() {}, warn() {}, error() {} }, retryMs: 50,
+        traffic: { reset() {}, read: () => Promise.resolve(null) }
+    });
+    const bridge = new StructuredHud({
+        control, hudPath: hSock, retryMs: 50, intervalMs: 50,
+        reader: { read: () => { reads++; return Promise.resolve(reply); }, stop: () => stops++ }
+    });
+    try {
+        bridge.start();
+        await until(() => bridge.supported && bridge.enabled && bridge.state === 'showing' && renderSessions[0] && renderSessions[0].frames > 0);
+        assert(renderSessions[0].cmds.some((c) => c.op === 'hello' && c.app === 'robertn_waze_cluster_simple'));
+        assert(renderSessions[0].cmds.some((c) => c.op === 'layer' && c.target === 'hud' && c.kind === 'image'));
+        renderPeers[0].destroy();
+        await until(() => renderSessions.length >= 2 && renderSessions[1].frames > 0 && bridge.state === 'showing');
+        bridge.settings({ hud_simple: 0, hud: 1 });
+        await until(() => !bridge.enabled && bridge.state === 'off');
+        console.log('通过：端到端集成（patch.sock -> hud_daemon -> hud.sock -> OAP 桥接 -> render.sock 建层/推帧/断连重连/配置切换）');
+    } finally {
+        bridge.stop();
+        daemon.close();
+        renderPeers.forEach((p) => p.destroy());
+        patchPeers.forEach((p) => p.destroy());
+        await new Promise((r) => renderSrv.close(r));
+        await new Promise((r) => patchSrv.close(r));
+        [pSock, hSock, rSock].forEach((p) => { try { fs.unlinkSync(p); } catch (_) {} });
+    }
 
     /* 按正式链接器的扁平模块名和静态 require 规则校验整份清单，防止包内漏文件、相对引用失效或注释误触发链接失败。 */
     const root = path.join(__dirname, '..');
