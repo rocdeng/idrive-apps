@@ -231,7 +231,7 @@ class FakePatch extends LineServer {
         this.mute = false;         /* commands received and not answered */
         this.holdAa = false;       /* an Android Auto change stays busy until releaseAa(failure) */
         this.releaseAa = null;
-        this.map = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0 };
+        this.map = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 1 };
         this.shared = null;
         this.own = {};
         this.active = null;
@@ -322,11 +322,11 @@ class FakePatch extends LineServer {
         }
         const MAP = { cluster: ['cluster'], hud: ['hud'], 'hud-size': ['hud_width_pct'], 'hud-pos': ['hud_offset_x', 'hud_offset_y'],
             'hud-simple-size': ['hud_simple_width_pct'], 'hud-simple-pos': ['hud_simple_offset_x', 'hud_simple_offset_y'],
-            'hud-simple-font': ['hud_simple_font_pct'],
+            'hud-simple-font': ['hud_simple_font_pct'], 'hud-simple-style': ['hud_simple_style'],
             'hud-keep-shown': ['hud_keep_shown'], 'hud-fade': ['hud_edge_fade_pct'] };
         if (MAP[msg.cmd]) {
             const v = (msg.cmd === 'hud-pos' || msg.cmd === 'hud-simple-pos') ? [msg.hud_x, msg.hud_y]
-                : [(msg.cmd === 'hud-size' || msg.cmd === 'hud-simple-size') ? msg.hud_width_pct : msg.cmd === 'hud-simple-font' ? msg.hud_font_pct : msg.cmd === 'hud-fade' ? msg.hud_edge_fade_pct : msg.on];
+                : [(msg.cmd === 'hud-size' || msg.cmd === 'hud-simple-size') ? msg.hud_width_pct : msg.cmd === 'hud-simple-font' ? msg.hud_font_pct : msg.cmd === 'hud-simple-style' ? msg.style : msg.cmd === 'hud-fade' ? msg.hud_edge_fade_pct : msg.on];
             this.map = Object.assign({}, this.map);
             MAP[msg.cmd].forEach((k, i) => { this.map[k] = v[i]; });
             if (msg.cmd === 'hud' && msg.on === 1) this.map.hud_simple = 0;

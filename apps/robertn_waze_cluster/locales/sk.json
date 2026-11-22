@@ -104,6 +104,9 @@
     "Waiting for navigation": "Čakanie na navigáciu",
     "Run HUD validation (parked)": "Spustiť test HUD (pri státí)",
     "Stop HUD validation ({0}/{1})": "Zastaviť test HUD ({0}/{1})",
-    "HUD text size: {0}": "Veľkosť textu HUD: {0}"
+    "HUD text size: {0}": "Veľkosť textu HUD: {0}",
+    "HUD style: {0}": "Štýl HUD: {0}",
+    "Style 1": "Štýl 1",
+    "Style 2": "Štýl 2"
   }
 }

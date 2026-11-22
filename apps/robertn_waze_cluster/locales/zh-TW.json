@@ -106,6 +106,9 @@
     "Waiting for navigation": "等待導航",
     "Run HUD validation (parked)": "開始 HUD 驗證（停車時使用）",
     "Stop HUD validation ({0}/{1})": "停止 HUD 驗證（{0}/{1}）",
-    "HUD text size: {0}": "HUD 字體大小：{0}"
+    "HUD text size: {0}": "HUD 字體大小：{0}",
+    "HUD style: {0}": "HUD 風格：{0}",
+    "Style 1": "風格 1",
+    "Style 2": "風格 2"
   }
 }

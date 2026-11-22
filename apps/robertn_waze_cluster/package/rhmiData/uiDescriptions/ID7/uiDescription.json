@@ -375,6 +375,28 @@
             }
           ]
         },
+        "96": {
+          "type": "button",
+          "name": "wocHudStyle",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "HUD style",
+                "type": "Text"
+              }
+            }
+          ]
+        },
         "55": {
           "type": "label",
           "name": "wocHudPos",

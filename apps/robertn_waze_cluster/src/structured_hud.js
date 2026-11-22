@@ -22,6 +22,7 @@ class StructuredHud extends EventEmitter {
         this.hudWidthPct = null;
         this.hudOffset = null;
         this.hudFontPct = null;
+        this.hudStyle = null;
         this.nativeGuidance = false;
         this.suspended = true;
         this.validation = null;
@@ -50,7 +51,7 @@ class StructuredHud extends EventEmitter {
 
     _disconnected() {
         const changed = this.supported || this.enabled || !this.suspended || this.state !== 'off' ||
-            this.keepShown !== null || this.hudWidthPct !== null || this.hudOffset !== null || this.hudFontPct !== null || this.validation !== null;
+            this.keepShown !== null || this.hudWidthPct !== null || this.hudOffset !== null || this.hudFontPct !== null || this.hudStyle !== null || this.validation !== null;
         this.generation++;
         this.reader.stop();
         this.supported = false;
@@ -62,6 +63,7 @@ class StructuredHud extends EventEmitter {
         this.hudWidthPct = null;
         this.hudOffset = null;
         this.hudFontPct = null;
+        this.hudStyle = null;
         this.nativeGuidance = false;
         this.validation = null;
         this.retryAt = 0;
@@ -69,7 +71,7 @@ class StructuredHud extends EventEmitter {
     }
 
     _applyStatus(msg) {
-        const prevKey = JSON.stringify([this.supported, this.enabled, this.suspended, this.state, this.keepShown, this.hudWidthPct, this.hudOffset, this.hudFontPct, this.nativeGuidance, this.validation]);
+        const prevKey = JSON.stringify([this.supported, this.enabled, this.suspended, this.state, this.keepShown, this.hudWidthPct, this.hudOffset, this.hudFontPct, this.hudStyle, this.nativeGuidance, this.validation]);
         const prevReason = this.reason;
         this.supported = msg.supported === true;
         this.enabled = msg.enabled === true;
@@ -80,6 +82,7 @@ class StructuredHud extends EventEmitter {
         this.hudWidthPct = typeof msg.hud_width_pct === 'number' ? msg.hud_width_pct : null;
         this.hudOffset = typeof msg.hud_offset_x === 'number' && typeof msg.hud_offset_y === 'number' ? [msg.hud_offset_x, msg.hud_offset_y] : null;
         this.hudFontPct = typeof msg.hud_simple_font_pct === 'number' ? msg.hud_simple_font_pct : null;
+        this.hudStyle = (msg.hud_simple_style === 1 || msg.hud_simple_style === 2) ? msg.hud_simple_style : null;
         this.nativeGuidance = msg.native_guidance === true;
         this.validation = Array.isArray(msg.validation) && msg.validation.length === 2 ? msg.validation : null;
         if (!this.enabled || this.suspended || this.validation || this.nativeGuidance) {
@@ -89,7 +92,7 @@ class StructuredHud extends EventEmitter {
         if (this.state === 'unavailable' && this.reason && this.reason !== prevReason) {
             this.log.warn(`HUD simple unavailable: ${this.reason}`);
         }
-        const nextKey = JSON.stringify([this.supported, this.enabled, this.suspended, this.state, this.keepShown, this.hudWidthPct, this.hudOffset, this.hudFontPct, this.nativeGuidance, this.validation]);
+        const nextKey = JSON.stringify([this.supported, this.enabled, this.suspended, this.state, this.keepShown, this.hudWidthPct, this.hudOffset, this.hudFontPct, this.hudStyle, this.nativeGuidance, this.validation]);
         if (nextKey !== prevKey) this.emit('change');
     }
 

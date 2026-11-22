@@ -108,7 +108,10 @@ module.exports = [
    "Waiting for navigation": "بانتظار الملاحة",
    "Run HUD validation (parked)": "بدء اختبار HUD (أثناء الوقوف)",
    "Stop HUD validation ({0}/{1})": "إيقاف اختبار HUD ({0}/{1})",
-   "HUD text size: {0}": "حجم نص HUD: {0}"
+   "HUD text size: {0}": "حجم نص HUD: {0}",
+   "HUD style: {0}": "نمط HUD: {0}",
+   "Style 1": "نمط 1",
+   "Style 2": "نمط 2"
   }
  },
  {
@@ -218,7 +221,10 @@ module.exports = [
    "Waiting for navigation": "Čekání na navigaci",
    "Run HUD validation (parked)": "Spustit kontrolu HUD (při stání)",
    "Stop HUD validation ({0}/{1})": "Zastavit kontrolu HUD ({0}/{1})",
-   "HUD text size: {0}": "Velikost textu HUD: {0}"
+   "HUD text size: {0}": "Velikost textu HUD: {0}",
+   "HUD style: {0}": "Styl HUD: {0}",
+   "Style 1": "Styl 1",
+   "Style 2": "Styl 2"
   }
  },
  {
@@ -328,7 +334,10 @@ module.exports = [
    "Waiting for navigation": "Venter på navigation",
    "Run HUD validation (parked)": "Start HUD-test (parkeret)",
    "Stop HUD validation ({0}/{1})": "Stop HUD-test ({0}/{1})",
-   "HUD text size: {0}": "HUD-tekststørrelse: {0}"
+   "HUD text size: {0}": "HUD-tekststørrelse: {0}",
+   "HUD style: {0}": "HUD-stil: {0}",
+   "Style 1": "Stil 1",
+   "Style 2": "Stil 2"
   }
  },
  {
@@ -438,7 +447,10 @@ module.exports = [
    "Waiting for navigation": "Warten auf Navigation",
    "Run HUD validation (parked)": "HUD-Test starten (im Stand)",
    "Stop HUD validation ({0}/{1})": "HUD-Test stoppen ({0}/{1})",
-   "HUD text size: {0}": "HUD-Textgröße: {0}"
+   "HUD text size: {0}": "HUD-Textgröße: {0}",
+   "HUD style: {0}": "HUD-Stil: {0}",
+   "Style 1": "Stil 1",
+   "Style 2": "Stil 2"
   }
  },
  {
@@ -548,7 +560,10 @@ module.exports = [
    "Waiting for navigation": "Αναμονή πλοήγησης",
    "Run HUD validation (parked)": "Έναρξη ελέγχου HUD (σταθμευμένο)",
    "Stop HUD validation ({0}/{1})": "Διακοπή ελέγχου HUD ({0}/{1})",
-   "HUD text size: {0}": "Μέγεθος κειμένου HUD: {0}"
+   "HUD text size: {0}": "Μέγεθος κειμένου HUD: {0}",
+   "HUD style: {0}": "Στυλ HUD: {0}",
+   "Style 1": "Στυλ 1",
+   "Style 2": "Στυλ 2"
   }
  },
  {
@@ -658,7 +673,10 @@ module.exports = [
    "Waiting for navigation": "Esperando navegación",
    "Run HUD validation (parked)": "Iniciar prueba del HUD (estacionado)",
    "Stop HUD validation ({0}/{1})": "Detener prueba del HUD ({0}/{1})",
-   "HUD text size: {0}": "Tamaño de texto HUD: {0}"
+   "HUD text size: {0}": "Tamaño de texto HUD: {0}",
+   "HUD style: {0}": "Estilo HUD: {0}",
+   "Style 1": "Estilo 1",
+   "Style 2": "Estilo 2"
   }
  },
  {
@@ -768,7 +786,10 @@ module.exports = [
    "Waiting for navigation": "Esperando navegación",
    "Run HUD validation (parked)": "Iniciar prueba del HUD (estacionado)",
    "Stop HUD validation ({0}/{1})": "Detener prueba del HUD ({0}/{1})",
-   "HUD text size: {0}": "Tamaño de texto HUD: {0}"
+   "HUD text size: {0}": "Tamaño de texto HUD: {0}",
+   "HUD style: {0}": "Estilo HUD: {0}",
+   "Style 1": "Estilo 1",
+   "Style 2": "Estilo 2"
   }
  },
  {
@@ -878,7 +899,10 @@ module.exports = [
    "Waiting for navigation": "Odotetaan navigointia",
    "Run HUD validation (parked)": "Aloita HUD-testi (pysäköitynä)",
    "Stop HUD validation ({0}/{1})": "Lopeta HUD-testi ({0}/{1})",
-   "HUD text size: {0}": "HUD-tekstikoko: {0}"
+   "HUD text size: {0}": "HUD-tekstikoko: {0}",
+   "HUD style: {0}": "HUD-tyyli: {0}",
+   "Style 1": "Tyyli 1",
+   "Style 2": "Tyyli 2"
   }
  },
  {
@@ -988,7 +1012,10 @@ module.exports = [
    "Waiting for navigation": "En attente de navigation",
    "Run HUD validation (parked)": "Lancer le test HUD (à l’arrêt)",
    "Stop HUD validation ({0}/{1})": "Arrêter le test HUD ({0}/{1})",
-   "HUD text size: {0}": "Taille du texte HUD : {0}"
+   "HUD text size: {0}": "Taille du texte HUD : {0}",
+   "HUD style: {0}": "Style HUD : {0}",
+   "Style 1": "Style 1",
+   "Style 2": "Style 2"
   }
  },
  {
@@ -1098,7 +1125,10 @@ module.exports = [
    "Waiting for navigation": "En attente de navigation",
    "Run HUD validation (parked)": "Lancer le test HUD (à l’arrêt)",
    "Stop HUD validation ({0}/{1})": "Arrêter le test HUD ({0}/{1})",
-   "HUD text size: {0}": "Taille du texte HUD : {0}"
+   "HUD text size: {0}": "Taille du texte HUD : {0}",
+   "HUD style: {0}": "Style HUD : {0}",
+   "Style 1": "Style 1",
+   "Style 2": "Style 2"
   }
  },
  {
@@ -1208,7 +1238,10 @@ module.exports = [
    "Waiting for navigation": "ממתין לניווט",
    "Run HUD validation (parked)": "התחלת בדיקת HUD (בחניה)",
    "Stop HUD validation ({0}/{1})": "עצירת בדיקת HUD ({0}/{1})",
-   "HUD text size: {0}": "גודל טקסט תצוגה עילית: {0}"
+   "HUD text size: {0}": "גודל טקסט תצוגה עילית: {0}",
+   "HUD style: {0}": "סגנון תצוגה עילית: {0}",
+   "Style 1": "סגנון 1",
+   "Style 2": "סגנון 2"
   }
  },
  {
@@ -1318,7 +1351,10 @@ module.exports = [
    "Waiting for navigation": "Várakozás a navigációra",
    "Run HUD validation (parked)": "HUD-teszt indítása (álló helyzetben)",
    "Stop HUD validation ({0}/{1})": "HUD-teszt leállítása ({0}/{1})",
-   "HUD text size: {0}": "HUD szövegméret: {0}"
+   "HUD text size: {0}": "HUD szövegméret: {0}",
+   "HUD style: {0}": "HUD stílus: {0}",
+   "Style 1": "1. stílus",
+   "Style 2": "2. stílus"
   }
  },
  {
@@ -1428,7 +1464,10 @@ module.exports = [
    "Waiting for navigation": "Menunggu navigasi",
    "Run HUD validation (parked)": "Mulai uji HUD (saat parkir)",
    "Stop HUD validation ({0}/{1})": "Hentikan uji HUD ({0}/{1})",
-   "HUD text size: {0}": "Ukuran teks HUD: {0}"
+   "HUD text size: {0}": "Ukuran teks HUD: {0}",
+   "HUD style: {0}": "Gaya HUD: {0}",
+   "Style 1": "Gaya 1",
+   "Style 2": "Gaya 2"
   }
  },
  {
@@ -1538,7 +1577,10 @@ module.exports = [
    "Waiting for navigation": "In attesa della navigazione",
    "Run HUD validation (parked)": "Avvia test HUD (da fermo)",
    "Stop HUD validation ({0}/{1})": "Interrompi test HUD ({0}/{1})",
-   "HUD text size: {0}": "Dimensione testo HUD: {0}"
+   "HUD text size: {0}": "Dimensione testo HUD: {0}",
+   "HUD style: {0}": "Stile HUD: {0}",
+   "Style 1": "Stile 1",
+   "Style 2": "Stile 2"
   }
  },
  {
@@ -1648,7 +1690,10 @@ module.exports = [
    "Waiting for navigation": "ナビゲーション待機中",
    "Run HUD validation (parked)": "HUD 検証を開始（駐車中）",
    "Stop HUD validation ({0}/{1})": "HUD 検証を停止（{0}/{1}）",
-   "HUD text size: {0}": "HUD 文字サイズ: {0}"
+   "HUD text size: {0}": "HUD 文字サイズ: {0}",
+   "HUD style: {0}": "HUD スタイル: {0}",
+   "Style 1": "スタイル 1",
+   "Style 2": "スタイル 2"
   }
  },
  {
@@ -1758,7 +1803,10 @@ module.exports = [
    "Waiting for navigation": "내비게이션 대기 중",
    "Run HUD validation (parked)": "HUD 검증 시작 (주차 중)",
    "Stop HUD validation ({0}/{1})": "HUD 검증 중지 ({0}/{1})",
-   "HUD text size: {0}": "HUD 글자 크기: {0}"
+   "HUD text size: {0}": "HUD 글자 크기: {0}",
+   "HUD style: {0}": "HUD 스타일: {0}",
+   "Style 1": "스타일 1",
+   "Style 2": "스타일 2"
   }
  },
  {
@@ -1868,7 +1916,10 @@ module.exports = [
    "Waiting for navigation": "Venter på navigasjon",
    "Run HUD validation (parked)": "Start HUD-test (parkert)",
    "Stop HUD validation ({0}/{1})": "Stopp HUD-test ({0}/{1})",
-   "HUD text size: {0}": "HUD-tekststørrelse: {0}"
+   "HUD text size: {0}": "HUD-tekststørrelse: {0}",
+   "HUD style: {0}": "HUD-stil: {0}",
+   "Style 1": "Stil 1",
+   "Style 2": "Stil 2"
   }
  },
  {
@@ -1980,7 +2031,10 @@ module.exports = [
    "Waiting for navigation": "Wachten op navigatie",
    "Run HUD validation (parked)": "HUD-test starten (geparkeerd)",
    "Stop HUD validation ({0}/{1})": "HUD-test stoppen ({0}/{1})",
-   "HUD text size: {0}": "HUD-tekstgrootte: {0}"
+   "HUD text size: {0}": "HUD-tekstgrootte: {0}",
+   "HUD style: {0}": "HUD-stijl: {0}",
+   "Style 1": "Stijl 1",
+   "Style 2": "Stijl 2"
   }
  },
  {
@@ -2090,7 +2144,10 @@ module.exports = [
    "Waiting for navigation": "Oczekiwanie na nawigację",
    "Run HUD validation (parked)": "Uruchom test HUD (na postoju)",
    "Stop HUD validation ({0}/{1})": "Zatrzymaj test HUD ({0}/{1})",
-   "HUD text size: {0}": "Rozmiar tekstu HUD: {0}"
+   "HUD text size: {0}": "Rozmiar tekstu HUD: {0}",
+   "HUD style: {0}": "Styl HUD: {0}",
+   "Style 1": "Styl 1",
+   "Style 2": "Styl 2"
   }
  },
  {
@@ -2200,7 +2257,10 @@ module.exports = [
    "Waiting for navigation": "Aguardando navegação",
    "Run HUD validation (parked)": "Iniciar teste do HUD (estacionado)",
    "Stop HUD validation ({0}/{1})": "Parar teste do HUD ({0}/{1})",
-   "HUD text size: {0}": "Tamanho do texto HUD: {0}"
+   "HUD text size: {0}": "Tamanho do texto HUD: {0}",
+   "HUD style: {0}": "Estilo HUD: {0}",
+   "Style 1": "Estilo 1",
+   "Style 2": "Estilo 2"
   }
  },
  {
@@ -2310,7 +2370,10 @@ module.exports = [
    "Waiting for navigation": "A aguardar navegação",
    "Run HUD validation (parked)": "Iniciar teste do HUD (estacionado)",
    "Stop HUD validation ({0}/{1})": "Parar teste do HUD ({0}/{1})",
-   "HUD text size: {0}": "Tamanho do texto HUD: {0}"
+   "HUD text size: {0}": "Tamanho do texto HUD: {0}",
+   "HUD style: {0}": "Estilo HUD: {0}",
+   "Style 1": "Estilo 1",
+   "Style 2": "Estilo 2"
   }
  },
  {
@@ -2420,7 +2483,10 @@ module.exports = [
    "Waiting for navigation": "Se așteaptă navigarea",
    "Run HUD validation (parked)": "Pornește testul HUD (staționat)",
    "Stop HUD validation ({0}/{1})": "Oprește testul HUD ({0}/{1})",
-   "HUD text size: {0}": "Dimensiune text HUD: {0}"
+   "HUD text size: {0}": "Dimensiune text HUD: {0}",
+   "HUD style: {0}": "Stil HUD: {0}",
+   "Style 1": "Stil 1",
+   "Style 2": "Stil 2"
   }
  },
  {
@@ -2530,7 +2596,10 @@ module.exports = [
    "Waiting for navigation": "Ожидание навигации",
    "Run HUD validation (parked)": "Запустить проверку HUD (на стоянке)",
    "Stop HUD validation ({0}/{1})": "Остановить проверку HUD ({0}/{1})",
-   "HUD text size: {0}": "Размер шрифта HUD: {0}"
+   "HUD text size: {0}": "Размер шрифта HUD: {0}",
+   "HUD style: {0}": "Стиль HUD: {0}",
+   "Style 1": "Стиль 1",
+   "Style 2": "Стиль 2"
   }
  },
  {
@@ -2640,7 +2709,10 @@ module.exports = [
    "Waiting for navigation": "Čakanie na navigáciu",
    "Run HUD validation (parked)": "Spustiť test HUD (pri státí)",
    "Stop HUD validation ({0}/{1})": "Zastaviť test HUD ({0}/{1})",
-   "HUD text size: {0}": "Veľkosť textu HUD: {0}"
+   "HUD text size: {0}": "Veľkosť textu HUD: {0}",
+   "HUD style: {0}": "Štýl HUD: {0}",
+   "Style 1": "Štýl 1",
+   "Style 2": "Štýl 2"
   }
  },
  {
@@ -2750,7 +2822,10 @@ module.exports = [
    "Waiting for navigation": "Čakanje na navigacijo",
    "Run HUD validation (parked)": "Začni preizkus HUD (parkirano)",
    "Stop HUD validation ({0}/{1})": "Ustavi preizkus HUD ({0}/{1})",
-   "HUD text size: {0}": "Velikost besedila HUD: {0}"
+   "HUD text size: {0}": "Velikost besedila HUD: {0}",
+   "HUD style: {0}": "Slog HUD: {0}",
+   "Style 1": "Slog 1",
+   "Style 2": "Slog 2"
   }
  },
  {
@@ -2860,7 +2935,10 @@ module.exports = [
    "Waiting for navigation": "Väntar på navigering",
    "Run HUD validation (parked)": "Starta HUD-test (parkerad)",
    "Stop HUD validation ({0}/{1})": "Stoppa HUD-test ({0}/{1})",
-   "HUD text size: {0}": "HUD-textstorlek: {0}"
+   "HUD text size: {0}": "HUD-textstorlek: {0}",
+   "HUD style: {0}": "HUD-stil: {0}",
+   "Style 1": "Stil 1",
+   "Style 2": "Stil 2"
   }
  },
  {
@@ -2970,7 +3048,10 @@ module.exports = [
    "Waiting for navigation": "กำลังรอการนำทาง",
    "Run HUD validation (parked)": "เริ่มทดสอบ HUD (ขณะจอดรถ)",
    "Stop HUD validation ({0}/{1})": "หยุดทดสอบ HUD ({0}/{1})",
-   "HUD text size: {0}": "ขนาดตัวอักษร HUD: {0}"
+   "HUD text size: {0}": "ขนาดตัวอักษร HUD: {0}",
+   "HUD style: {0}": "รูปแบบ HUD: {0}",
+   "Style 1": "แบบที่ 1",
+   "Style 2": "แบบที่ 2"
   }
  },
  {
@@ -3080,7 +3161,10 @@ module.exports = [
    "Waiting for navigation": "Navigasyon bekleniyor",
    "Run HUD validation (parked)": "HUD testini başlat (park halinde)",
    "Stop HUD validation ({0}/{1})": "HUD testini durdur ({0}/{1})",
-   "HUD text size: {0}": "HUD metin boyutu: {0}"
+   "HUD text size: {0}": "HUD metin boyutu: {0}",
+   "HUD style: {0}": "HUD stili: {0}",
+   "Style 1": "Stil 1",
+   "Style 2": "Stil 2"
   }
  },
  {
@@ -3190,7 +3274,10 @@ module.exports = [
    "Waiting for navigation": "Очікування навігації",
    "Run HUD validation (parked)": "Почати перевірку HUD (на стоянці)",
    "Stop HUD validation ({0}/{1})": "Зупинити перевірку HUD ({0}/{1})",
-   "HUD text size: {0}": "Розмір шрифту HUD: {0}"
+   "HUD text size: {0}": "Розмір шрифту HUD: {0}",
+   "HUD style: {0}": "Стиль HUD: {0}",
+   "Style 1": "Стиль 1",
+   "Style 2": "Стиль 2"
   }
  },
  {
@@ -3300,7 +3387,10 @@ module.exports = [
    "Waiting for navigation": "Đang chờ dẫn đường",
    "Run HUD validation (parked)": "Bắt đầu kiểm tra HUD (khi đỗ xe)",
    "Stop HUD validation ({0}/{1})": "Dừng kiểm tra HUD ({0}/{1})",
-   "HUD text size: {0}": "Cỡ chữ HUD: {0}"
+   "HUD text size: {0}": "Cỡ chữ HUD: {0}",
+   "HUD style: {0}": "Kiểu HUD: {0}",
+   "Style 1": "Kiểu 1",
+   "Style 2": "Kiểu 2"
   }
  },
  {
@@ -3412,7 +3502,10 @@ module.exports = [
    "Waiting for navigation": "等待导航",
    "Run HUD validation (parked)": "开始 HUD 验证（停车时使用）",
    "Stop HUD validation ({0}/{1})": "停止 HUD 验证（{0}/{1}）",
-   "HUD text size: {0}": "HUD 字号：{0}"
+   "HUD text size: {0}": "HUD 字号：{0}",
+   "HUD style: {0}": "HUD 风格：{0}",
+   "Style 1": "风格 1",
+   "Style 2": "风格 2"
   }
  },
  {
@@ -3524,7 +3617,10 @@ module.exports = [
    "Waiting for navigation": "等待導航",
    "Run HUD validation (parked)": "開始 HUD 驗證（停車時使用）",
    "Stop HUD validation ({0}/{1})": "停止 HUD 驗證（{0}/{1}）",
-   "HUD text size: {0}": "HUD 字體大小：{0}"
+   "HUD text size: {0}": "HUD 字體大小：{0}",
+   "HUD style: {0}": "HUD 風格：{0}",
+   "Style 1": "風格 1",
+   "Style 2": "風格 2"
   }
  }
 ];

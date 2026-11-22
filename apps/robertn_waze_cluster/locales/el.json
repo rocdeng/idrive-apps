@@ -104,6 +104,9 @@
     "Waiting for navigation": "Αναμονή πλοήγησης",
     "Run HUD validation (parked)": "Έναρξη ελέγχου HUD (σταθμευμένο)",
     "Stop HUD validation ({0}/{1})": "Διακοπή ελέγχου HUD ({0}/{1})",
-    "HUD text size: {0}": "Μέγεθος κειμένου HUD: {0}"
+    "HUD text size: {0}": "Μέγεθος κειμένου HUD: {0}",
+    "HUD style: {0}": "Στυλ HUD: {0}",
+    "Style 1": "Στυλ 1",
+    "Style 2": "Στυλ 2"
   }
 }

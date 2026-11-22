@@ -104,6 +104,9 @@
     "Waiting for navigation": "Очікування навігації",
     "Run HUD validation (parked)": "Почати перевірку HUD (на стоянці)",
     "Stop HUD validation ({0}/{1})": "Зупинити перевірку HUD ({0}/{1})",
-    "HUD text size: {0}": "Розмір шрифту HUD: {0}"
+    "HUD text size: {0}": "Розмір шрифту HUD: {0}",
+    "HUD style: {0}": "Стиль HUD: {0}",
+    "Style 1": "Стиль 1",
+    "Style 2": "Стиль 2"
   }
 }

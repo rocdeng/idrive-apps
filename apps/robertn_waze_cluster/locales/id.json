@@ -104,6 +104,9 @@
     "Waiting for navigation": "Menunggu navigasi",
     "Run HUD validation (parked)": "Mulai uji HUD (saat parkir)",
     "Stop HUD validation ({0}/{1})": "Hentikan uji HUD ({0}/{1})",
-    "HUD text size: {0}": "Ukuran teks HUD: {0}"
+    "HUD text size: {0}": "Ukuran teks HUD: {0}",
+    "HUD style: {0}": "Gaya HUD: {0}",
+    "Style 1": "Gaya 1",
+    "Style 2": "Gaya 2"
   }
 }

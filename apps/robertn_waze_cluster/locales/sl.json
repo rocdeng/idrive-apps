@@ -104,6 +104,9 @@
     "Waiting for navigation": "Čakanje na navigacijo",
     "Run HUD validation (parked)": "Začni preizkus HUD (parkirano)",
     "Stop HUD validation ({0}/{1})": "Ustavi preizkus HUD ({0}/{1})",
-    "HUD text size: {0}": "Velikost besedila HUD: {0}"
+    "HUD text size: {0}": "Velikost besedila HUD: {0}",
+    "HUD style: {0}": "Slog HUD: {0}",
+    "Style 1": "Slog 1",
+    "Style 2": "Slog 2"
   }
 }

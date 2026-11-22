@@ -104,6 +104,9 @@
     "Waiting for navigation": "ממתין לניווט",
     "Run HUD validation (parked)": "התחלת בדיקת HUD (בחניה)",
     "Stop HUD validation ({0}/{1})": "עצירת בדיקת HUD ({0}/{1})",
-    "HUD text size: {0}": "גודל טקסט תצוגה עילית: {0}"
+    "HUD text size: {0}": "גודל טקסט תצוגה עילית: {0}",
+    "HUD style: {0}": "סגנון תצוגה עילית: {0}",
+    "Style 1": "סגנון 1",
+    "Style 2": "סגנון 2"
   }
 }

@@ -104,6 +104,9 @@
     "Waiting for navigation": "Odotetaan navigointia",
     "Run HUD validation (parked)": "Aloita HUD-testi (pysäköitynä)",
     "Stop HUD validation ({0}/{1})": "Lopeta HUD-testi ({0}/{1})",
-    "HUD text size: {0}": "HUD-tekstikoko: {0}"
+    "HUD text size: {0}": "HUD-tekstikoko: {0}",
+    "HUD style: {0}": "HUD-tyyli: {0}",
+    "Style 1": "Tyyli 1",
+    "Style 2": "Tyyli 2"
   }
 }

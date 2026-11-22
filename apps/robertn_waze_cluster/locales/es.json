@@ -104,6 +104,9 @@
     "Waiting for navigation": "Esperando navegación",
     "Run HUD validation (parked)": "Iniciar prueba del HUD (estacionado)",
     "Stop HUD validation ({0}/{1})": "Detener prueba del HUD ({0}/{1})",
-    "HUD text size: {0}": "Tamaño de texto HUD: {0}"
+    "HUD text size: {0}": "Tamaño de texto HUD: {0}",
+    "HUD style: {0}": "Estilo HUD: {0}",
+    "Style 1": "Estilo 1",
+    "Style 2": "Estilo 2"
   }
 }

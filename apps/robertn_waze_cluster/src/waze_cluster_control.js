@@ -310,6 +310,7 @@ class WazeClusterControl extends EventEmitter {
             this._clearAskedHud();
             this._clearAskedFade();
             this._clearAskedFont();
+            this._clearAskedStyle();
             this.emit('change');
         };
         this.render.on('connect', reset);
@@ -331,6 +332,7 @@ class WazeClusterControl extends EventEmitter {
         this._clearAskedHud();
         this._clearAskedFade();
         this._clearAskedFont();
+        this._clearAskedStyle();
         this.render.close();
         this.patch.close();
         this.renderStatus = null;
@@ -608,6 +610,39 @@ class WazeClusterControl extends EventEmitter {
     _clearAskedFont() {
         clearTimeout(this._askedFontTimer);
         this._askedFont = null;
+    }
+
+    hudStyle() {
+        if (this._askedStyle != null) return this._askedStyle;
+        if (this.shownOn() !== 'simple' || !this.simpleHud || this.simpleHud.hudStyle === null) return null;
+        return this.simpleHud.hudStyle;
+    }
+
+    canChangeHudStyle() {
+        return this.shownOn() === 'simple' && this.canChangeHudSize() && this.hudStyle() !== null;
+    }
+
+    hudStyleText() {
+        const v = this.hudStyle();
+        return t('HUD style: {0}', v == null ? '—' : v === 2 ? t('Style 2') : t('Style 1'));
+    }
+
+    cycleHudStyle() {
+        if (!this.canChangeHudStyle()) return;
+        const next = this.hudStyle() === 2 ? 1 : 2;
+        this._clearAskedStyle();
+        this._askedStyle = next;
+        this._askedStyleTimer = setTimeout(() => {
+            this._clearAskedStyle();
+            this.emit('change');
+        }, HUD_ASKED_MS);
+        this.patch.send({ cmd: 'hud-simple-style', style: next });
+        this.emit('change');
+    }
+
+    _clearAskedStyle() {
+        clearTimeout(this._askedStyleTimer);
+        this._askedStyle = null;
     }
 
     /* ---- where the HUD map is: moved from its centre, in HUD pixels ---- */
@@ -1178,7 +1213,7 @@ class WazeClusterControl extends EventEmitter {
             this._noteCardAsked(msg);
             this._wake();
             this.emit('change');
-        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple|hud-simple-size|hud-simple-pos|hud-simple-font|hud-fade)-reply$/.test(msg.ev)) {
+        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple|hud-simple-size|hud-simple-pos|hud-simple-font|hud-simple-style|hud-fade)-reply$/.test(msg.ev)) {
             if (!msg.ok) {
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
                 if (msg.ev === 'hud-simple-reply') {

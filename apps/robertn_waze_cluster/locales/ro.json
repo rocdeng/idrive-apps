@@ -104,6 +104,9 @@
     "Waiting for navigation": "Se așteaptă navigarea",
     "Run HUD validation (parked)": "Pornește testul HUD (staționat)",
     "Stop HUD validation ({0}/{1})": "Oprește testul HUD ({0}/{1})",
-    "HUD text size: {0}": "Dimensiune text HUD: {0}"
+    "HUD text size: {0}": "Dimensiune text HUD: {0}",
+    "HUD style: {0}": "Stil HUD: {0}",
+    "Style 1": "Stil 1",
+    "Style 2": "Stil 2"
   }
 }
