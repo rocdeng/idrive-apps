@@ -113,7 +113,7 @@ const SHOWN_ON = ['cluster', 'hud', 'both', 'simple', 'off'];
  * HUD_ASKED_MS has passed, the render reconnects or patchd fails to save the size; then the render's own. */
 const HUD_MOVE_PX = 10, HUD_MOVE_MAX = 400, HUD_ASKED_MS = 300;
 const HUD_FADES = [0, 8, 15, 25];
-const HUD_FONT_PCTS = [100, 110, 120, 130, 90];
+const HUD_FONT_PCTS = [100, 110, 120, 130, 140, 150, 90];
 const MOVES = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
 
 /* One newline-delimited-JSON stream socket, reconnecting while open.

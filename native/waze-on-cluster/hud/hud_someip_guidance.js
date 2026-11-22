@@ -168,7 +168,7 @@ function decodeManeuver(kind, r) {
     var fdUnit = DISTANCE_UNITS[r.u32()] || 'NONE'; // formattedDistance.unit
     r.f64();                                  // formattedDistance.rawDistance
     var description = decodeDescription(r);   // description
-    r.u32();                                  // travelTime
+    var travelTime = r.u32();                 // travelTime
     r.u32();                                  // travelTimeDelay
     r.sub();                                  // trafficSegmentsInfo.overview (ArrayD)
     r.sub();                                  // trafficSegmentsInfo.segments (ArrayD)
@@ -187,6 +187,7 @@ function decodeManeuver(kind, r) {
     }
     var ev = {
         distanceToDestination: distanceToDestination,
+        travelTime: travelTime,
         formattedDistance: { distance: fdDist, unit: fdUnit },
         description: description,
         direction: direction,

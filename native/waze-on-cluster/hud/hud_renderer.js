@@ -29,10 +29,25 @@
             }
         }
     };
+    function sampleGradient(grad, y) {
+        var t = Math.max(0, Math.min(1, (y - grad.y0) / (grad.h || 1)));
+        var a, b, u, alpha;
+        if (t <= 0.42) {
+            a = grad.top; b = grad.mid; u = t / 0.42; alpha = 1;
+        } else {
+            a = grad.mid; b = grad.bottom; u = (t - 0.42) / 0.58;
+            alpha = 1 - (1 - grad.tailAlpha) * u;
+        }
+        return {
+            rgb: [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u],
+            alpha: alpha
+        };
+    }
     Surface.prototype.shape = function(contours, color) {
         var ys = [].concat.apply([], contours).map(function(p) { return p[1]; });
         var minY = Math.max(0, Math.floor(Math.min.apply(null, ys)));
         var maxY = Math.min(H, Math.ceil(Math.max.apply(null, ys)));
+        var isGrad = color && !Array.isArray(color);
         for (var y = minY; y < maxY; y++) {
             // 每行四条子扫描线，使箭头斜边在原生 HUD 分辨率上平滑。
             var coverage = new Float32Array(W);
@@ -58,7 +73,12 @@
                         coverage[x] += Math.max(0, Math.min(x + 1, end) - Math.max(x, start)) / 4;
                 }
             }
-            for (var cx = 0; cx < W; cx++) if (coverage[cx]) this.pixel(cx, y, color, coverage[cx]);
+            var rowRgb = color, rowAlpha = 1;
+            if (isGrad) {
+                var g = sampleGradient(color, y);
+                rowRgb = g.rgb; rowAlpha = g.alpha;
+            }
+            for (var cx = 0; cx < W; cx++) if (coverage[cx]) this.pixel(cx, y, rowRgb, coverage[cx] * rowAlpha);
         }
     };
     Surface.prototype.measure = function(str, size) {
@@ -141,14 +161,31 @@
             }
         }
     }
+    function drawTrafficLamp(s, cx, cy, w, h, ringColor, fillAlpha) {
+        var rx = w / 2, ry = h / 2, inner = 0.76;
+        for (var y = Math.floor(cy - ry); y < Math.ceil(cy + ry); y++) {
+            for (var x = Math.floor(cx - rx); x < Math.ceil(cx + rx); x++) {
+                var r = Math.hypot((x + 0.5 - cx) / rx, (y + 0.5 - cy) / ry);
+                if (r >= 1.08) continue;
+                var outerCov = Math.max(0, Math.min(1, (1 - r) * 8));
+                var ringMix = Math.max(0, Math.min(1, (r - inner) * 10));
+                var alpha = outerCov * (fillAlpha + (1 - fillAlpha) * ringMix);
+                if (alpha > 0) s.pixel(x, y, ringColor, alpha);
+            }
+        }
+    }
     function roadAlerts(s, state) {
         var light = state.trafficLight;
         if (light) {
-            var colors = {red: [255, 90, 88], green: RECOMMENDED, yellow: [255, 201, 79]};
+            var colors = {red: [255, 76, 72], green: [64, 240, 152], yellow: [255, 198, 45]};
             var color = colors[light.color];
-            // Pencil「453×200 安全区」左侧的实心灯和两位倒计时。
-            s.rect(safeX(0), safeY(20), safeW(28), safeH(28), Math.min(safeW(28), safeH(28)) / 2, color, 1);
-            s.text(String(light.seconds), safeX(35), safeY(20), safeFont(28), color);
+            // 外圈饱和深色圆环 + 内部柔和浅色通透填充。
+            drawTrafficLamp(s, safeX(14), safeY(34), safeW(28), safeH(28), color, 0.30);
+            if (light.seconds !== null) {
+                s.text(String(light.seconds), safeX(35), safeY(20), safeFont(28), color);
+            } else {
+                s.text(light.text || '注意', safeX(35), safeY(23), safeFont(19), color, safeW(48));
+            }
         }
         if (state.speedLimitKmh !== null) {
             var limit = String(state.speedLimitKmh);
@@ -161,7 +198,8 @@
     }
     function render(raw, font, validationLabel, fontPct) {
         var state = nav.snapshot(raw), s = new Surface(font);
-        var fs = typeof fontPct === 'number' && fontPct >= 80 && fontPct <= 140 ? fontPct / 100 : 1;
+        var fs = typeof fontPct === 'number' && fontPct >= 80 && fontPct <= 150 ? fontPct / 100 : 1;
+        var dfs = 1 + (fs - 1) * 0.5;
         function rect(x, y, w, h, r, color) { s.rect(x, y, w, h, r, color, 1); }
         function text(str, x, y, size, color, maxWidth) {
             return s.text(str, x, y, size, color, maxWidth);
@@ -182,10 +220,15 @@
             text(state.currentRoad, safeX(452) - cw, safeY(5), curSize, WHITE, safeW(260));
         }
         var dist = nav.distance(state.distanceM);
-        if (state.direction) arrow(state.direction, safeX(76), safeY(0), safeW(99.6), safeH(98.25405405405404), WHITE);
-        var digitSize = safeFont(25.2), unitSize = safeFont(19.2);
+        if (state.direction) {
+            var ay = safeY(0), ah = safeH(98.25405405405404);
+            // 方案 A 渐变光导：箭尖高光纯白平滑过渡到箭尾柔灰蓝。
+            var mainGrad = { top: WHITE, mid: [235, 246, 255], bottom: [142, 174, 202], tailAlpha: 0.78, y0: ay, h: ah };
+            arrow(state.direction, safeX(76), ay, safeW(99.6), ah, mainGrad);
+        }
+        var digitSize = safeFont(25.2 * dfs), unitSize = safeFont(19.2 * dfs);
         var distanceWidth = s.measure(dist.value, digitSize) + safeW(6) + s.measure(dist.unit, unitSize);
-        var fit = Math.min(1, safeW(84) / distanceWidth);
+        var fit = Math.min(1, safeW(88) / distanceWidth);
         digitSize *= fit; unitSize *= fit;
         var dw = text(dist.value, safeX(180), safeY(58) + safeFont(25.2) - digitSize, digitSize, WHITE);
         text(dist.unit, safeX(180) + dw + safeW(6), safeY(58) + safeFont(24.2) - unitSize, unitSize, GRAY);

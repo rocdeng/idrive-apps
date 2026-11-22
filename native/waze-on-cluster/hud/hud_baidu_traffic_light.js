@@ -7,27 +7,38 @@ const DIGITS = ['1110111', '0010010', '1011101', '1011011', '0111010',
 function lampColor(r, g, b) {
     if (r >= 130 && r - g >= 65 && r - b >= 55) return 1;
     if (g >= 120 && g - r >= 60 && g - b >= 40) return 2;
+    if (r >= 155 && g >= 120 && r - b >= 85 && g - b >= 55 && r - g >= -15 && r - g <= 65) return 3;
     return 0;
 }
 
-let chromaThresholds;
+let chromaColor, chromaMinY;
 function atlasColor(pixels, width, height) {
-    // 同一组色度只计算一次。正值是红色最低亮度 + 1，负值表示绿色。
-    if (!chromaThresholds) {
-        chromaThresholds = new Int16Array(65536);
+    // 同一组色度只计算一次：1=红，2=绿，3=黄，配合最低亮度阈值表。
+    if (!chromaColor) {
+        chromaColor = new Uint8Array(65536);
+        chromaMinY = new Uint8Array(65536);
         for (let u = -128; u < 128; u++) for (let v = -128; v < 128; v++) {
             const red = 1.402 * v, green = -0.344136 * u - 0.714136 * v, blue = 1.772 * u;
             const key = ((u + 128) << 8) | (v + 128);
-            if (red - green >= 65 && red - blue >= 55) chromaThresholds[key] = Math.max(0, Math.ceil(130 - red)) + 1;
-            else if (green - red >= 60 && green - blue >= 40) chromaThresholds[key] = -(Math.max(0, Math.ceil(120 - green)) + 1);
+            if (red - green >= 65 && red - blue >= 55) {
+                chromaColor[key] = 1;
+                chromaMinY[key] = Math.max(0, Math.min(255, Math.ceil(130 - red)));
+            } else if (green - red >= 60 && green - blue >= 40) {
+                chromaColor[key] = 2;
+                chromaMinY[key] = Math.max(0, Math.min(255, Math.ceil(120 - green)));
+            } else if (red - blue >= 85 && green - blue >= 55 && red - green >= -15 && red - green <= 65) {
+                chromaColor[key] = 3;
+                chromaMinY[key] = Math.max(0, Math.min(255, Math.max(Math.ceil(155 - red), Math.ceil(120 - green))));
+            }
         }
     }
     const chroma = width * height, plane = width >> 1;
     return (x, y, i) => {
         const uv = chroma + (y >> 1) * width + (x >> 1);
-        const limit = chromaThresholds[(pixels[uv] << 8) | pixels[uv + plane]];
-        if (!limit || pixels[i] + 1 < (limit > 0 ? limit : -limit)) return 0;
-        return limit > 0 ? 1 : 2;
+        const key = (pixels[uv] << 8) | pixels[uv + plane];
+        const c = chromaColor[key];
+        if (!c || pixels[i] < chromaMinY[key]) return 0;
+        return c;
     };
 }
 
@@ -203,15 +214,32 @@ function direction(image, cx, cy, size) {
     return matches.length === 1 ? matches[0][1] : null;
 }
 
+function hasCautionLabel(image, left, right, cy, scale) {
+    const halfHeight = Math.round(scale * 0.34);
+    let lit = 0;
+    for (let x = Math.ceil(left); x <= right; x++) {
+        for (let y = -halfHeight; y <= halfHeight; y++) {
+            if (image.white(x, cy + y)) lit++;
+        }
+    }
+    return lit >= Math.max(12, scale * scale * 0.04);
+}
+
 function readCard(image, ring, includeDirection) {
     const {cx, cy, size, color} = ring;
-    // 确认图标右边是深色卡片，且数字与图标垂直居中。
+    // 确认图标右边是深色卡片，且数字或“注意”文案与图标垂直居中。
     const darkCorners = [0.66, 1.08, 1.47].every(x =>
         image.dark(cx + x * size, cy - size * 0.39) && image.dark(cx + x * size, cy + size * 0.39));
     if (!darkCorners) return null;
     const seconds = countdown(image, cx + size * 0.56, cx + size * 1.55, cy, size);
-    if (seconds === null) return null;
-    const light = {color: color === 1 ? 'red' : 'green', seconds};
+    const name = color === 1 ? 'red' : color === 2 ? 'green' : 'yellow';
+    if (seconds === null) {
+        if (color !== 3 || !hasCautionLabel(image, cx + size * 0.56, cx + size * 1.55, cy, size)) return null;
+        const caution = {color: 'yellow', seconds: null, text: '注意'};
+        if (includeDirection) caution.direction = direction(image, cx, cy, size);
+        return caution;
+    }
+    const light = {color: name, seconds};
     if (includeDirection) light.direction = direction(image, cx, cy, size);
     return light;
 }

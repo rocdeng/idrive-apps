@@ -65,12 +65,16 @@ class HudTrafficReader {
             if (this.clock() - stamp >= FRESH) throw Error('frame age');
             this.nextParse = now + INTERVAL;
             const observed = recognizeBaiduTrafficLight(bytes, WIDTH, HEIGHT, 0, false);
-            this.diagnostic('info', observed ? ('recognized ' + observed.color + ' ' + observed.seconds + 's at stamp ' + stamp) : 'recognizer found no traffic-light card');
+            this.diagnostic('info', observed ? ('recognized ' + observed.color + ' ' + (observed.seconds === null ? (observed.text || 'caution') : (observed.seconds + 's')) + ' at stamp ' + stamp) : 'recognizer found no traffic-light card');
             const previous = this.pending;
-            // 过期或有歧义即留白，不从旧值自行递减。
-            this.shown = observed && previous && stamp > this.stamp && stamp - this.stamp < FRESH &&
-                observed.color === previous.color && observed.seconds <= previous.seconds &&
-                previous.seconds - observed.seconds <= Math.ceil((stamp - this.stamp) / 1000) ? observed : null;
+            // 过期或有歧义即留白，不从旧值自行递减；黄灯“注意”无倒计时需连续两帧确认。
+            const sameWindow = observed && previous && stamp > this.stamp && stamp - this.stamp < FRESH && observed.color === previous.color;
+            const validStep = sameWindow && (
+                (observed.seconds === null && previous.seconds === null) ||
+                (observed.seconds !== null && previous.seconds !== null && observed.seconds <= previous.seconds &&
+                    previous.seconds - observed.seconds <= Math.ceil((stamp - this.stamp) / 1000))
+            );
+            this.shown = validStep ? observed : null;
             this.pending = observed;
             this.stamp = stamp;
             return this.shown;

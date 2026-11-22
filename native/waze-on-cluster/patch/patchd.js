@@ -288,7 +288,7 @@ function rewriteConf(file, set, drop) {
 function mapValueOk(k, v) {
     var n = Number(v);
     return /^-?\d+$/.test(v) && ((k === 'hud_width_pct' || k === 'hud_simple_width_pct') ? n === 0 || (n >= 20 && n <= 100)
-        : k === 'hud_simple_font_pct' ? n === 0 || (n >= 80 && n <= 140)
+        : k === 'hud_simple_font_pct' ? n === 0 || (n >= 80 && n <= 150)
         : /^hud_(simple_)?offset_/.test(k) ? n >= -800 && n <= 800 : k === 'hud_edge_fade_pct' ? n >= 0 && n <= 30 : n === 0 || n === 1);
 }
 
@@ -2334,8 +2334,8 @@ function handle(line, sock) {
     }
     if (msg.cmd === 'hud-simple-font') {
         var fpct = msg.hud_font_pct;
-        if (!(fpct === 0 || (typeof fpct === 'number' && fpct >= 80 && fpct <= 140 && fpct === Math.floor(fpct)))) {
-            reply(sock, { ev: 'hud-simple-font-reply', ok: false, reason: 'HUD text size must be 0 or 80-140 %' });
+        if (!(fpct === 0 || (typeof fpct === 'number' && fpct >= 80 && fpct <= 150 && fpct === Math.floor(fpct)))) {
+            reply(sock, { ev: 'hud-simple-font-reply', ok: false, reason: 'HUD text size must be 0 or 80-150 %' });
             return;
         }
         saveMapSettings(sock, 'hud-simple-font-reply', { hud_simple_font_pct: fpct }, 'the simple HUD text size');

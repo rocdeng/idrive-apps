@@ -3,7 +3,7 @@
 const IFACE = 'de.bmw.infotainment.navigation.guiding.GuidanceEventList';
 const INSTANCE = 'Main_Instance', VIEW = 'HUD.RB.Main';
 const FALLBACK_CONFIG = { viewport: { startPoint: { anchorPoint: { standardReferencePoint: 'CCP' }, offsets: [] },
-    maxElementCount: 1, endPoints: [], includedTypes: ['INCLUDE_DESTINATIONS', 'INCLUDE_ACTIVE_MANEUVERS'] },
+    maxElementCount: 4, endPoints: [], includedTypes: ['INCLUDE_DESTINATIONS', 'INCLUDE_ACTIVE_MANEUVERS'] },
     options: ['ENABLE_PRIORITIZED_VIEW'], minimumUpdateIntervalMs: 500, segmentItemRasterLength: 0 };
 
 function within(promise, ms) {

@@ -84,6 +84,17 @@
             });
         }
         var kinds = ['intersection', 'roundabout', 'branch', 'destinationManeuver', 'laneChange', 'passiveManeuver'];
+        var destTimeS = null;
+        for (var j = 0; j < (events || []).length; j++) {
+            var du = events[j], dk = du.type, de = du.value;
+            if (!dk && du.destinationManeuver && typeof du.destinationManeuver === 'object') {
+                dk = 'destinationManeuver'; de = du.destinationManeuver;
+            }
+            if (dk === 'destinationManeuver' && de && typeof de.travelTime === 'number' && de.travelTime > 0) {
+                destTimeS = de.travelTime;
+                break;
+            }
+        }
         for (var i = 0; i < (events || []).length; i++) {
             var union = events[i], kind = union.type, event = union.value;
             if (!kind) {
@@ -97,10 +108,13 @@
             if (typeof metersPerUnit === 'number' && /^\d+(\.\d+)?$/.test(fd.distance || '')) {
                 value = Number(fd.distance) * metersPerUnit;
             }
+            var timeS = destTimeS !== null ? destTimeS : (typeof event.travelTime === 'number' && event.travelTime > 0 ? event.travelTime : null);
             return snapshot({ state: 'navigating', source: 'BMW 导航结构化事件',
                 direction: BMW_DIRECTIONS[enumName(event.direction)] || null,
                 instruction: words(event.description), distanceM: value,
-                remainingDistanceM: number(event.distanceToDestination), speedLimitKmh: bmwSpeedLimit(event) });
+                remainingDistanceM: number(event.distanceToDestination),
+                remainingTimeS: number(timeS),
+                speedLimitKmh: bmwSpeedLimit(event) });
         }
         return snapshot({ state: 'inactive' });
     }
