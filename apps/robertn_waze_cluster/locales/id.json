@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "Mode HUD sederhana: {0}",
     "Waiting for navigation": "Menunggu navigasi",
     "Run HUD validation (parked)": "Mulai uji HUD (saat parkir)",
-    "Stop HUD validation ({0}/{1})": "Hentikan uji HUD ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "Hentikan uji HUD ({0}/{1})",
+    "HUD text size: {0}": "Ukuran teks HUD: {0}"
   }
 }

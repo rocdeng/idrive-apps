@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "وضع HUD المبسط: {0}",
     "Waiting for navigation": "بانتظار الملاحة",
     "Run HUD validation (parked)": "بدء اختبار HUD (أثناء الوقوف)",
-    "Stop HUD validation ({0}/{1})": "إيقاف اختبار HUD ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "إيقاف اختبار HUD ({0}/{1})",
+    "HUD text size: {0}": "حجم نص HUD: {0}"
   }
 }

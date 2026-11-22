@@ -105,6 +105,7 @@
     "HUD simple mode: {0}": "HUD 简洁模式：{0}",
     "Waiting for navigation": "等待导航",
     "Run HUD validation (parked)": "开始 HUD 验证（停车时使用）",
-    "Stop HUD validation ({0}/{1})": "停止 HUD 验证（{0}/{1}）"
+    "Stop HUD validation ({0}/{1})": "停止 HUD 验证（{0}/{1}）",
+    "HUD text size: {0}": "HUD 字号：{0}"
   }
 }

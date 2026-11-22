@@ -378,11 +378,13 @@ NativeGuidanceReader.prototype._onLine = function(line) {
             var decoded = decodeGetViewContent(buf);
             if (decoded.error === 1) {
                 if (this._retryAlternateBom(p, 'UNKNOWN_VIEW_ID')) return;
+                this._diag('warn', 'getViewContent returned UNKNOWN_VIEW_ID (useBom=' + this.useBom + ')');
                 clearTimeout(p.timer);
                 p.reject(new Error('GuidanceEventList UNKNOWN_VIEW_ID'));
                 return;
             }
             if (decoded.error !== 0) {
+                this._diag('warn', 'getViewContent returned error=' + decoded.error + ' head=' + hex.slice(0, 64));
                 clearTimeout(p.timer);
                 p.reject(new Error('GuidanceEventList error=' + decoded.error));
                 return;
@@ -391,8 +393,10 @@ NativeGuidanceReader.prototype._onLine = function(line) {
             if (!this.loggedFirstEvent && decoded.events.length > 0) {
                 this.loggedFirstEvent = true;
                 this.log.info('native guidance: decoded first event (' + decoded.events[0].type + ', total=' + decoded.events.length + ')');
+            } else if (decoded.events.length === 0) {
+                this._diag('info', 'getViewContent ok but 0 events (bytes=' + buf.length + ' head=' + hex.slice(0, 64) + ')');
             }
-            this.lastErr = '';
+            if (decoded.events.length > 0) this.lastErr = '';
             clearTimeout(p.timer);
             p.resolve({ events: decoded.events });
         } catch (err) {

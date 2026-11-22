@@ -156,15 +156,19 @@ function HudEngine(options) {
     this.hudWidthPct = null;
     this.hudOffsetX = null;
     this.hudOffsetY = null;
+    this.hudFontPct = null;
     this.state = 'off';
     this.reason = '';
     this.output = null;
     this.frame = null;
     this.drawKey = null;
+    this.lastState = null;
+    this.lastLabel = undefined;
     this.lastNav = 0;
     this.lastOapNav = 0;
     this.nativeBusy = false;
     this.nativeRetryAt = 0;
+    this.nativeVerified = false;
     this.maneuverKey = '';
     this.maneuverInitialM = null;
     this.generation = 0;
@@ -176,6 +180,7 @@ HudEngine.prototype = Object.create(EventEmitter.prototype);
 
 HudEngine.prototype._onNativeAvailability = function(up) {
     if (up) this.nativeRetryAt = 0;
+    else this.nativeVerified = false;
     this._changed();
     if (up && this.enabled && !this.suspended && !this.validation) this.tick();
 };
@@ -196,7 +201,8 @@ HudEngine.prototype.status = function() {
         hud_width_pct: this.hudWidthPct,
         hud_offset_x: this.hudOffsetX,
         hud_offset_y: this.hudOffsetY,
-        native_guidance: !!(this.nativeGuidance && this.nativeGuidance.available),
+        hud_simple_font_pct: this.hudFontPct,
+        native_guidance: !!(this.nativeGuidance && this.nativeGuidance.available && this.nativeVerified),
         validation: this.validation ? [this.validation.index + 1, scenarios.length] : null
     };
 };
@@ -221,6 +227,7 @@ HudEngine.prototype.settings = function(settings) {
     var prevSupport = this.supported;
     var prevKeepShown = this.keepShown;
     var prevLayout = [this.hudWidthPct, this.hudOffsetX, this.hudOffsetY].join(',');
+    var prevFont = this.hudFontPct;
     this.supported = !!settings && (settings.hud_simple === 0 || settings.hud_simple === 1);
     var keepShown = settings && settings.hud_keep_shown;
     this.keepShown = keepShown === 0 || keepShown === 1 ? keepShown === 1 : null;
@@ -230,10 +237,11 @@ HudEngine.prototype.settings = function(settings) {
         : settings && typeof settings.hud_offset_x === 'number' ? settings.hud_offset_x : null;
     this.hudOffsetY = settings && typeof settings.hud_simple_offset_y === 'number' ? settings.hud_simple_offset_y
         : settings && typeof settings.hud_offset_y === 'number' ? settings.hud_offset_y : null;
+    this.hudFontPct = settings && typeof settings.hud_simple_font_pct === 'number' ? settings.hud_simple_font_pct : (this.supported ? 0 : null);
     var nextLayout = [this.hudWidthPct, this.hudOffsetX, this.hudOffsetY].join(',');
     var enabled = this.supported && settings.hud_simple === 1 && settings.hud === 0;
     if (this.enabled !== enabled) {
-        this.log.info('settings: enabled=' + enabled + ' keep_shown=' + this.keepShown + ' layout=' + nextLayout);
+        this.log.info('settings: enabled=' + enabled + ' keep_shown=' + this.keepShown + ' layout=' + nextLayout + ' font=' + this.hudFontPct);
         this.enabled = enabled;
         this.generation++;
         this.lastNav = 0;
@@ -242,9 +250,10 @@ HudEngine.prototype.settings = function(settings) {
         this.state = enabled ? 'waiting' : 'off';
         this.reason = '';
         this._changed();
-    } else if (prevSupport !== this.supported || prevKeepShown !== this.keepShown || prevLayout !== nextLayout) {
+    } else if (prevSupport !== this.supported || prevKeepShown !== this.keepShown || prevLayout !== nextLayout || prevFont !== this.hudFontPct) {
         if (this.output && prevKeepShown !== this.keepShown) this.output.setKeepShown(this.keepShown === true);
         if (this.output && prevLayout !== nextLayout && typeof this.output.setLayout === 'function') this.output.setLayout(this.layout());
+        if (prevFont !== this.hudFontPct && this.lastState && this.frame) this.draw(this.lastState, this.lastLabel);
         this._changed();
     }
 };
@@ -255,6 +264,7 @@ HudEngine.prototype.suspend = function() {
     this.traffic.reset();
     if (this.nativeGuidance) this.nativeGuidance.stop();
     this.nativeRetryAt = 0;
+    this.nativeVerified = false;
     this.maneuverKey = '';
     this.maneuverInitialM = null;
     this.generation++;
@@ -314,16 +324,18 @@ HudEngine.prototype.stopValidation = function() {
 };
 
 HudEngine.prototype.draw = function(state, label) {
-    var key = JSON.stringify([state, label]);
+    var key = JSON.stringify([state, label, this.hudFontPct]);
     if (this.drawKey === key) return;
     try {
         if (!this.font) {
             this.log.info('loading HUD font data');
             this.font = this.fontLoader();
         }
-        var frame = Buffer.from(renderer.render(state, this.font, label));
+        var frame = Buffer.from(renderer.render(state, this.font, label, this.hudFontPct));
         var changed = !this.frame || !this.frame.equals(frame);
         this.drawKey = key;
+        this.lastState = state;
+        this.lastLabel = label;
         this.frame = frame;
         if (!this.output) {
             var self = this;
@@ -410,7 +422,7 @@ HudEngine.prototype.handleNav = function(rawState) {
 
 HudEngine.prototype.handleNavError = function(reason) {
     if (!this.enabled || this.suspended || this.validation) return;
-    if (this.nativeGuidance && this.nativeGuidance.available) return;
+    if (this.nativeGuidance && this.nativeGuidance.available && this.nativeVerified) return;
     this.log.warn('navigation error from OAP: ' + (reason || 'unknown'));
     this.hide('unavailable', reason || 'navigation unavailable');
 };
@@ -432,9 +444,29 @@ HudEngine.prototype.tick = function() {
         }).then(function(reply) {
             if (!self.enabled || self.suspended || self.validation || generation !== self.generation) return;
             self.nativeRetryAt = 0;
-            self.handleNav(nav.fromBmw(reply));
+            var parsed = nav.fromBmw(reply);
+            if (parsed.state !== 'inactive') {
+                if (!self.nativeVerified) {
+                    self.nativeVerified = true;
+                    self._changed();
+                }
+                self.handleNav(parsed);
+            } else {
+                if (self.nativeVerified) {
+                    self.nativeVerified = false;
+                    self._changed();
+                }
+                if (!self.lastOapNav || Date.now() - self.lastOapNav > self.staleMs) {
+                    /* 原生未解出有效事件时，不覆盖 OAP 正在推送的实时导航，也不抢占 OAP 轮询。 */
+                    self.handleNav(parsed);
+                }
+            }
         }, function(err) {
             if (!self.enabled || self.suspended || self.validation || generation !== self.generation) return;
+            if (self.nativeVerified) {
+                self.nativeVerified = false;
+                self._changed();
+            }
             self.nativeRetryAt = Date.now() + 3000;
             if (!self.lastOapNav || Date.now() - self.lastOapNav > self.staleMs) {
                 self.hide('unavailable', err && err.message ? err.message : 'native guidance unavailable');

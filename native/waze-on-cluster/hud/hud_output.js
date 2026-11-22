@@ -7,7 +7,7 @@ function computeLayout(layout) {
     var w = pct ? Math.round(800 * pct / 100) : 454;
     var h = Math.min(480, Math.round(w * 480 / 800));
     var x0 = Math.round((800 - w) / 2);
-    var y0 = pct ? Math.round((480 - h) / 2) : 60;
+    var y0 = Math.round((480 - h) / 2);
     var ox = typeof l.offsetX === 'number' ? l.offsetX : 0;
     var oy = typeof l.offsetY === 'number' ? l.offsetY : 0;
     return {

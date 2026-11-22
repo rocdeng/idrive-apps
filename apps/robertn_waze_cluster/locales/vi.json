@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "Chế độ HUD đơn giản: {0}",
     "Waiting for navigation": "Đang chờ dẫn đường",
     "Run HUD validation (parked)": "Bắt đầu kiểm tra HUD (khi đỗ xe)",
-    "Stop HUD validation ({0}/{1})": "Dừng kiểm tra HUD ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "Dừng kiểm tra HUD ({0}/{1})",
+    "HUD text size: {0}": "Cỡ chữ HUD: {0}"
   }
 }

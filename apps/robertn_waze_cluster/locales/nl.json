@@ -105,6 +105,7 @@
     "HUD simple mode: {0}": "Eenvoudige HUD-modus: {0}",
     "Waiting for navigation": "Wachten op navigatie",
     "Run HUD validation (parked)": "HUD-test starten (geparkeerd)",
-    "Stop HUD validation ({0}/{1})": "HUD-test stoppen ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "HUD-test stoppen ({0}/{1})",
+    "HUD text size: {0}": "HUD-tekstgrootte: {0}"
   }
 }

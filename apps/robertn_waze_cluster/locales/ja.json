@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "HUD シンプルモード：{0}",
     "Waiting for navigation": "ナビゲーション待機中",
     "Run HUD validation (parked)": "HUD 検証を開始（駐車中）",
-    "Stop HUD validation ({0}/{1})": "HUD 検証を停止（{0}/{1}）"
+    "Stop HUD validation ({0}/{1})": "HUD 検証を停止（{0}/{1}）",
+    "HUD text size: {0}": "HUD 文字サイズ: {0}"
   }
 }

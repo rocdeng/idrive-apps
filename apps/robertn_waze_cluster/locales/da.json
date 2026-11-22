@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "Enkel HUD-tilstand: {0}",
     "Waiting for navigation": "Venter på navigation",
     "Run HUD validation (parked)": "Start HUD-test (parkeret)",
-    "Stop HUD validation ({0}/{1})": "Stop HUD-test ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "Stop HUD-test ({0}/{1})",
+    "HUD text size: {0}": "HUD-tekststørrelse: {0}"
   }
 }

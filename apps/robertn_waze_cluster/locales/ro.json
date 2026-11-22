@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "Mod HUD simplu: {0}",
     "Waiting for navigation": "Se așteaptă navigarea",
     "Run HUD validation (parked)": "Pornește testul HUD (staționat)",
-    "Stop HUD validation ({0}/{1})": "Oprește testul HUD ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "Oprește testul HUD ({0}/{1})",
+    "HUD text size: {0}": "Dimensiune text HUD: {0}"
   }
 }

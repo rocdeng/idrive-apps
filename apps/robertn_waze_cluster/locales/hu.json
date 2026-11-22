@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "Egyszerű HUD mód: {0}",
     "Waiting for navigation": "Várakozás a navigációra",
     "Run HUD validation (parked)": "HUD-teszt indítása (álló helyzetben)",
-    "Stop HUD validation ({0}/{1})": "HUD-teszt leállítása ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "HUD-teszt leállítása ({0}/{1})",
+    "HUD text size: {0}": "HUD szövegméret: {0}"
   }
 }

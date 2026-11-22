@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "HUD 간편 모드: {0}",
     "Waiting for navigation": "내비게이션 대기 중",
     "Run HUD validation (parked)": "HUD 검증 시작 (주차 중)",
-    "Stop HUD validation ({0}/{1})": "HUD 검증 중지 ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "HUD 검증 중지 ({0}/{1})",
+    "HUD text size: {0}": "HUD 글자 크기: {0}"
   }
 }

@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "Preprosti način HUD: {0}",
     "Waiting for navigation": "Čakanje na navigacijo",
     "Run HUD validation (parked)": "Začni preizkus HUD (parkirano)",
-    "Stop HUD validation ({0}/{1})": "Ustavi preizkus HUD ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "Ustavi preizkus HUD ({0}/{1})",
+    "HUD text size: {0}": "Velikost besedila HUD: {0}"
   }
 }

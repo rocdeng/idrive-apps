@@ -113,6 +113,7 @@ const SHOWN_ON = ['cluster', 'hud', 'both', 'simple', 'off'];
  * HUD_ASKED_MS has passed, the render reconnects or patchd fails to save the size; then the render's own. */
 const HUD_MOVE_PX = 10, HUD_MOVE_MAX = 400, HUD_ASKED_MS = 300;
 const HUD_FADES = [0, 8, 15, 25];
+const HUD_FONT_PCTS = [100, 110, 120, 130, 90];
 const MOVES = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
 
 /* One newline-delimited-JSON stream socket, reconnecting while open.
@@ -308,6 +309,7 @@ class WazeClusterControl extends EventEmitter {
             this._askedShownOn = null;
             this._clearAskedHud();
             this._clearAskedFade();
+            this._clearAskedFont();
             this.emit('change');
         };
         this.render.on('connect', reset);
@@ -328,6 +330,7 @@ class WazeClusterControl extends EventEmitter {
         this._askedPos = null;
         this._clearAskedHud();
         this._clearAskedFade();
+        this._clearAskedFont();
         this.render.close();
         this.patch.close();
         this.renderStatus = null;
@@ -570,6 +573,41 @@ class WazeClusterControl extends EventEmitter {
     _clearAskedFade() {
         clearTimeout(this._askedFadeTimer);
         this._askedFade = null;
+    }
+
+    hudFontPct() {
+        if (this._askedFont != null) return this._askedFont;
+        if (this.shownOn() !== 'simple' || !this.simpleHud || this.simpleHud.hudFontPct === null) return null;
+        return this.simpleHud.hudFontPct || 100;
+    }
+
+    canChangeHudFont() {
+        return this.shownOn() === 'simple' && this.canChangeHudSize() && this.hudFontPct() !== null;
+    }
+
+    hudFontText() {
+        const v = this.hudFontPct();
+        return t('HUD text size: {0}', v == null ? '—' : v === 100 ? t('Standard') : t('{0} %', v));
+    }
+
+    cycleHudFont() {
+        if (!this.canChangeHudFont()) return;
+        const cur = this.hudFontPct();
+        const idx = HUD_FONT_PCTS.indexOf(cur);
+        const next = HUD_FONT_PCTS[(idx + 1) % HUD_FONT_PCTS.length];
+        this._clearAskedFont();
+        this._askedFont = next;
+        this._askedFontTimer = setTimeout(() => {
+            this._clearAskedFont();
+            this.emit('change');
+        }, HUD_ASKED_MS);
+        this.patch.send({ cmd: 'hud-simple-font', hud_font_pct: next === 100 ? 0 : next });
+        this.emit('change');
+    }
+
+    _clearAskedFont() {
+        clearTimeout(this._askedFontTimer);
+        this._askedFont = null;
     }
 
     /* ---- where the HUD map is: moved from its centre, in HUD pixels ---- */
@@ -1140,7 +1178,7 @@ class WazeClusterControl extends EventEmitter {
             this._noteCardAsked(msg);
             this._wake();
             this.emit('change');
-        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple|hud-simple-size|hud-simple-pos|hud-fade)-reply$/.test(msg.ev)) {
+        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown|hud-simple|hud-simple-size|hud-simple-pos|hud-simple-font|hud-fade)-reply$/.test(msg.ev)) {
             if (!msg.ok) {
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
                 if (msg.ev === 'hud-simple-reply') {

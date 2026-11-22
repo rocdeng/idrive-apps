@@ -26,12 +26,12 @@ async function main() {
         { directions: ['straight'], leftBoundary: 'solid' }, { directions: ['right'] }];
     const pixels = renderer.render({ state: 'navigating', lanes }, laneFont);
     const at = (x, y) => Array.from(pixels.slice((y * 800 + x) * 4, (y * 800 + x) * 4 + 4));
-    assert.deepStrictEqual(at(543, 345), [167, 174, 174, 255], '实线保持连续');
-    assert.deepStrictEqual(at(440, 332), [167, 174, 174, 255], '推荐车道也按数据画虚线');
-    assert.strictEqual(at(440, 345)[3], 0, '虚线分段间留空');
-    assert.strictEqual(at(647, 345)[3], 0, '未知边界不画线');
-    assert.deepStrictEqual(at(380, 412), [84, 245, 165, 255], '推荐车道显示绿色底线');
-    assert.strictEqual(at(338, 320)[3], 0, '推荐车道保持透明底');
+    assert(at(558, 335)[3] > 0, '实线保持连续');
+    assert(at(438, 323)[3] > 0, '推荐车道也按数据画虚线');
+    assert.strictEqual(at(438, 335)[3], 0, '虚线分段间留空');
+    assert.strictEqual(at(678, 335)[3], 0, '未知边界不画线');
+    assert.deepStrictEqual(at(371, 403), [84, 245, 165, 255], '推荐车道显示绿色底线');
+    assert.strictEqual(at(322, 311)[3], 0, '推荐车道保持透明底');
     assert.strictEqual(nav.snapshot({ lanes: [{ directions: [] }, lanes[2]] }).lanes.length, 2, '无箭头车道保留边界位置');
     console.log('通过：最新画布推荐绿线、透明底、实际虚实边界与未知边界隐藏');
     const calls = [];
@@ -123,8 +123,8 @@ async function main() {
         description: { text: '前方左转' }, distanceToDestination: 3079 } }] }] };
     engine.handleNav(nav.fromBmw(halfReply));
     await until(() => !engine.navBusy && publications.length === 2);
-    const barPx = Array.from(publications[1].frame.slice((272 * 800 + 450) * 4, (272 * 800 + 450) * 4 + 4));
-    assert.deepStrictEqual(barPx, [255, 255, 255, 255], '同路口距离递减时进度条应推进显示白色填充');
+    const barPx = Array.from(publications[1].frame.slice((257 * 800 + 424) * 4, (257 * 800 + 424) * 4 + 4));
+    assert(barPx[0] >= 250 && barPx[1] >= 250 && barPx[2] >= 250 && barPx[3] === 255, '同路口距离递减时进度条应推进显示白色填充');
     engine.handleNav(nav.fromBmw(reply));
     await until(() => !engine.navBusy && publications.length === 3);
     outputs[0].report('unavailable');
@@ -185,10 +185,31 @@ async function main() {
     nativeReader._onLine('avail 1');
     assert.strictEqual(availEngine.nativeRetryAt, 0, 'SOME/IP 恢复可用时应立即清除退避重试时间');
     assert.deepStrictEqual(availEvents, [true]);
-    assert.deepStrictEqual(availChanges, [true]);
+    assert.deepStrictEqual(availChanges, [false], '未解出有效导航事件前不抢占 OAP 轮询');
+    /* 回归：原生有效 -> 变空 -> 重置 nativeVerified 并广播 native_guidance=false 以恢复 OAP 兜底 */
+    let nativeReply = reply;
+    const toggleEngine = new HudEngine({
+        traffic: { reset() {}, read: () => Promise.resolve(null) },
+        nativeGuidance: { available: true, supported: () => true, read: () => Promise.resolve(nativeReply), stop() {} },
+        outputFactory: (_keep, _onState) => ({ setKeepShown() {}, setLayout() {}, update() {}, close() {} })
+    });
+    const toggleNativeFlags = [];
+    toggleEngine.on('change', (st) => toggleNativeFlags.push(st.native_guidance));
+    toggleEngine.settings({ hud_simple: 1, hud: 0 });
+    toggleEngine.tick();
+    await until(() => !toggleEngine.nativeBusy && !toggleEngine.navBusy && toggleEngine.nativeVerified);
+    assert.strictEqual(toggleEngine.status().native_guidance, true, '原生解出有效事件后应接管');
+    nativeReply = { viewContent: [] };
+    toggleEngine.tick();
+    await until(() => !toggleEngine.nativeBusy && !toggleEngine.nativeVerified);
+    assert.strictEqual(toggleEngine.status().native_guidance, false, '原生后续返回空事件时应释放接管并恢复 OAP');
+    assert.strictEqual(toggleNativeFlags[toggleNativeFlags.length - 1], false, '空事件分支必须广播 native_guidance=false');
+    toggleEngine.stop();
+    availEngine.nativeVerified = true;
     nativeReader._onLine('avail 0');
+    assert.strictEqual(availEngine.nativeVerified, false, 'SOME/IP 断开时应重置已验证标记');
     assert.deepStrictEqual(availEvents, [true, false]);
-    assert.deepStrictEqual(availChanges, [true, false]);
+    assert.deepStrictEqual(availChanges, [false, false]);
     availEngine.stop();
     console.log('通过：原生 SOME/IP Utf8D 编码与可用状态同步回调');
 

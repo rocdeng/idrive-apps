@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "Απλή λειτουργία HUD: {0}",
     "Waiting for navigation": "Αναμονή πλοήγησης",
     "Run HUD validation (parked)": "Έναρξη ελέγχου HUD (σταθμευμένο)",
-    "Stop HUD validation ({0}/{1})": "Διακοπή ελέγχου HUD ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "Διακοπή ελέγχου HUD ({0}/{1})",
+    "HUD text size: {0}": "Μέγεθος κειμένου HUD: {0}"
   }
 }

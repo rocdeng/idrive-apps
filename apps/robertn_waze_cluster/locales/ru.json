@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "Простой режим HUD: {0}",
     "Waiting for navigation": "Ожидание навигации",
     "Run HUD validation (parked)": "Запустить проверку HUD (на стоянке)",
-    "Stop HUD validation ({0}/{1})": "Остановить проверку HUD ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "Остановить проверку HUD ({0}/{1})",
+    "HUD text size: {0}": "Размер шрифта HUD: {0}"
   }
 }

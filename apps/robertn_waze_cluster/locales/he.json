@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "מצב HUD פשוט: {0}",
     "Waiting for navigation": "ממתין לניווט",
     "Run HUD validation (parked)": "התחלת בדיקת HUD (בחניה)",
-    "Stop HUD validation ({0}/{1})": "עצירת בדיקת HUD ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "עצירת בדיקת HUD ({0}/{1})",
+    "HUD text size: {0}": "גודל טקסט תצוגה עילית: {0}"
   }
 }

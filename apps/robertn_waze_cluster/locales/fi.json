@@ -103,6 +103,7 @@
     "HUD simple mode: {0}": "HUD:n yksinkertainen tila: {0}",
     "Waiting for navigation": "Odotetaan navigointia",
     "Run HUD validation (parked)": "Aloita HUD-testi (pysäköitynä)",
-    "Stop HUD validation ({0}/{1})": "Lopeta HUD-testi ({0}/{1})"
+    "Stop HUD validation ({0}/{1})": "Lopeta HUD-testi ({0}/{1})",
+    "HUD text size: {0}": "HUD-tekstikoko: {0}"
   }
 }

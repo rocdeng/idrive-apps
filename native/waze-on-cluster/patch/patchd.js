@@ -249,7 +249,7 @@ var LOCAL_CONF = process.env.WOC_LOCAL_CONF || '/var/opt/waze-on-cluster/waze-on
  * configuration. Not in LOCAL_CONF, which waze-on-cluster 0.8 refuses to
  * start with any of MAP_KEYS in. */
 var MAP_STATE = path.join(STATE_DIR, 'map.state.conf');
-var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'hud_simple', 'hud_simple_width_pct', 'hud_simple_offset_x', 'hud_simple_offset_y', 'hud_edge_fade_pct'];
+var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'hud_simple', 'hud_simple_width_pct', 'hud_simple_offset_x', 'hud_simple_offset_y', 'hud_simple_font_pct', 'hud_edge_fade_pct'];
 /* The opt-in settings: the render reads this file (its features_file) over
  * its configuration. Not in LOCAL_CONF, which every release up to 0.10.7
  * refuses to start with any of FEATURE_KEYS in; no release before 0.10.9
@@ -288,6 +288,7 @@ function rewriteConf(file, set, drop) {
 function mapValueOk(k, v) {
     var n = Number(v);
     return /^-?\d+$/.test(v) && ((k === 'hud_width_pct' || k === 'hud_simple_width_pct') ? n === 0 || (n >= 20 && n <= 100)
+        : k === 'hud_simple_font_pct' ? n === 0 || (n >= 80 && n <= 140)
         : /^hud_(simple_)?offset_/.test(k) ? n >= -800 && n <= 800 : k === 'hud_edge_fade_pct' ? n >= 0 && n <= 30 : n === 0 || n === 1);
 }
 
@@ -422,7 +423,7 @@ function saveLater(settings, withProfiles) {
 var PROFILES_FILE = path.join(STATE_DIR, 'profiles.json');
 var PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+={}-]{0,127}$/;
 var MAX_OWN = 16;
-var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_edge_fade_pct: 0 };
+var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_edge_fade_pct: 0 };
 var profiles = null;          /* PROFILES_FILE as read at the start, and changed since */
 var currentProfile;           /* the profile the app last told (null: none; undefined: not told since the start) */
 var restored = false;         /* MAP_STATE written from PROFILES_FILE at the start, not yet told to the app */
@@ -443,7 +444,7 @@ function profileSettings(o) {
     var s = {};
     for (var i = 0; i < MAP_KEYS.length; i++) {
         var k = MAP_KEYS[i];
-        var v = typeof o[k] === 'number' ? String(o[k]) : (k === 'hud_keep_shown' || k === 'hud_simple' || k === 'hud_simple_width_pct' || k === 'hud_simple_offset_x' || k === 'hud_simple_offset_y' || k === 'hud_edge_fade_pct') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
+        var v = typeof o[k] === 'number' ? String(o[k]) : (k === 'hud_keep_shown' || k === 'hud_simple' || k === 'hud_simple_width_pct' || k === 'hud_simple_offset_x' || k === 'hud_simple_offset_y' || k === 'hud_simple_font_pct' || k === 'hud_edge_fade_pct') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
         if (v === null || !mapValueOk(k, v)) return null;
         s[k] = Number(v);
     }
@@ -2329,6 +2330,15 @@ function handle(line, sock) {
             ? { hud_simple_offset_x: msg.hud_x, hud_simple_offset_y: msg.hud_y }
             : { hud_offset_x: msg.hud_x, hud_offset_y: msg.hud_y };
         saveMapSettings(sock, posEv, posPatch, isSimplePos ? 'the simple HUD position' : 'the HUD map position');
+        return;
+    }
+    if (msg.cmd === 'hud-simple-font') {
+        var fpct = msg.hud_font_pct;
+        if (!(fpct === 0 || (typeof fpct === 'number' && fpct >= 80 && fpct <= 140 && fpct === Math.floor(fpct)))) {
+            reply(sock, { ev: 'hud-simple-font-reply', ok: false, reason: 'HUD text size must be 0 or 80-140 %' });
+            return;
+        }
+        saveMapSettings(sock, 'hud-simple-font-reply', { hud_simple_font_pct: fpct }, 'the simple HUD text size');
         return;
     }
     if (msg.cmd === 'hud-fade') {
