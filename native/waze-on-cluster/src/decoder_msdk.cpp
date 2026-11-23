@@ -247,6 +247,7 @@ struct Decoder::State {
     std::unique_ptr<uint8_t, Free> vout_mem[2];
     int last = 0;
     bool have_last = false;
+    bool sample_repeat = false;
     std::vector<uint8_t> pixels;                 /* the atlas handed out */
     uint32_t w = 0, h = 0;
 
@@ -801,7 +802,8 @@ bool Decoder::State::run_vpp(mfxFrameSurface1 *in, const FrameSink &cb)
 
     const int64_t t0 = now_us();
     const bool same = have_last && same_picture(out, vout[last], w, h);
-    if (!same) {
+    const bool packed = !same || (sample_repeat && !part.set() && in->Data.Corrupted == 0);
+    if (packed) {
         const size_t n = (size_t)w * atlas_height(h);
         if (pixels.size() != n)
             pixels.assign(n, 0);
@@ -812,7 +814,7 @@ bool Decoder::State::run_vpp(mfxFrameSurface1 *in, const FrameSink &cb)
     have_last = true;
     /* The decode task finished before the VPP task that read its surface,
      * so its flags are set. */
-    VideoFrame f = {w, h, in->Data.Corrupted, same, same ? nullptr : &pixels, held(in), part};
+    VideoFrame f = {w, h, in->Data.Corrupted, same, packed ? &pixels : nullptr, held(in), part};
     cb(f);
     return true;
 }
@@ -1000,6 +1002,12 @@ void Decoder::forget_last()
 {
     if (s_)
         s_->have_last = false;
+}
+
+void Decoder::set_sample_repeat(bool on)
+{
+    if (s_)
+        s_->sample_repeat = on;
 }
 
 void Decoder::set_part(const OutputPart &p)

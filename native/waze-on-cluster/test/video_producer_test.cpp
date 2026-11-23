@@ -77,6 +77,7 @@ struct Picture {
     bool got = false;
     int content = -1;
     bool same = false;
+    bool clean = false;
     int64_t at = 0;
     size_t bytes = 0;        /* its atlas's */
     woc::OutputPart part;    /* the part of the frame it is */
@@ -91,7 +92,7 @@ static Picture next_picture(VideoProducer &p, int timeout_ms)
         struct pollfd pfd = {p.ready_fd(), POLLIN, 0};
         poll(&pfd, 1, (int)(end - now));
         uint64_t id = 0;
-        if (p.take(&frame, &id, &r.same, &r.part)) {
+        if (p.take(&frame, &id, &r.same, &r.part, &r.clean)) {
             r.got = true;
             r.at = now_ms();
             r.bytes = frame.size();
@@ -284,9 +285,32 @@ static void parts()
                                                   again.content == 32);
 }
 
+static void hud_samples()
+{
+    VideoConfig c = config(0);
+    c.udp_port = free_udp_port();
+    VideoProducer p(c);
+    Rtp rtp(c.udp_port);
+    rtp.send("1088x480", true, 10);
+    const Picture first = next_picture(p, 2000);
+    ok("HUD 采样：首帧完整", first.got && first.clean && first.content == 10);
+    rtp.send(nullptr, false, 10);
+    const Picture repeat = next_picture(p, 2000);
+    ok("HUD 采样：无请求的相同画面仍不打包", repeat.got && repeat.same && !repeat.clean && repeat.bytes == 0);
+    p.request_hud_sample(true);
+    ok("HUD 采样：无新到达帧时不发布旧画面", !next_picture(p, 100).got);
+    rtp.send(nullptr, false, 10);
+    const Picture sample = next_picture(p, 2000);
+    ok("HUD 采样：实际收到的相同画面可取完整图集", sample.got && sample.same && sample.clean && sample.bytes == 1088 * 720);
+    rtp.send(nullptr, false, 10);
+    const Picture after = next_picture(p, 2000);
+    ok("HUD 采样：完成后恢复原有重复帧快速路径", after.got && after.same && after.bytes == 0);
+}
+
 int main()
 {
     off();
+    hud_samples();
     parts();
     over_udp();
     over_fifo();

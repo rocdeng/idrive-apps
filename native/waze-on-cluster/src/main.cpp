@@ -385,8 +385,8 @@ int serve(Config cfg)
         OutputPart part;
         bool clean = false;
         if (producer.take(&frame, &id, &same, &part, &clean)) {
-            // 复用仪表已经解码的完整 CarPlay 帧。简洁模式不要求额外解码。
-            if (sample_hud && !same && clean && !part.set() && now >= next_hud_sample_ms &&
+            // 只取新收到的完整 CarPlay 帧。同画面的重发也可确认巡航提示仍然有效。
+            if (sample_hud && clean && !part.set() && now >= next_hud_sample_ms &&
                 frame.size() == 1088 * atlas_height(480)) {
                 const bool wrote = save_hud_sample(frame, oap_gid, (uint64_t)now);
                 if (wrote && hud_sample_log != 1) {
@@ -430,6 +430,7 @@ int serve(Config cfg)
         const bool live = liveness.live(alt_state, producer.last_frame_ms(), now);
         producer.set_live(live, now);
         producer.set_pictures(feed.wants_frames() || sample_hud);
+        producer.request_hud_sample(sample_hud && now >= next_hud_sample_ms);
         feed.set_stream(live, producer.frozen(now), producer.picture(now));
         feed.poll(now);
         if (feed.fps_cap() != fps_cap) {

@@ -9,6 +9,7 @@ const nav = require('../src/hud_navigation.js');
 const { HudEngine, startDaemon } = require('../../../native/waze-on-cluster/hud/hud_daemon.js');
 const renderer = require('../../../native/waze-on-cluster/hud/hud_renderer.js');
 const Font = require('../../../native/waze-on-cluster/hud/hud_font.js');
+const { recognizeBaiduSpeedLimit } = require('../../../native/waze-on-cluster/hud/hud_baidu_speed_limit.js');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function until(check) {
@@ -19,7 +20,51 @@ const reply = { viewContent: [{ eventsInView: [{ intersection: { direction: 'LEF
     formattedDistance: { distance: '147', unit: { name: 'METER' } },
     description: { text: '前方左转' }, distanceToDestination: 3153 } }] }] };
 
+function testCongestedSpeedLimit() {
+    const width = 1088, height = 480, lumaSize = width * height;
+    const atlas = Buffer.alloc(lumaSize * 1.5, 128);
+    atlas.fill(27, 0, lumaSize);
+    function red(x, y) {
+        atlas[y * width + x] = 85;
+        const uv = lumaSize + (y >> 1) * width + (x >> 1);
+        atlas[uv] = 112;
+        atlas[uv + width / 2] = 208;
+    }
+    function sign(cx, cy) {
+        for (let y = -20; y <= 20; y++) for (let x = -20; x <= 20; x++) {
+            const radius = Math.hypot(x, y);
+            if (radius >= 16.5 && radius <= 20) red(cx + x, cy + y);
+        }
+        // 夜间限速 30 的小字形样本，写到 Y 平面。
+        const glyphs = ['3c7ec3c0603878c0c0c37e3c', '3c7e66c3c3c3c3c3c3627e3c'];
+        glyphs.forEach((glyph, i) => {
+            const rows = Buffer.from(glyph, 'hex');
+            for (let y = 0; y < rows.length; y++) for (let x = 0; x < 8; x++) {
+                if (rows[y] & (1 << x)) atlas[(cy - 6 + y) * width + cx - 9 + i * 11 + x] = 240;
+            }
+        });
+    }
+    const detect = () => recognizeBaiduSpeedLimit(atlas, width, height, 0);
+    function congestion(y, step) {
+        for (let i = 0; i < 5; i++) {
+            const top = y + i * step;
+            for (let row = top; row < top + 6; row++) for (let x = 250; x < 820; x++) red(x, row);
+        }
+    }
+    sign(498, 378);
+    assert.strictEqual(detect(), 30, '合成 YUV 限速牌可识别');
+    const clear = Buffer.from(atlas);
+    congestion(238, 18);
+    assert.strictEqual(detect(), 30, '限速牌上方的拥堵红线不能阻断识别');
+    clear.copy(atlas);
+    congestion(406, 13);
+    assert.strictEqual(detect(), 30, '限速牌下方的拥堵红线不能丢弃已找到的牌');
+    sign(700, 378);
+    assert.strictEqual(detect(), null, '即使有拥堵红线，也要拒绝多个限速候选');
+}
+
 async function main() {
+    testCongestedSpeedLimit();
     const laneFont = new Font(require('../../../native/waze-on-cluster/hud/hud_font_data.js'));
     const lanes = [{ directions: ['left'], recommended: true },
         { directions: ['left'], recommended: true, leftBoundary: 'dashed' },
@@ -34,7 +79,7 @@ async function main() {
     assert.strictEqual(at(322, 311)[3], 0, '推荐车道保持透明底');
     assert.strictEqual(nav.snapshot({ lanes: [{ directions: [] }, lanes[2]] }).lanes.length, 2, '无箭头车道保留边界位置');
     console.log('通过：最新画布推荐绿线、透明底、实际虚实边界与未知边界隐藏');
-    for (const [style, x, y] of [[3, 192, 78], [4, 215, 74]]) {
+    for (const [style, x, y] of [[3, 192, 78], [4, 215, 74], [5, 206, 86], [6, 229.5, 79]]) {
         const view = { state: 'navigating', lanes: lanes.map(lane => ({ ...lane, recommended: false })) };
         const alpha = (frame, px, py) => frame[(Math.floor((py + 36) * 480 / 272) * 800 +
             Math.ceil((px + 0.5) * 800 / 454)) * 4 + 3];
@@ -55,6 +100,12 @@ async function main() {
         const textArea = fourCards.slice((y * 800 + 296) * 4, (y + 1) * 800 * 4);
         assert(!textArea.some(Boolean), '风格 4 不再绘制推荐车道文字');
     }
+    // 只比较主箭头卡片下方的路名区域。
+    const style4Road = (state) => renderer.render({ state, currentRoad: '云海路' }, laneFont, null, 100, 4)
+        .slice(330 * 800 * 4, 420 * 800 * 4);
+    const cruiseRoad = style4Road('cruising');
+    assert(cruiseRoad.some(Boolean), '风格 4 巡航确实绘制了当前路名');
+    assert.deepStrictEqual(cruiseRoad, style4Road('navigating'), '风格 4 导航和巡航的路名位置与颜色逐像素一致');
     const stockConfig = { minimumUpdateIntervalMs: 500, viewport: { maxElementCount: 1,
         includedTypes: ['INCLUDE_ACTIVE_MANEUVERS', 'INCLUDE_DESTINATIONS'] } };
     const calls = [];
@@ -355,6 +406,45 @@ async function main() {
     await until(() => !staleEngine.navBusy);
     assert.deepStrictEqual(staleFrames, [], '导航结束后旧画面不能重新出现');
     staleEngine.stop();
+
+    let alerts = null, currentRoad = '', resetCount = 0;
+    const cruiseFrames = [];
+    const cruise = new HudEngine({ log: quiet,
+        nativeGuidance: { supported: () => false, currentRoad: () => currentRoad, stop() {} },
+        traffic: { reset() { resetCount++; }, read: () => Promise.resolve(alerts) },
+        outputFactory: () => ({ update: (_, visible) => cruiseFrames.push(visible), close() {} }) });
+    cruise.settings({ hud_simple: 1, hud: 0, hud_simple_style: 6 });
+    const cruiseTick = async () => { cruise.tick(); await until(() => !cruise.navBusy); };
+    const startedResets = resetCount;
+    await cruiseTick();
+    assert.strictEqual(cruise.state, 'waiting', '无仪表帧时继续等待');
+    cruise.handleNav({ state: 'inactive' });
+    const green = { color: 'green', seconds: 23 };
+    alerts = { trafficLight: green, speedLimitKmh: null };
+    await cruiseTick();
+    assert.strictEqual(cruise.lastState.state, 'cruising');
+    assert.deepStrictEqual(cruise.lastState.trafficLight, green, '巡航仅识别到红绿灯也显示');
+    assert.deepStrictEqual(cruiseFrames, [true]);
+    cruise.handleNavError('native guidance unavailable');
+    assert.strictEqual(resetCount, startedResets, '导航停止或查询失败不能中断巡航取帧');
+    currentRoad = '云海路';
+    alerts = { trafficLight: green, speedLimitKmh: 30 };
+    await cruiseTick();
+    assert.strictEqual(cruise.lastState.currentRoad, '云海路');
+    assert.strictEqual(cruise.lastState.speedLimitKmh, 30);
+    cruise.handleNav(Object.assign({}, laneState, { speedLimitKmh: 60 }));
+    await until(() => !cruise.navBusy);
+    assert.strictEqual(cruise.lastState.state, 'navigating');
+    assert.strictEqual(cruise.lastState.speedLimitKmh, 60, '导航结构化限速优先');
+    cruise.handleNav({ state: 'inactive' });
+    assert.strictEqual(cruise.state, 'waiting');
+    await cruiseTick();
+    assert.strictEqual(cruise.lastState.state, 'cruising');
+    alerts = null;
+    await cruiseTick();
+    assert.strictEqual(cruiseFrames[cruiseFrames.length - 1], false, '投屏断流后连同路名清屏');
+    cruise.stop();
+    console.log('通过：巡航提示、原厂路名、导航优先和断流清屏');
 
     let nativeWithoutLanes = { events: [laneReply.viewContent[0].eventsInView[0]] };
     const laneEngine = new HudEngine({ log: quiet,

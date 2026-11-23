@@ -38,18 +38,19 @@
     function direction(v) { return DIRECTIONS.indexOf(v) >= 0 ? v : null; }
     function snapshot(raw) {
         raw = raw || {};
-        var state = ['navigating', 'rerouting', 'arrived', 'inactive'].indexOf(raw.state) >= 0 ? raw.state : 'inactive';
+        var state = ['navigating', 'rerouting', 'arrived', 'inactive', 'cruising'].indexOf(raw.state) >= 0 ? raw.state : 'inactive';
+        var showsAlerts = state === 'navigating' || state === 'cruising';
         var light = raw.trafficLight;
         var hasSeconds = light && Number.isInteger(light.seconds) && light.seconds >= 0 && light.seconds <= 99;
         var yellowCaution = light && light.color === 'yellow' && light.seconds === null;
-        var trafficLight = state === 'navigating' && light && ['red', 'green', 'yellow'].indexOf(light.color) >= 0 &&
+        var trafficLight = showsAlerts && light && ['red', 'green', 'yellow'].indexOf(light.color) >= 0 &&
             (hasSeconds || yellowCaution) ? {
                 color: light.color,
                 seconds: hasSeconds ? light.seconds : null,
                 text: yellowCaution ? (text(light.text) || '注意') : '',
                 direction: ['left', 'right', 'straight'].indexOf(light.direction) >= 0 ? light.direction : null
             } : null;
-        var speedLimitKmh = state === 'navigating' && Number.isInteger(raw.speedLimitKmh) &&
+        var speedLimitKmh = showsAlerts && Number.isInteger(raw.speedLimitKmh) &&
             raw.speedLimitKmh > 0 && raw.speedLimitKmh <= 199 ? raw.speedLimitKmh : null;
         return { state: state, source: text(raw.source), currentRoad: text(raw.currentRoad),
             trafficLight: trafficLight, speedLimitKmh: speedLimitKmh,

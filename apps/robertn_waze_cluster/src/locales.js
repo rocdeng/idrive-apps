@@ -112,7 +112,9 @@ module.exports = [
    "Style 1": "نمط 1",
    "Style 2": "نمط 2",
    "Style 3": "نمط 3",
-   "Style 4": "نمط 4"
+   "Style 4": "نمط 4",
+   "Style 5": "نمط 5",
+   "Style 6": "نمط 6"
   }
  },
  {
@@ -226,7 +228,9 @@ module.exports = [
    "Style 1": "Styl 1",
    "Style 2": "Styl 2",
    "Style 3": "Styl 3",
-   "Style 4": "Styl 4"
+   "Style 4": "Styl 4",
+   "Style 5": "Styl 5",
+   "Style 6": "Styl 6"
   }
  },
  {
@@ -340,7 +344,9 @@ module.exports = [
    "Style 1": "Stil 1",
    "Style 2": "Stil 2",
    "Style 3": "Stil 3",
-   "Style 4": "Stil 4"
+   "Style 4": "Stil 4",
+   "Style 5": "Stil 5",
+   "Style 6": "Stil 6"
   }
  },
  {
@@ -454,7 +460,9 @@ module.exports = [
    "Style 1": "Stil 1",
    "Style 2": "Stil 2",
    "Style 3": "Stil 3",
-   "Style 4": "Stil 4"
+   "Style 4": "Stil 4",
+   "Style 5": "Stil 5",
+   "Style 6": "Stil 6"
   }
  },
  {
@@ -568,7 +576,9 @@ module.exports = [
    "Style 1": "Στυλ 1",
    "Style 2": "Στυλ 2",
    "Style 3": "Στυλ 3",
-   "Style 4": "Στυλ 4"
+   "Style 4": "Στυλ 4",
+   "Style 5": "Στυλ 5",
+   "Style 6": "Στυλ 6"
   }
  },
  {
@@ -682,7 +692,9 @@ module.exports = [
    "Style 1": "Estilo 1",
    "Style 2": "Estilo 2",
    "Style 3": "Estilo 3",
-   "Style 4": "Estilo 4"
+   "Style 4": "Estilo 4",
+   "Style 5": "Estilo 5",
+   "Style 6": "Estilo 6"
   }
  },
  {
@@ -796,7 +808,9 @@ module.exports = [
    "Style 1": "Estilo 1",
    "Style 2": "Estilo 2",
    "Style 3": "Estilo 3",
-   "Style 4": "Estilo 4"
+   "Style 4": "Estilo 4",
+   "Style 5": "Estilo 5",
+   "Style 6": "Estilo 6"
   }
  },
  {
@@ -910,7 +924,9 @@ module.exports = [
    "Style 1": "Tyyli 1",
    "Style 2": "Tyyli 2",
    "Style 3": "Tyyli 3",
-   "Style 4": "Tyyli 4"
+   "Style 4": "Tyyli 4",
+   "Style 5": "Tyyli 5",
+   "Style 6": "Tyyli 6"
   }
  },
  {
@@ -1024,7 +1040,9 @@ module.exports = [
    "Style 1": "Style 1",
    "Style 2": "Style 2",
    "Style 3": "Style 3",
-   "Style 4": "Style 4"
+   "Style 4": "Style 4",
+   "Style 5": "Style 5",
+   "Style 6": "Style 6"
   }
  },
  {
@@ -1138,7 +1156,9 @@ module.exports = [
    "Style 1": "Style 1",
    "Style 2": "Style 2",
    "Style 3": "Style 3",
-   "Style 4": "Style 4"
+   "Style 4": "Style 4",
+   "Style 5": "Style 5",
+   "Style 6": "Style 6"
   }
  },
  {
@@ -1252,7 +1272,9 @@ module.exports = [
    "Style 1": "סגנון 1",
    "Style 2": "סגנון 2",
    "Style 3": "סגנון 3",
-   "Style 4": "סגנון 4"
+   "Style 4": "סגנון 4",
+   "Style 5": "סגנון 5",
+   "Style 6": "סגנון 6"
   }
  },
  {
@@ -1366,7 +1388,9 @@ module.exports = [
    "Style 1": "1. stílus",
    "Style 2": "2. stílus",
    "Style 3": "3. stílus",
-   "Style 4": "4. stílus"
+   "Style 4": "4. stílus",
+   "Style 5": "5. stílus",
+   "Style 6": "6. stílus"
   }
  },
  {
@@ -1480,7 +1504,9 @@ module.exports = [
    "Style 1": "Gaya 1",
    "Style 2": "Gaya 2",
    "Style 3": "Gaya 3",
-   "Style 4": "Gaya 4"
+   "Style 4": "Gaya 4",
+   "Style 5": "Gaya 5",
+   "Style 6": "Gaya 6"
   }
  },
  {
@@ -1594,7 +1620,9 @@ module.exports = [
    "Style 1": "Stile 1",
    "Style 2": "Stile 2",
    "Style 3": "Stile 3",
-   "Style 4": "Stile 4"
+   "Style 4": "Stile 4",
+   "Style 5": "Stile 5",
+   "Style 6": "Stile 6"
   }
  },
  {
@@ -1708,7 +1736,9 @@ module.exports = [
    "Style 1": "スタイル 1",
    "Style 2": "スタイル 2",
    "Style 3": "スタイル 3",
-   "Style 4": "スタイル 4"
+   "Style 4": "スタイル 4",
+   "Style 5": "スタイル 5",
+   "Style 6": "スタイル 6"
   }
  },
  {
@@ -1822,7 +1852,9 @@ module.exports = [
    "Style 1": "스타일 1",
    "Style 2": "스타일 2",
    "Style 3": "스타일 3",
-   "Style 4": "스타일 4"
+   "Style 4": "스타일 4",
+   "Style 5": "스타일 5",
+   "Style 6": "스타일 6"
   }
  },
  {
@@ -1936,7 +1968,9 @@ module.exports = [
    "Style 1": "Stil 1",
    "Style 2": "Stil 2",
    "Style 3": "Stil 3",
-   "Style 4": "Stil 4"
+   "Style 4": "Stil 4",
+   "Style 5": "Stil 5",
+   "Style 6": "Stil 6"
   }
  },
  {
@@ -2052,7 +2086,9 @@ module.exports = [
    "Style 1": "Stijl 1",
    "Style 2": "Stijl 2",
    "Style 3": "Stijl 3",
-   "Style 4": "Stijl 4"
+   "Style 4": "Stijl 4",
+   "Style 5": "Stijl 5",
+   "Style 6": "Stijl 6"
   }
  },
  {
@@ -2166,7 +2202,9 @@ module.exports = [
    "Style 1": "Styl 1",
    "Style 2": "Styl 2",
    "Style 3": "Styl 3",
-   "Style 4": "Styl 4"
+   "Style 4": "Styl 4",
+   "Style 5": "Styl 5",
+   "Style 6": "Styl 6"
   }
  },
  {
@@ -2280,7 +2318,9 @@ module.exports = [
    "Style 1": "Estilo 1",
    "Style 2": "Estilo 2",
    "Style 3": "Estilo 3",
-   "Style 4": "Estilo 4"
+   "Style 4": "Estilo 4",
+   "Style 5": "Estilo 5",
+   "Style 6": "Estilo 6"
   }
  },
  {
@@ -2394,7 +2434,9 @@ module.exports = [
    "Style 1": "Estilo 1",
    "Style 2": "Estilo 2",
    "Style 3": "Estilo 3",
-   "Style 4": "Estilo 4"
+   "Style 4": "Estilo 4",
+   "Style 5": "Estilo 5",
+   "Style 6": "Estilo 6"
   }
  },
  {
@@ -2508,7 +2550,9 @@ module.exports = [
    "Style 1": "Stil 1",
    "Style 2": "Stil 2",
    "Style 3": "Stil 3",
-   "Style 4": "Stil 4"
+   "Style 4": "Stil 4",
+   "Style 5": "Stil 5",
+   "Style 6": "Stil 6"
   }
  },
  {
@@ -2622,7 +2666,9 @@ module.exports = [
    "Style 1": "Стиль 1",
    "Style 2": "Стиль 2",
    "Style 3": "Стиль 3",
-   "Style 4": "Стиль 4"
+   "Style 4": "Стиль 4",
+   "Style 5": "Стиль 5",
+   "Style 6": "Стиль 6"
   }
  },
  {
@@ -2736,7 +2782,9 @@ module.exports = [
    "Style 1": "Štýl 1",
    "Style 2": "Štýl 2",
    "Style 3": "Štýl 3",
-   "Style 4": "Štýl 4"
+   "Style 4": "Štýl 4",
+   "Style 5": "Štýl 5",
+   "Style 6": "Štýl 6"
   }
  },
  {
@@ -2850,7 +2898,9 @@ module.exports = [
    "Style 1": "Slog 1",
    "Style 2": "Slog 2",
    "Style 3": "Slog 3",
-   "Style 4": "Slog 4"
+   "Style 4": "Slog 4",
+   "Style 5": "Slog 5",
+   "Style 6": "Slog 6"
   }
  },
  {
@@ -2964,7 +3014,9 @@ module.exports = [
    "Style 1": "Stil 1",
    "Style 2": "Stil 2",
    "Style 3": "Stil 3",
-   "Style 4": "Stil 4"
+   "Style 4": "Stil 4",
+   "Style 5": "Stil 5",
+   "Style 6": "Stil 6"
   }
  },
  {
@@ -3078,7 +3130,9 @@ module.exports = [
    "Style 1": "แบบที่ 1",
    "Style 2": "แบบที่ 2",
    "Style 3": "แบบที่ 3",
-   "Style 4": "แบบที่ 4"
+   "Style 4": "แบบที่ 4",
+   "Style 5": "แบบที่ 5",
+   "Style 6": "แบบที่ 6"
   }
  },
  {
@@ -3192,7 +3246,9 @@ module.exports = [
    "Style 1": "Stil 1",
    "Style 2": "Stil 2",
    "Style 3": "Stil 3",
-   "Style 4": "Stil 4"
+   "Style 4": "Stil 4",
+   "Style 5": "Stil 5",
+   "Style 6": "Stil 6"
   }
  },
  {
@@ -3306,7 +3362,9 @@ module.exports = [
    "Style 1": "Стиль 1",
    "Style 2": "Стиль 2",
    "Style 3": "Стиль 3",
-   "Style 4": "Стиль 4"
+   "Style 4": "Стиль 4",
+   "Style 5": "Стиль 5",
+   "Style 6": "Стиль 6"
   }
  },
  {
@@ -3420,7 +3478,9 @@ module.exports = [
    "Style 1": "Kiểu 1",
    "Style 2": "Kiểu 2",
    "Style 3": "Kiểu 3",
-   "Style 4": "Kiểu 4"
+   "Style 4": "Kiểu 4",
+   "Style 5": "Kiểu 5",
+   "Style 6": "Kiểu 6"
   }
  },
  {
@@ -3536,7 +3596,9 @@ module.exports = [
    "Style 1": "风格 1",
    "Style 2": "风格 2",
    "Style 3": "风格 3",
-   "Style 4": "风格 4"
+   "Style 4": "风格 4",
+   "Style 5": "风格 5",
+   "Style 6": "风格 6"
   }
  },
  {
@@ -3652,7 +3714,9 @@ module.exports = [
    "Style 1": "風格 1",
    "Style 2": "風格 2",
    "Style 3": "風格 3",
-   "Style 4": "風格 4"
+   "Style 4": "風格 4",
+   "Style 5": "風格 5",
+   "Style 6": "風格 6"
   }
  }
 ];

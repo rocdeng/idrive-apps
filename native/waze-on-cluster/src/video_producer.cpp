@@ -236,6 +236,7 @@ void VideoProducer::picture_paced()
     paced_ = false;
     bool given = false;
     if (pictures_.load()) {
+        decoder_.set_sample_repeat(hud_sample_due_.load());
         if (resumed_.load()) {
             decoder_.forget_last();   /* the feeds made since have not had it */
             pace_.reset();
@@ -362,6 +363,7 @@ void VideoProducer::decode(const uint8_t *data, size_t len, bool end_of_au)
     pass_part();
     catching_up_ = packet_ && packet_->later_frame;
     bool picture = !catching_up_ && pictures_.load();
+    decoder_.set_sample_repeat(hud_sample_due_.load());
     if (picture && resumed_.load()) {
         decoder_.forget_last();   /* the feeds made since have not had it */
         pace_.reset();
@@ -484,19 +486,25 @@ void VideoProducer::on_frame(const VideoFrame &f, bool late)
         back_h_ = f.h;
         back_part_ = f.part;
         back_clean_ = f.corrupted == 0;
+        back_same_ = f.same && (!back_dirty_ || back_same_);
         back_dirty_ = true;
+        if (sized && back_clean_ && !f.part.set() && hud_sample_due_.load()) {
+            hud_sample_due_.store(false);
+            decoder_.set_sample_repeat(false);
+        }
         repeat_ = false;
     } else {
-        same_total_++;
+        if (f.corrupted) back_clean_ = false;
         repeat_ = !back_dirty_;   /* a frame still to be taken is this picture */
     }
+    if (f.same) same_total_++;
     back_id_ = late ? decoded_total_.load() : decoded_total_.fetch_add(1) + 1;
 }
 
 bool VideoProducer::take(std::vector<uint8_t> *frame, uint64_t *id, bool *same, OutputPart *part, bool *clean)
 {
     std::lock_guard<std::mutex> lock(frame_mutex_);
-    *same = !back_dirty_;
+    *same = !back_dirty_ || back_same_;
     if (back_dirty_ && (back_part_.set() || (back_w_ == cfg_.tex_width && back_h_ == cfg_.tex_height)))
         frame->swap(back_);
     else if (!repeat_)

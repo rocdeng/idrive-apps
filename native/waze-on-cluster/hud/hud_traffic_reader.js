@@ -3,6 +3,7 @@
 const fs = require('fs');
 const { promisify } = require('util');
 const { recognizeBaiduTrafficLight } = require('./hud_baidu_traffic_light.js');
+const { recognizeBaiduSpeedLimit } = require('./hud_baidu_speed_limit.js');
 
 const open = promisify(fs.open), fstat = promisify(fs.fstat);
 const read = promisify(fs.read), readFile = promisify(fs.readFile), close = promisify(fs.close);
@@ -36,7 +37,8 @@ class HudTrafficReader {
         this.nextParse = 0;
         this.stamp = 0;
         this.firstAllowed = this.clock();
-        this.pending = null;
+        this.pendingLight = null;
+        this.pendingLimit = null;
         this.shown = null;
         this.generation = (this.generation || 0) + 1;
         this.lastDiagnostic = '';
@@ -44,7 +46,7 @@ class HudTrafficReader {
 
     async read() {
         const now = this.clock();
-        if (now - this.stamp >= FRESH) this.pending = this.shown = null;
+        if (now - this.stamp >= FRESH) this.pendingLight = this.pendingLimit = this.shown = null;
         if (now < this.nextPoll || now < this.nextParse || this.reading) return this.shown;
         this.nextPoll = now + POLL;
         const generation = this.generation;
@@ -58,7 +60,7 @@ class HudTrafficReader {
             if (generation !== this.generation) return null;
             if (bytesRead !== this.header.length || this.header.toString('ascii', 0, 4) !== 'WOC1') throw Error('frame header');
             const stamp = this.header.readUInt32LE(4) + this.header.readUInt32LE(8) * 0x100000000;
-            if (stamp < this.firstAllowed || stamp > this.clock() || this.clock() - stamp >= FRESH) throw Error('frame age');
+            if (stamp <= this.firstAllowed || stamp > this.clock() || this.clock() - stamp >= FRESH) throw Error('frame age');
             if (stamp === this.stamp) return this.shown;
             const bytes = await readFile(fd);
             if (generation !== this.generation) return null;
@@ -66,7 +68,8 @@ class HudTrafficReader {
             this.nextParse = now + INTERVAL;
             const observed = recognizeBaiduTrafficLight(bytes, WIDTH, HEIGHT, 0, false);
             this.diagnostic('info', observed ? ('recognized ' + observed.color + ' ' + (observed.seconds === null ? (observed.text || 'caution') : (observed.seconds + 's')) + ' at stamp ' + stamp) : 'recognizer found no traffic-light card');
-            const previous = this.pending;
+            const limit = recognizeBaiduSpeedLimit(bytes, WIDTH, HEIGHT, 0);
+            const previous = this.pendingLight;
             // 过期或有歧义即留白，不从旧值自行递减；黄灯“注意”无倒计时需连续两帧确认。
             const sameWindow = observed && previous && stamp > this.stamp && stamp - this.stamp < FRESH && observed.color === previous.color;
             const validStep = sameWindow && (
@@ -74,13 +77,20 @@ class HudTrafficReader {
                 (observed.seconds !== null && previous.seconds !== null && observed.seconds <= previous.seconds &&
                     previous.seconds - observed.seconds <= Math.ceil((stamp - this.stamp) / 1000))
             );
-            this.shown = validStep ? observed : null;
-            this.pending = observed;
+            const freshPair = stamp > this.stamp && stamp - this.stamp < FRESH;
+            this.shown = {
+                trafficLight: validStep ? observed : null,
+                speedLimitKmh: freshPair && limit === this.pendingLimit ? limit : null
+            };
+            this.pendingLight = observed;
+            this.pendingLimit = limit;
             this.stamp = stamp;
             return this.shown;
         } catch (err) {
-            if (generation === this.generation) this.pending = this.shown = null;
-            this.diagnostic('warn', err && err.message ? err.message : String(err));
+            if (generation === this.generation) {
+                this.pendingLight = this.pendingLimit = this.shown = null;
+                this.diagnostic('warn', err && err.message ? err.message : String(err));
+            }
             return null;
         } finally {
             if (fd !== undefined) await close(fd).catch(() => {});

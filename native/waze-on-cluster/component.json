@@ -229,6 +229,11 @@
       "mode": "0644"
     },
     {
+      "path": "hud_baidu_speed_limit.js",
+      "from": "hud/hud_baidu_speed_limit.js",
+      "mode": "0644"
+    },
+    {
       "path": "hud_traffic_reader.js",
       "from": "hud/hud_traffic_reader.js",
       "mode": "0644"

@@ -172,6 +172,7 @@ function HudEngine(options) {
     this.lastState = null;
     this.lastLabel = undefined;
     this.lastNav = 0;
+    this.idleReason = '';
     this.lastOapNav = 0;
     this.oapState = null;
     this.nativeState = null;
@@ -258,7 +259,7 @@ HudEngine.prototype.settings = function(settings) {
     this.hudOffsetY = settings && typeof settings.hud_simple_offset_y === 'number' ? settings.hud_simple_offset_y
         : settings && typeof settings.hud_offset_y === 'number' ? settings.hud_offset_y : null;
     this.hudFontPct = settings && typeof settings.hud_simple_font_pct === 'number' ? settings.hud_simple_font_pct : (this.supported ? 0 : null);
-    this.hudStyle = settings && typeof settings.hud_simple_style === 'number' && settings.hud_simple_style >= 1 && settings.hud_simple_style <= 4 ? settings.hud_simple_style : (this.supported ? 1 : null);
+    this.hudStyle = settings && typeof settings.hud_simple_style === 'number' && settings.hud_simple_style >= 1 && settings.hud_simple_style <= 6 ? settings.hud_simple_style : (this.supported ? 1 : null);
     var nextLayout = [this.hudWidthPct, this.hudOffsetX, this.hudOffsetY].join(',');
     var enabled = this.supported && settings.hud_simple === 1 && settings.hud === 0;
     if (this.enabled !== enabled) {
@@ -289,6 +290,7 @@ HudEngine.prototype.suspend = function() {
     this.laneLogTimes = Object.create(null);
     this.nativeState = null;
     this.oapState = null;
+    this.idleReason = '';
     this.lastOapNav = 0;
     this.navRevision++;
     this.nextNav = null;
@@ -307,11 +309,6 @@ HudEngine.prototype.suspend = function() {
 };
 
 HudEngine.prototype.hide = function(state, reason) {
-    this.navRevision++;
-    this.nextNav = null;
-    this.traffic.reset();
-    this.maneuverKey = '';
-    this.maneuverInitialM = null;
     this.drawKey = null;
     if (this.frame) {
         this.frame = null;
@@ -322,6 +319,20 @@ HudEngine.prototype.hide = function(state, reason) {
         this.state = state;
         this.reason = nextReason;
         this._changed();
+    }
+};
+
+HudEngine.prototype.endNavigation = function(reason) {
+    this.idleReason = reason || '';
+    if (this.lastNav) {
+        this.lastNav = 0;
+        this.navRevision++;
+        this.nextNav = null;
+        this.maneuverKey = '';
+        this.maneuverInitialM = null;
+    }
+    if (!this.frame || this.lastState.state !== 'cruising') {
+        this.hide(this.idleReason ? 'unavailable' : 'waiting', this.idleReason);
     }
 };
 
@@ -446,11 +457,11 @@ HudEngine.prototype.handleNav = function(rawState) {
         }
     }
     var state = nav.snapshot(rawState);
-    this.lastNav = Date.now();
     if (state.state === 'inactive') {
-        this.hide('waiting', '');
+        this.endNavigation('');
         return;
     }
+    this.lastNav = Date.now();
     /* 当上游未提供初始路段距离时，按当前路口跟踪初始距离以驱动进度条。 */
     if (state.state === 'navigating' && state.initialDistanceM === null && state.distanceM !== null) {
         var mKey = [state.maneuverId, state.direction, state.roundaboutExit, state.nextRoad, state.instruction].join('|');
@@ -473,13 +484,25 @@ HudEngine.prototype.readTraffic = function(state) {
     var revision = this.navRevision;
     Promise.resolve().then(function() {
         return self.traffic.read();
-    }).then(function(light) {
-        if (revision !== self.navRevision || self.nextNav) return;
-        state.trafficLight = light;
-        self.draw(state);
-    }, function(err) {
+    }).catch(function(err) {
         self.log.warn('traffic read error: ' + (err && err.message ? err.message : String(err)));
-        if (revision === self.navRevision && !self.nextNav) self.draw(state);
+        return null;
+    }).then(function(alerts) {
+        if (revision !== self.navRevision || self.nextNav) return;
+        if (state.state === 'cruising') {
+            var guidance = self.nativeGuidance;
+            var road = alerts && guidance && guidance.currentRoad ? guidance.currentRoad() : '';
+            if (!alerts || (!road && !alerts.trafficLight && alerts.speedLimitKmh == null)) {
+                self.hide(self.idleReason ? 'unavailable' : 'waiting', self.idleReason);
+                return;
+            }
+            state.currentRoad = road;
+        }
+        if (alerts) {
+            state.trafficLight = alerts.trafficLight;
+            if (state.speedLimitKmh == null) state.speedLimitKmh = alerts.speedLimitKmh;
+        }
+        self.draw(state);
     }).then(function() {
         self.navBusy = false;
         var next = self.nextNav;
@@ -556,7 +579,7 @@ HudEngine.prototype.handleNavError = function(reason) {
         return;
     }
     this.log.warn('navigation error from OAP: ' + (reason || 'unknown'));
-    this.hide('unavailable', reason || 'navigation unavailable');
+    this.endNavigation(reason || 'navigation unavailable');
 };
 
 HudEngine.prototype.tick = function() {
@@ -568,8 +591,7 @@ HudEngine.prototype.tick = function() {
     }
     var now = Date.now();
     if (this.lastNav && now - this.lastNav > this.staleMs) {
-        this.lastNav = 0;
-        this.hide('unavailable', 'navigation stale');
+        this.endNavigation('navigation stale');
     }
     /* 原生 vsomeip 直连 GuidanceEventList：不依赖 OAP 是否打开，开机即可自动取数。 */
     if (this.nativeGuidance && this.nativeGuidance.supported() && !this.nativeBusy && now >= this.nativeRetryAt) {
@@ -612,12 +634,14 @@ HudEngine.prototype.tick = function() {
             }
             self.nativeRetryAt = Date.now() + 3000;
             if (!self.lastOapNav || Date.now() - self.lastOapNav > self.staleMs) {
-                self.hide('unavailable', err && err.message ? err.message : 'native guidance unavailable');
+                self.endNavigation(err && err.message ? err.message : 'native guidance unavailable');
             }
         }).then(function() {
             self.nativeBusy = false;
         });
     }
+    // 巡航可独立取投屏帧，即使车机导航服务尚未返回转向。
+    if (!this.lastNav && !this.navBusy) this.readTraffic({ state: 'cruising' });
 };
 
 function startDaemon(opts) {

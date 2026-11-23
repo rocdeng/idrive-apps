@@ -121,13 +121,16 @@ public:
 
     /* The newest decoded frame not yet taken, swapped into *frame (its
      * buffer comes back for the next one), or with *same the picture last
-     * taken again (*frame untouched); false when there is none. With part,
+     * taken again (normally *frame untouched); false when there is none.
+     * With clean, a clean atlas was returned, including sampled repeats.
+     * With part,
      * the part of the frame it is (set_part; unset: the whole frame). */
     bool take(std::vector<uint8_t> *frame, uint64_t *id, bool *same, OutputPart *part = nullptr, bool *clean = nullptr);
     /* hosted_vpp_scale: the frames from the next picture on are this part
      * of the frame, at its size, made by VPP (Decoder::set_part), as far as
      * VPP can; unset: the whole frame. Main thread. */
     void set_part(const OutputPart &p);
+    void request_hud_sample(bool due) { hud_sample_due_.store(due); }
     /* Every decoded frame the same blank picture while they keep coming,
      * after the stream showed a picture (freeze_watch.h). */
     bool frozen(int64_t now_ms) const;
@@ -262,6 +265,8 @@ private:
     std::vector<uint8_t> back_;
     bool back_dirty_ = false;
     bool back_clean_ = false;
+    bool back_same_ = false;
+    std::atomic<bool> hud_sample_due_{false};
     bool repeat_ = false;            /* the picture last taken is due again (back_dirty_ false) */
     int ready_[2] = {-1, -1};        /* a byte written when a frame waits to be taken */
     uint32_t back_w_ = 0, back_h_ = 0;

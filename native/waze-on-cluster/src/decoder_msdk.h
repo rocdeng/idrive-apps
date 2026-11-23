@@ -33,9 +33,8 @@
  *     a surface; if it does not, every VPP run fails until the next
  *     sequence, which starts without GPU copy).
  *   - A picture that VPP turns out equal, byte for byte, to the one before
- *     (its other surface) is not packed: it comes out with no atlas and
- *     `same` set. A still map whose phone repeats its picture costs no
- *     packing.
+ *     (its other surface) has `same` set. An atlas is packed for a repeated
+ *     picture only when requested for HUD sampling.
  * A frame fed without a picture (feed's picture false, to catch up with a
  * backlog) is decoded as every frame must be, for the frames that refer to
  * it, and waited for (its decode task only), but VPP and the packing are
@@ -120,13 +119,13 @@ struct VideoFrame {
     uint32_t w, h;        /* the picture's size */
     uint16_t corrupted;   /* MSDK's mfxFrameData::Corrupted flags; 0: decoded whole */
     /* The picture is the last one that came out with a picture (an atlas or
-     * same), byte for byte; atlas is null. */
+     * same), byte for byte; atlas is null unless a sample was requested. */
     bool same;
     /* Its atlas, w x atlas_height(h) bytes, the decoder's buffer. The sink
      * may change it in place, or swap it for another buffer (the decoder
      * sizes what it gets back for the next frame). Valid until the next
      * feed/flush/shutdown. Null for a frame decoded without a picture, and
-     * for one the same as the last. */
+     * for an unsampled repeat. */
     std::vector<uint8_t> *atlas;
     /* Access units the decoder took in after this frame's own before it
      * output this one: 0 when each comes out as it is decoded; -1 unknown
@@ -177,6 +176,8 @@ public:
     /* The next picture comes with its atlas even when it is the last one
      * again. */
     void forget_last();
+    /* Allow a clean repeat of the whole picture to carry its atlas for HUD sampling. */
+    void set_sample_repeat(bool on);
 
     /* From the next picture on, only part p of the output, at its size
      * (unset: the whole output); kept across init(). The header's "A
