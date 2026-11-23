@@ -54,6 +54,8 @@ HUD 简洁模式在左上角显示已确认的红绿灯倒计时，在左下角�
 
 配套后端更新至 0.10.13，同步上游日志改进。
 
+上游同版本：应用或移除补丁失败时显示具体原因。
+
 ## 0.6.13
 
 增加“HUD 简洁模式”：以结构化导航事件绘制转向、距离和可用的导航文字，使用新版 HUD 箭头，不截屏。模式随驾驶员配置保存；关闭 HUD 视频地图，保留仪表设置，退出设置页面后继续更新。数据缺失或查询失败时清除旧引导。
@@ -63,6 +65,11 @@ HUD 简洁模式在左上角显示已确认的红绿灯倒计时，在左下角�
 增加停车时使用的 HUD 验证按钮：43 个合成场景依次输出到真实 HUD 图层，显示 TEST 和进度，每个场景显示至少 5 秒，完成后自动恢复真实导航数据源。可手动停止；切换显示模式、配置连接中断或应用退出会取消验证。图层状态以渲染服务确认为准，断连或弹窗让位期间暂停场景计时。
 
 简洁模式可直接设置 BMW 弹窗让位，旧版服务会在模式选项上提示需要更新。补齐 BMW 距离单位解析，延后字体加载，并避免等待导航时重复分配隐藏帧。
+
+上游同版本：`Untested version` is gone from CarPlay's and Android Auto's Status: Maps
+on cluster patches every software version of the car it can check, and
+removes the patch by itself if the head unit then fails to start. Requires
+the next waze-on-cluster.
 
 ## 0.6.12
 

@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## 0.14.3
+
+The patch checks the places it edits, not the whole file: a carplay or
+aapd of a known version whose file differs only elsewhere, as on another
+firmware image, gets the cluster map like any other. Save logs shows which
+part of such a file differs.
+A patch you removed with Remove patch stays removed after a car software
+update too, until you press Patch. A version whose patch fails its own
+check is not tried again at each head-unit start.
+
+## 0.14.2
+
+Installing or updating turns the CarPlay and Android Auto map patches on
+by itself for every car software version it can check, with no Patch press
+and no more `Untested version`; a version new to your car is removed again
+by itself if the head unit then fails to start. A patch you removed stays
+removed.
+
+## 0.14.1
+
+The Wi-Fi band test waits for each sample to finish, so it passes on a
+busy machine too.
+
+## 0.14.0
+
+Android Auto: the cluster map starts at every connection, also after you
+leave the car and get back in, without a route planned.
+
 ## 0.13.9
 
 避免旧画面在结束导航后回显。缺少原生车道时允许应用补充同一路口的车道，修复最大字号下的 ETA 裁切以及环岛和目的地箭头。停车验证在车辆移动、驻车制动松开、状态超时或应用断开时退出。
