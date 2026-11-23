@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Robert Nisipeanu
 /*
- * woc-guidance: minimal vsomeip3 bridge for BMW GuidanceEventList
- * (service 0xfb1b, instance 0x0080, major 5).
+ * woc-guidance: BMW GuidanceEventList and allowlisted read-only Guidance getters.
  *
  * Runs as a child of waze-on-cluster-hud.service (User=hmi_5000, which is
  * whitelisted for 0xfb1b in /etc/vsomeip/5000_5000/vsomeip_security.json).
  *
  * Line protocol (stdin -> stdout, flushed per line):
  *   stdin:  <id> <method_hex> <payload_hex>\n
+ *           <id> road|state|destination|lanes -\n
  *   stdout: avail <0|1>\n
+ *           road-avail <0|1>\n
  *           reply <id> <method_hex> <rc_hex> <payload_hex>\n
  *           err <id> <message>\n
  */
@@ -35,12 +36,18 @@ namespace {
 const vsomeip::service_t kService = 0xfb1b;
 const vsomeip::instance_t kInstance = 0x0080;
 const vsomeip::major_version_t kMajor = 5;
+const vsomeip::service_t kGuidance = 0xfb1a;
+const vsomeip::major_version_t kGuidanceMajor = 7;
+const std::map<std::string, vsomeip::method_t> kGuidanceGetters = {
+    {"road", 0x0001}, {"state", 0x0002}, {"destination", 0x0005}, {"lanes", 0x0019}
+};
 
 std::atomic<bool> g_stop(false);
 std::mutex g_out_mu;
 std::mutex g_pend_mu;
 std::map<vsomeip::session_t, uint64_t> g_pending;
 std::atomic<bool> g_avail(false);
+std::atomic<bool> g_road_avail(false);
 
 void on_signal(int) { g_stop.store(true); }
 
@@ -111,33 +118,43 @@ int main()
         },
         kMajor, vsomeip::ANY_MINOR);
 
-    app->register_message_handler(
-        kService, kInstance, vsomeip::ANY_METHOD,
-        [](const std::shared_ptr<vsomeip::message> &m) {
-            if (!m)
+    app->register_availability_handler(
+        kGuidance, kInstance,
+        [](vsomeip::service_t, vsomeip::instance_t, bool up) {
+            g_road_avail.store(up);
+            emit_line(up ? "road-avail 1" : "road-avail 0");
+        },
+        kGuidanceMajor, vsomeip::ANY_MINOR);
+
+    auto on_reply = [](const std::shared_ptr<vsomeip::message> &m) {
+        if (!m)
+            return;
+        const auto mt = m->get_message_type();
+        if (mt != vsomeip::message_type_e::MT_RESPONSE && mt != vsomeip::message_type_e::MT_ERROR)
+            return;
+        uint64_t req_id = 0;
+        {
+            std::lock_guard<std::mutex> lk(g_pend_mu);
+            auto it = g_pending.find(m->get_session());
+            if (it == g_pending.end())
                 return;
-            const auto mt = m->get_message_type();
-            if (mt != vsomeip::message_type_e::MT_RESPONSE && mt != vsomeip::message_type_e::MT_ERROR)
-                return;
-            uint64_t req_id = 0;
-            {
-                std::lock_guard<std::mutex> lk(g_pend_mu);
-                auto it = g_pending.find(m->get_session());
-                if (it == g_pending.end())
-                    return;
-                req_id = it->second;
-                g_pending.erase(it);
-            }
-            const auto pl = m->get_payload();
-            const std::string hex =
-                (pl && pl->get_data() && pl->get_length() > 0) ? to_hex(pl->get_data(), pl->get_length()) : "-";
-            char head[96];
-            std::snprintf(head, sizeof head, "reply %llu %04x %02x ", (unsigned long long)req_id,
-                          (unsigned)m->get_method(), (unsigned)m->get_return_code());
-            emit_line(std::string(head) + hex);
-        });
+            req_id = it->second;
+            g_pending.erase(it);
+        }
+        const auto pl = m->get_payload();
+        const std::string hex =
+            (pl && pl->get_data() && pl->get_length() > 0) ? to_hex(pl->get_data(), pl->get_length()) : "-";
+        char head[96];
+        std::snprintf(head, sizeof head, "reply %llu %04x %02x ", (unsigned long long)req_id,
+                      (unsigned)m->get_method(), (unsigned)m->get_return_code());
+        emit_line(std::string(head) + hex);
+    };
+    app->register_message_handler(kService, kInstance, vsomeip::ANY_METHOD, on_reply);
+    for (const auto &getter : kGuidanceGetters)
+        app->register_message_handler(kGuidance, kInstance, getter.second, on_reply);
 
     app->request_service(kService, kInstance, kMajor, vsomeip::ANY_MINOR);
+    app->request_service(kGuidance, kInstance, kGuidanceMajor, vsomeip::ANY_MINOR);
 
     std::thread runner([&app] { app->start(); });
 
@@ -153,13 +170,15 @@ int main()
             emit_line("err 0 bad_request");
             continue;
         }
-        unsigned long method = strtoul(method_s.c_str(), nullptr, 16);
+        const auto getter = kGuidanceGetters.find(method_s);
+        const bool guidance = getter != kGuidanceGetters.end();
+        const unsigned long method = guidance ? getter->second : strtoul(method_s.c_str(), nullptr, 16);
         std::vector<uint8_t> bytes;
-        if (method == 0 || method > 0x7fff || !from_hex(hex_s, &bytes)) {
+        if (method == 0 || method > 0x7fff || (guidance && hex_s != "-") || !from_hex(hex_s, &bytes)) {
             emit_line("err " + std::to_string(id) + " bad_args");
             continue;
         }
-        if (!g_avail.load()) {
+        if (!(guidance ? g_road_avail.load() : g_avail.load())) {
             emit_line("err " + std::to_string(id) + " service_unavailable");
             continue;
         }
@@ -171,10 +190,10 @@ int main()
         const vsomeip::session_t sess = next_session++;
         if (next_session == 0)
             next_session = 1;
-        req->set_service(kService);
+        req->set_service(guidance ? kGuidance : kService);
         req->set_instance(kInstance);
         req->set_method(vsomeip::method_t(method));
-        req->set_interface_version(kMajor);
+        req->set_interface_version(guidance ? kGuidanceMajor : kMajor);
         req->set_session(sess);
         auto pl = rt->create_payload();
         if (!bytes.empty())
@@ -189,6 +208,10 @@ int main()
         app->send(req);
     }
 
+    app->release_service(kGuidance, kInstance);
+    app->unregister_availability_handler(kGuidance, kInstance, kGuidanceMajor, vsomeip::ANY_MINOR);
+    for (const auto &getter : kGuidanceGetters)
+        app->unregister_message_handler(kGuidance, kInstance, getter.second);
     app->release_service(kService, kInstance);
     app->unregister_availability_handler(kService, kInstance, kMajor, vsomeip::ANY_MINOR);
     app->unregister_message_handler(kService, kInstance, vsomeip::ANY_METHOD);

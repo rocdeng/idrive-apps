@@ -597,9 +597,11 @@ class WazeClusterControl extends EventEmitter {
     }
 
     hudFontPct() {
-        if (this._askedFont != null) return this._askedFont;
-        if (this.shownOn() !== 'simple' || !this.simpleHud || this.simpleHud.hudFontPct === null) return null;
-        return this.simpleHud.hudFontPct || 100;
+        if (this.shownOn() !== 'simple' || !this.simpleHud) return null;
+        const pct = this._askedFont != null ? this._askedFont : this.simpleHud.hudFontPct;
+        if (pct === null) return null;
+        const style = this.hudStyle();
+        return style === 3 || style === 4 ? Math.min(pct || 100, 100) : pct || 100;
     }
 
     canChangeHudFont() {
@@ -614,8 +616,9 @@ class WazeClusterControl extends EventEmitter {
     cycleHudFont() {
         if (!this.canChangeHudFont()) return;
         const cur = this.hudFontPct();
-        const idx = HUD_FONT_PCTS.indexOf(cur);
-        const next = HUD_FONT_PCTS[(idx + 1) % HUD_FONT_PCTS.length];
+        const style = this.hudStyle();
+        const sizes = style === 3 || style === 4 ? [100, 90] : HUD_FONT_PCTS;
+        const next = sizes[(sizes.indexOf(cur) + 1) % sizes.length];
         this._clearAskedFont();
         this._askedFont = next;
         this._askedFontTimer = setTimeout(() => {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+简洁 HUD 分别显示转向距离和全程剩余里程。环岛箭头加出口圈号，补齐分岔和变道箭头，并读取车机提供的到达时刻和当前车道。放大风格 3、4 的动作提示和当前路名，并将这两种风格的整体字号限制在 100% 以内。风格 4 通过车道卡片高亮指示推荐车道。
+
+简洁 HUD 通过宝马导航的独立路名接口显示当前道路。车机未提供路名时继续显示转向和距离。
+
 ## 0.14.3
 
 The patch checks the places it edits, not the whole file: a carplay or
@@ -29,6 +33,7 @@ busy machine too.
 
 Android Auto: the cluster map starts at every connection, also after you
 leave the car and get back in, without a route planned.
+记录简洁 HUD 车道接收、解码和路口匹配结果，便于通过车机日志定位车道缺失。
 
 ## 0.13.9
 

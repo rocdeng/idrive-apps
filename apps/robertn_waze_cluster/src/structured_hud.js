@@ -176,9 +176,10 @@ class StructuredHud extends EventEmitter {
         const generation = this.generation;
         Promise.resolve().then(() => this.reader.read()).then((reply) => {
             if (!this.enabled || this.suspended || this.validation || generation !== this.generation) return;
-            const state = nav.fromBmw(reply);
+            const laneInfo = {};
+            const state = nav.fromBmw(reply, laneInfo);
             this.retryAt = 0;
-            this.hud.send({ cmd: 'nav', state });
+            this.hud.send({ cmd: 'nav', state, laneInfo });
         }).catch((error) => {
             if (!this.enabled || this.validation || generation !== this.generation) return;
             const reason = error && error.message ? error.message : String(error);

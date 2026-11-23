@@ -45,25 +45,24 @@ async function main() {
             assert.strictEqual(alpha(frame, x, y + 9) > 0, boundary === 'solid', '仅实线连续');
         }
     }
-    const hints = (recommended) => {
-        const frame = renderer.render({ state: 'navigating', lanes: Array.from({ length: 6 }, (_, i) => ({
-            directions: ['straight'], recommended: recommended.includes(i)
-        })) }, laneFont, null, 100, 4);
-        for (let y = 295; y < 328; y++) for (let x = 296; x < 790; x++) {
-            if (frame[(y * 800 + x) * 4 + 3]) return true;
-        }
-        return false;
-    };
-    assert(hints([1, 2]), '连续的中间推荐车道显示提示');
-    assert(!hints([0, 5]), '分散的推荐车道不显示错误的中间提示');
-    const stockConfig = { minimumUpdateIntervalMs: 500, viewport: { maxElementCount: 4,
+    const fourCards = renderer.render({ state: 'navigating', lanes: [0, 1, 2, 3].map((i) => ({
+        directions: ['straight'], recommended: i >= 2
+    })) }, laneFont, null, 100, 4);
+    const fourthHighlight = (Math.floor((116 + 36) * 480 / 272) * 800 + Math.floor((339 + 0.5) * 800 / 454)) * 4;
+    assert.deepStrictEqual(Array.from(fourCards.slice(fourthHighlight, fourthHighlight + 4)), [74, 232, 156, 255],
+        '风格 4 仍保留推荐车道绿线');
+    for (let y = 295; y < 328; y++) {
+        const textArea = fourCards.slice((y * 800 + 296) * 4, (y + 1) * 800 * 4);
+        assert(!textArea.some(Boolean), '风格 4 不再绘制推荐车道文字');
+    }
+    const stockConfig = { minimumUpdateIntervalMs: 500, viewport: { maxElementCount: 1,
         includedTypes: ['INCLUDE_ACTIVE_MANEUVERS', 'INCLUDE_DESTINATIONS'] } };
     const calls = [];
     let down = 0, query = () => Promise.resolve(reply);
     const proxy = { init: () => Promise.resolve(), waitUntilAvailable: () => Promise.resolve(),
         shutdown: () => down++, _someIpProxy: { callMethod: (name, args) => {
             calls.push({ name, args });
-            return name === 'getViewConfig' ? Promise.resolve({ viewConfig: stockConfig }) : query();
+            return name === 'getViewConfig' ? Promise.resolve({ viewConfig: stockConfig }) : query(args);
         } } };
     const reader = new GuidanceReader({ buildTypedProxy: (iface, instance) => {
         assert.strictEqual(iface, IFACE); assert.strictEqual(instance, INSTANCE);
@@ -75,8 +74,9 @@ async function main() {
     assert.strictEqual(calls[0].args.viewId, VIEW);
     const queryConfig = calls[1].args.viewConfigs[0];
     assert.deepStrictEqual(queryConfig.viewport.includedTypes,
-        ['INCLUDE_ACTIVE_MANEUVERS', 'INCLUDE_DESTINATIONS', 'INCLUDE_LANE_GUIDINGS']);
-    assert.strictEqual(queryConfig.viewport.maxElementCount, 4);
+        ['INCLUDE_ACTIVE_MANEUVERS', 'INCLUDE_DESTINATIONS', 'INCLUDE_LANE_GUIDINGS', 'INCLUDE_SPEED_LIMIT_ASSIST']);
+    assert.strictEqual(queryConfig.viewport.maxElementCount, 6, '原厂只有一条事件时也要给转向和车道预留位置');
+    assert.strictEqual(stockConfig.viewport.maxElementCount, 1);
     assert.strictEqual(calls[2].args.viewConfigs[0], queryConfig, '复用补齐车道事件的查询配置');
     assert(!stockConfig.viewport.includedTypes.includes('INCLUDE_LANE_GUIDINGS'), '不修改原厂视图配置');
     assert.strictEqual(nav.fromBmw(reply).distanceM, 147);
@@ -129,14 +129,29 @@ async function main() {
     const laterLanes = { laneGuiding: { ...currentLanes.laneGuiding, distanceToDestination: 7150 } };
     const uncertain = { laneGuiding: { ...currentLanes.laneGuiding, unreliable: true } };
     for (const adapter of [nav, require('../../../native/waze-on-cluster/hud/hud_navigation.js')]) {
-        assert.deepStrictEqual(adapter.fromBmw({ events: [turn, laterLanes, destination, currentLanes] }).lanes,
+        const laneInfo = {};
+        assert.deepStrictEqual(adapter.fromBmw({ events: [turn, laterLanes, destination, currentLanes] }, laneInfo).lanes,
             laneState.lanes, '选当前路口车道，忽略后一路口');
+        assert.deepStrictEqual(laneInfo, { received: 2, eligible: 2, matched: 1, closestGapM: 0 });
+        const mismatch = {};
+        assert.deepStrictEqual(adapter.fromBmw({ events: [turn, laterLanes] }, mismatch).lanes, []);
+        assert.deepStrictEqual(mismatch, { received: 1, eligible: 1, matched: 0, closestGapM: 250 });
         for (const entries of [[laterLanes], [uncertain], [currentLanes, currentLanes],
             [{ laneGuiding: { ...currentLanes.laneGuiding, distanceToDestination: undefined } }]]) {
             assert.deepStrictEqual(adapter.fromBmw({ events: [turn, ...entries] }).lanes, [],
                 '错配、不可信、重复或缺少位置时隐藏车道');
         }
     }
+    query = ({ viewConfigs }) => {
+        const slots = viewConfigs[0].viewport.maxElementCount;
+        return Promise.resolve({ viewContent: [{ eventsInView: [turn, currentLanes, destination].slice(0, slots) }] });
+    };
+    assert.deepStrictEqual(nav.fromBmw(await reader.read()).lanes, laneState.lanes,
+        '原厂单事件视图仍能查到与转向关联的车道');
+    query = () => Promise.resolve({ GuidanceEventListError: { name: 'INVALID_VIEW_PARAMS' }, viewContent: [] });
+    let queryError;
+    try { await reader.read(); } catch (error) { queryError = error; }
+    assert(queryError && /INVALID_VIEW_PARAMS/.test(queryError.message), '查询失败不能当成空的导航数据');
     query = () => new Promise(() => {});
     let failed = false;
     try { await reader.read(); } catch (error) { failed = /timed out/.test(error.message); }
@@ -257,11 +272,76 @@ async function main() {
     assert.strictEqual(lgDecoded.events.length, 1);
     assert.strictEqual(lgDecoded.events[0].type, 'laneGuiding');
     assert.strictEqual(lgDecoded.events[0].value.unreliable, false);
+    const badBody = lgBody.slice(0, lgBody.length - 1);
+    const mixedView = Buffer.concat([viewStruct.slice(0, 13), subWrap([
+        u32be(badBody.length), u32be(15), badBody,
+        u32be(lgBody.length), u32be(15), lgBody
+    ])]);
+    const mixed = someip.decodeGetViewContent(Buffer.concat([u32be(0), subWrap([bomBuf, mixedView])]));
+    const maneuverBody = (position, meters, seconds, tail) => Buffer.concat([
+        Buffer.alloc(8), f64be(position), Buffer.from([0]), u32be(8), u32be(3), Buffer.alloc(8),
+        someip.encodeUtf8D(String(meters)), u32be(4), f64be(1), subWrap([]), u32be(seconds), u32be(0),
+        subWrap([]), subWrap([]), u32be(0), u32be(4), u32be(1), u32be(0), u32be(0), u32be(0), tail
+    ]);
+    const event = (type, body) => Buffer.concat([u32be(body.length), u32be(type), body]);
+    const nil = Buffer.concat([u32be(4), u32be(1), u32be(0)]);
+    const ringBody = maneuverBody(3370, 147, 20, Buffer.concat([Buffer.from([0, 180, 3]), u32be(2), nil]));
+    const upcoming = (type, body) => someip.decodeGetViewContent(Buffer.concat([u32be(0), subWrap([bomBuf,
+        viewStruct.slice(0, 13), subWrap([event(17, maneuverBody(0, 3517, 465,
+            Buffer.concat([u32be(2), Buffer.from([1]), u32be(0), nil, nil, nil]))), event(type, body)])]),
+        f64be(3517), f64be(3517), f64be(183), f64be(183)]));
+    const roundabout = nav.fromBmw(upcoming(18, ringBody));
+    assert.strictEqual(roundabout.distanceM, 147, '目的地在列表最前也不能占用转向距离');
+    assert.strictEqual(roundabout.remainingDistanceM, 3517, '全程距离读取独立字段');
+    assert.strictEqual(roundabout.maneuverPositionM, 3370, '保留事件位置供车道匹配');
+    assert.strictEqual(roundabout.remainingTimeS, 465, '全程剩余时间取终点事件');
+    assert.strictEqual(roundabout.roundaboutExit, 3);
+    assert.strictEqual(nav.fromBmw(upcoming(5, ringBody)).roundaboutExit, 3, '兼容正序环岛编号');
+    assert.strictEqual(nav.fromBmw(upcoming(19, maneuverBody(3370, 147, 20, Buffer.concat([u32be(7), nil, u32be(0)])))).direction, 'slight_right');
+    assert.strictEqual(nav.fromBmw(upcoming(11, maneuverBody(3370, 147, 20, u32be(1)))).direction, 'merge_left');
+    assert.strictEqual(nav.fromBmw({ events: [{ intersection: { travelTime: 20 } }] }).remainingTimeS, null,
+        '下一路口的用时不能冒充全程剩余时间');
+    assert.strictEqual(nav.fromBmw({ guidanceState: 'CALCULATING_ROUTE' }).state, 'rerouting');
+    assert.strictEqual(nav.fromBmw({ guidanceState: 'INACTIVE', currentDistances: { carDistanceToFinalDestination: 0 },
+        events: [{ destinationManeuver: { isCheckeredFlag: true, formattedDistance: { distance: '0', unit: 'METER' } } }] }).state, 'arrived');
+    const limit = { type: 'speedLimitAssist', value: { distanceToDestination: 3517,
+        formattedDistance: { distance: '0', unit: 'METER' }, speedLimitAssistInfo: { value: {
+            reason: { speedLimitInfo: { speedLimit: 40, speedUnit: 'MI_P_H_US' } }
+        } } } };
+    assert.strictEqual(nav.fromBmw({ currentDistances: { carDistanceToFinalDestination: 3517 },
+        events: [{ intersection: { direction: 'LEFT' } }, limit] }).speedLimitKmh, 64);
+    assert.strictEqual(nav.fromBmw({ currentDistances: { carDistanceToFinalDestination: 3617 },
+        events: [{ intersection: { direction: 'LEFT' } }, limit] }).speedLimitKmh, null, '前方限速不能冒充当前位置限速');
+    const noExit = { ...roundabout, roundaboutExit: null };
+    const alternateExit = { ...roundabout, roundaboutExit: 2 };
+    for (let style = 1; style <= 4; style++) {
+        const frame = Buffer.from(renderer.render(roundabout, laneFont, null, 0, style));
+        assert(!frame.equals(Buffer.from(renderer.render(noExit, laneFont, null, 0, style))), '环岛有有效出口时显示圈号');
+        assert(!frame.equals(Buffer.from(renderer.render(alternateExit, laneFont, null, 0, style))), '圈号数字随出口变化');
+        assert(Buffer.from(renderer.render({ ...roundabout, direction: 'left' }, laneFont, null, 0, style))
+            .equals(Buffer.from(renderer.render({ ...noExit, direction: 'left' }, laneFont, null, 0, style))), '普通转向不显示环岛圈号');
+    }
+
+    assert.strictEqual(mixed.laneRejected, 1, '计数损坏的候选事件，且仍解码后续事件');
+    assert.deepStrictEqual(mixed.events, lgDecoded.events);
     assert.deepStrictEqual(nav.fromBmw({ events: [{ type: 'intersection', value: { direction: 'RIGHT', distanceToDestination: 7400 } }, lgDecoded.events[0]] }).lanes, [
         { directions: ['straight'], recommended: false, leftBoundary: null },
         { directions: ['right', 'straight'], recommended: true, leftBoundary: 'dashed' }
     ], '原生 SOME/IP laneGuiding 二进制解码应与 fromBmw 无缝衔接');
     const quiet = { info() {}, warn() {}, error() {} };
+    const roadReader = new someip.NativeGuidanceReader({ log: quiet });
+    const roadRequests = [];
+    roadReader.child = { stdin: { write: (line) => roadRequests.push(line) } };
+    const roadText = someip.encodeUtf8D('情侣北路');
+    const roadWire = subWrap([u32be(roadText.length), u32be(3), roadText]).toString('hex');
+    assert.strictEqual(roadReader.currentRoad(), '', '路名服务不可用时不查询');
+    assert.deepStrictEqual(roadRequests, []);
+    roadReader._onLine('road-avail 1');
+    assert.strictEqual(roadReader.currentRoad(), '', '等待路名时转向可继续显示');
+    roadReader.currentRoad();
+    assert.deepStrictEqual(roadRequests, ['1 road -\n'], '同一时刻只请求一次当前路名');
+    roadReader._onLine('reply 1 0001 00 ' + roadWire);
+    assert.strictEqual(roadReader.currentRoad(), '情侣北路');
     let finishTraffic;
     const staleFrames = [];
     const staleEngine = new HudEngine({ nativeGuidance: null, log: quiet,
@@ -279,7 +359,8 @@ async function main() {
     let nativeWithoutLanes = { events: [laneReply.viewContent[0].eventsInView[0]] };
     const laneEngine = new HudEngine({ log: quiet,
         traffic: { reset() {}, read: () => Promise.resolve(null) },
-        nativeGuidance: { available: true, supported: () => true, read: () => Promise.resolve(nativeWithoutLanes), stop() {} },
+        nativeGuidance: { available: true, supported: () => true, read: () => Promise.resolve(nativeWithoutLanes),
+            currentRoad: () => roadReader.currentRoad(), stop() {} },
         outputFactory: () => ({ update() {}, close() {} }) });
     laneEngine.settings({ hud_simple: 1, hud: 0 });
     laneEngine.handleOapNav(laneState);
@@ -288,6 +369,40 @@ async function main() {
     await until(() => !laneEngine.nativeBusy && !laneEngine.navBusy);
     assert(laneEngine.status().native_needs_lanes, '原生缺少车道时继续请求 OAP');
     assert.deepStrictEqual(laneEngine.lastState.lanes, laneState.lanes, '保留同一路口的车道和虚实线');
+    assert.strictEqual(laneEngine.lastState.currentRoad, '情侣北路', '独立路名要进入实际 HUD 渲染状态');
+    assert.strictEqual(laneEngine.lastState.instruction, '科技园路', '当前路名和下个转向描述各自显示');
+    roadReader.roadNext = 0;
+    roadReader.currentRoad();
+    roadReader._onLine('reply 2 0001 00 00000000');
+    laneEngine.tick();
+    await until(() => !laneEngine.nativeBusy && !laneEngine.navBusy);
+    assert.strictEqual(laneEngine.lastState.currentRoad, '', '车机返回空路名后清除旧值');
+    assert.strictEqual(laneEngine.lastState.instruction, '科技园路', '路名缺失不影响转向描述');
+    roadReader.roadNext = 0;
+    roadReader.currentRoad();
+    roadReader._onLine('road-avail 0');
+    roadReader._onLine('reply 3 0001 00 ' + roadWire);
+    assert.strictEqual(roadReader.currentRoad(), '', '断开后忽略迟到的旧路名');
+    roadReader._onLine('road-avail 1');
+    assert.strictEqual(roadReader.guidanceField('destination'), null);
+    assert(roadRequests[roadRequests.length - 1].endsWith(' destination -\n'));
+    const destWire = Buffer.concat([u32be(0), u32be(0), u32be(465), Buffer.alloc(5),
+        Buffer.from([0, 0x07, 0xea, 11, 23, 0, 19, 57, 43]), Buffer.alloc(8)]);
+    const replyToField = (method, payload) => {
+        const id = roadRequests[roadRequests.length - 1].split(' ')[0];
+        roadReader._onLine('reply ' + id + ' ' + method + ' 00 ' + payload.toString('hex'));
+    };
+    replyToField('0005', destWire);
+    assert.deepStrictEqual(roadReader.guidanceField('destination'), { remainingTimeS: 465, arrivalClock: '19:57' });
+    roadReader.guidanceField('lanes', 'junction');
+    const row = Buffer.concat([subWrap([lane0, lane1]), subWrap([u32be(2)]), Buffer.from([1, 50])]);
+    replyToField('0019', Buffer.concat([subWrap([row]), Buffer.from([1])]));
+    assert.strictEqual(nav.bmwLanes(roadReader.guidanceField('lanes', 'junction')).length, 2);
+    assert.strictEqual(roadReader.guidanceField('lanes', 'next-junction'), null, '不能复用前一路口的车道');
+    replyToField('0019', Buffer.concat([subWrap([row, row]), Buffer.from([1])]));
+    assert.strictEqual(roadReader.guidanceField('lanes', 'next-junction'), null, '多行当前车道不猜对应路口');
+    roadReader._onLine('road-avail 0');
+    assert.strictEqual(roadReader.guidanceField('destination'), null, '断连清除旧 ETA');
     nativeWithoutLanes = { events: [{ intersection: { direction: 'RIGHT', distanceToDestination: 7000 } }] };
     laneEngine.tick();
     await until(() => !laneEngine.nativeBusy && !laneEngine.navBusy);
@@ -391,9 +506,10 @@ async function main() {
     });
     await new Promise((r) => patchSrv.listen(pSock, r));
     await new Promise((r) => renderSrv.listen(rSock, r));
+    const hudLogs = [];
     const daemon = startDaemon({
         hudSocket: hSock, patchSocket: pSock, renderSocket: rSock, logFile: null,
-        log: { info() {}, warn() {}, error() {} }, retryMs: 50,
+        log: { info(line) { hudLogs.push(line); }, warn() {}, error() {} }, retryMs: 50,
         traffic: { reset() {}, read: () => Promise.resolve(null) }
     });
     const bridge = new StructuredHud({
@@ -407,6 +523,8 @@ async function main() {
         assert(renderSessions[0].cmds.some((c) => c.op === 'hello' && c.app === 'robertn_waze_cluster_simple'));
         assert(renderSessions[0].cmds.some((c) => c.op === 'layer' && c.target === 'hud' && c.kind === 'image'));
         assert.deepStrictEqual(daemon.engine.lastState.lanes, laneState.lanes, '实际 OAP 桥接和 HUD 推帧保留车道及虚实线');
+        assert(hudLogs.some((line) => line.includes('HUD lanes OAP: matched received=1 eligible=1 matched=1 selectedLanes=4')),
+            '车道诊断穿过 OAP socket 并写入后台日志');
         renderPeers[0].destroy();
         await until(() => renderSessions.length >= 2 && renderSessions[1].frames > 0 && bridge.state === 'showing');
         bridge.settings({ hud_simple: 0, hud: 1 });

@@ -127,13 +127,25 @@
             }), color);
         });
     };
+    function mainArrow(s, state, x, y, w, h, color) {
+        s.arrow(state.direction, x, y, w, h, color);
+        if (state.roundaboutExit === null) return;
+        var number = String(state.roundaboutExit);
+        // 圈号放在环岛箭头右下方的空白，保留箭头轮廓和指向。
+        var cx = x + w * 0.70, cy = y + h * 0.72, diameter = Math.min(w, h) * 0.34;
+        drawSafeRing(s, cx, cy, diameter, diameter, WHITE);
+        var size = diameter * (number.length > 2 ? 0.44 : 0.57);
+        var width = s.measure(number, size);
+        s.text(number, cx - width / 2, cy - size * 0.61, size, WHITE);
+    }
     function trip(state) {
         var distance = '', time = '';
         if (state.remainingDistanceM !== null) {
             var d = nav.distance(state.remainingDistanceM);
             distance = d.value + (d.unit === 'km' ? ' 公里' : ' 米');
         }
-        if (state.remainingTimeS !== null) time = Math.ceil(state.remainingTimeS / 60) + ' 分钟';
+        if (state.arrivalClock) time = state.arrivalClock + ' 到达';
+        else if (state.remainingTimeS !== null) time = Math.ceil(state.remainingTimeS / 60) + ' 分钟';
         // 固定 +08:00，用于当前中国道路演示；不依赖运行主机的时区。
         // 画布显示剩余时间；只有缺少剩余秒数时才用明确提供的到达时刻。
         if (!time && state.arrivalUnix !== null) {
@@ -252,7 +264,7 @@
         if (state.direction) {
             var ay = safeY(56), ah = safeH(80);
             var mainGrad = { top: WHITE, mid: [235, 246, 255], bottom: [142, 174, 202], tailAlpha: 0.78, y0: ay, h: ah };
-            arrow(state.direction, safeX(2), ay, safeW(81), ah, mainGrad);
+            mainArrow(s, state, safeX(2), ay, safeW(81), ah, mainGrad);
         }
         var dist = nav.distance(state.distanceM);
         var digitSize = safeFont(36 * dfs), unitSize = safeFont(18 * dfs);
@@ -326,21 +338,10 @@
             for (var i = 0; i < 4; i++) s.rect(safeX(x), safeY(y + i * 12), safeW(0.9), safeH(7), 0, LANE_LINE, 1);
         }
     }
-    function laneHint(lanes) {
-        var n = lanes.length;
-        if (!n) return '';
-        var rec = [];
-        for (var i = 0; i < n; i++) if (lanes[i].recommended) rec.push(i);
-        if (!rec.length || rec.length === n || rec[rec.length - 1] - rec[0] + 1 !== rec.length) return '';
-        var nums = ['', '一条', '两条', '三条', '四条'];
-        var cnt = rec.length > 1 ? (nums[rec.length] || (rec.length + '条')) : '';
-        if (rec[0] === 0 && rec[rec.length - 1] === rec.length - 1) return '推荐左侧' + cnt + '车道';
-        if (rec[0] === n - rec.length && rec[rec.length - 1] === n - 1) return '推荐右侧' + cnt + '车道';
-        return '推荐中间' + cnt + '车道';
-    }
     function formatEtaCompact(state) {
         var parts = [];
-        if (state.remainingTimeS !== null) parts.push(Math.ceil(state.remainingTimeS / 60) + ' 分钟');
+        if (state.arrivalClock) parts.push(state.arrivalClock + ' 到达');
+        else if (state.remainingTimeS !== null) parts.push(Math.ceil(state.remainingTimeS / 60) + ' 分钟');
         else if (state.arrivalUnix !== null) {
             var dt = new Date((state.arrivalUnix + 8 * 3600) * 1000);
             parts.push(('0' + dt.getUTCHours()).slice(-2) + ':' + ('0' + dt.getUTCMinutes()).slice(-2) + ' 到达');
@@ -401,7 +402,7 @@
         if (state.direction) {
             var ay = safeY(10), ah = safeH(88);
             var mainGrad = { top: WHITE, mid: [238, 247, 255], bottom: [176, 198, 218], tailAlpha: 0.86, y0: ay, h: ah };
-            arrow(state.direction, safeX(16), ay, safeW(89), ah, mainGrad);
+            mainArrow(s, state, safeX(16), ay, safeW(89), ah, mainGrad);
         }
         var dist = nav.distance(state.distanceM);
         var digitSize = safeFont(38 * dfs), unitSize = safeFont(18 * dfs);
@@ -413,7 +414,7 @@
 
         // 2. 顶部中间动作副标题 + 大号目标路名 + 右上角白底红圈限速
         var sub = state.exitLabel || directionLabel(state.direction);
-        if (sub) text(sub, safeX(142), safeY(8), safeFont(13.5 * fs), [158, 166, 176], safeW(240));
+        if (sub) text(sub, safeX(142), safeY(5), safeFont(17 * fs), [158, 166, 176], safeW(240));
         var road = state.nextRoad || state.instruction;
         if (road) text(road, safeX(142), safeY(28), safeFont(27 * fs), WHITE, safeW(242));
         if (state.speedLimitKmh !== null) {
@@ -467,7 +468,7 @@
         } else {
             rect(safeX(8), safeY(158), safeW(438), safeH(1), 0, [42, 46, 52], 1);
         }
-        if (state.currentRoad) text(state.currentRoad, safeX(8), safeY(173), safeFont(14.5 * fs), [152, 160, 170], safeW(215));
+        if (state.currentRoad) text(state.currentRoad, safeX(8), safeY(170), safeFont(19 * fs), [152, 160, 170], safeW(215));
         var etaLine = formatEtaCompact(state);
         if (etaLine) {
             var esz = safeFont(15.5 * fs);
@@ -487,7 +488,7 @@
         if (state.direction) {
             var ay = safeY(16), ah = safeH(76);
             var mainGrad = { top: WHITE, mid: [238, 247, 255], bottom: [176, 198, 218], tailAlpha: 0.86, y0: ay, h: ah };
-            arrow(state.direction, safeX(38), ay, safeW(77), ah, mainGrad);
+            mainArrow(s, state, safeX(38), ay, safeW(77), ah, mainGrad);
         }
         var dist = nav.distance(state.distanceM);
         var digitSize = safeFont(36 * dfs), unitSize = safeFont(17 * dfs);
@@ -500,7 +501,7 @@
 
         // 2. 右上动作副标题 + 目标路名 + 白底红圈限速
         var sub = state.exitLabel || directionLabel(state.direction);
-        if (sub) text(sub, safeX(168), safeY(8), safeFont(13 * fs), [158, 166, 176], safeW(214));
+        if (sub) text(sub, safeX(168), safeY(5), safeFont(17 * fs), [158, 166, 176], safeW(214));
         var road = state.nextRoad || state.instruction;
         if (road) text(road, safeX(168), safeY(26), safeFont(26 * fs), WHITE, safeW(216));
         if (state.speedLimitKmh !== null) {
@@ -534,8 +535,6 @@
                         lane.recommended ? WHITE : [126, 134, 144]);
                 });
             });
-            var hint = laneHint(state.lanes);
-            if (hint) text(hint, safeX(168), safeY(128), safeFont(13.5 * fs), [74, 232, 156], safeW(276));
         }
         if (light) {
             var lColors = {red: [255, 76, 72], green: [64, 240, 152], yellow: [255, 198, 45]};
@@ -550,7 +549,7 @@
         }
 
         // 4. 底部当前路名 + 整合 ETA + 最底全宽渐变进度条
-        if (state.currentRoad) text(state.currentRoad, safeX(6), safeY(162), safeFont(14.5 * fs), [152, 160, 170], safeW(215));
+        if (state.currentRoad) text(state.currentRoad, safeX(6), safeY(159), safeFont(19 * fs), [152, 160, 170], safeW(215));
         var etaLine = formatEtaCompact(state);
         if (etaLine) {
             var esz = safeFont(15.5 * fs);
@@ -576,6 +575,7 @@
     function render(raw, font, validationLabel, fontPct, style) {
         var state = nav.snapshot(raw), s = new Surface(font);
         var fs = typeof fontPct === 'number' && fontPct >= 80 && fontPct <= 150 ? fontPct / 100 : 1;
+        if (style === 3 || style === 4) fs = Math.min(fs, 1);
         var dfs = 1 + (fs - 1) * 0.5;
         function rect(x, y, w, h, r, color) { s.rect(x, y, w, h, r, color, 1); }
         function text(str, x, y, size, color, maxWidth) {
@@ -605,7 +605,7 @@
             var ay = safeY(0), ah = safeH(98.25405405405404);
             // 方案 A 渐变光导：箭尖高光纯白平滑过渡到箭尾柔灰蓝。
             var mainGrad = { top: WHITE, mid: [235, 246, 255], bottom: [142, 174, 202], tailAlpha: 0.78, y0: ay, h: ah };
-            arrow(state.direction, safeX(76), ay, safeW(99.6), ah, mainGrad);
+            mainArrow(s, state, safeX(76), ay, safeW(99.6), ah, mainGrad);
         }
         var digitSize = safeFont(25.2 * dfs), unitSize = safeFont(19.2 * dfs);
         var distanceWidth = s.measure(dist.value, digitSize) + safeW(6) + s.measure(dist.unit, unitSize);

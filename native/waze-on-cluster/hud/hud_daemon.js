@@ -32,6 +32,7 @@ var LOG_FILE = process.env.WOC_HUD_LOG === '' ? null : (process.env.WOC_HUD_LOG 
 var LOG_MAX_BYTES = 512 * 1024;
 var MAX_LINE = 64 * 1024;
 var PARKING_TIMEOUT_MS = 1500;
+var LANE_LOG_INTERVAL_MS = 30000;
 function monotonicMs() {
     var time = process.hrtime();
     return time[0] * 1000 + time[1] / 1000000;
@@ -178,6 +179,7 @@ function HudEngine(options) {
     this.navRevision = 0;
     this.nextNav = null;
     this.clock = o.clock || monotonicMs;
+    this.laneLogTimes = Object.create(null);
     this.nativeBusy = false;
     this.nativeRetryAt = 0;
     this.nativeVerified = false;
@@ -284,6 +286,7 @@ HudEngine.prototype.suspend = function() {
     if (this.nativeGuidance) this.nativeGuidance.stop();
     this.nativeRetryAt = 0;
     this.nativeVerified = false;
+    this.laneLogTimes = Object.create(null);
     this.nativeState = null;
     this.oapState = null;
     this.lastOapNav = 0;
@@ -417,6 +420,31 @@ HudEngine.prototype.tickValidation = function() {
 
 HudEngine.prototype.handleNav = function(rawState) {
     if (!this.enabled || this.suspended || this.validation) return;
+    if (rawState && rawState.state === 'navigating' && this.nativeGuidance) {
+        var info = this.nativeGuidance;
+        var road = !rawState.currentRoad && info.currentRoad && info.currentRoad();
+        if (road) rawState = Object.assign({}, rawState, { currentRoad: road });
+        if (info.guidanceField && info.guidanceField('state') === 'CALCULATING_ROUTE') {
+            rawState = { state: 'rerouting' };
+        } else if (info.guidanceField) {
+            var destination = info.guidanceField('destination');
+            if (destination) rawState = Object.assign({}, rawState, {
+                arrivalClock: destination.arrivalClock,
+                remainingTimeS: destination.remainingTimeS === null ? rawState.remainingTimeS : destination.remainingTimeS
+            });
+            if (rawState.direction && rawState.direction !== 'arrive' && (!rawState.lanes || !rawState.lanes.length)) {
+                var laneContext = [rawState.maneuverId || rawState.maneuverPositionM, rawState.direction].join('/');
+                var currentLane = info.guidanceField('lanes', laneContext);
+                if (currentLane) {
+                    var lanes = nav.bmwLanes(currentLane);
+                    if (lanes.some(function(lane) { return lane.directions.length > 0; })) {
+                        this.logLaneStatus('current', 'used-single-row', 'selectedLanes=' + lanes.length);
+                        rawState = Object.assign({}, rawState, { lanes: lanes });
+                    }
+                }
+            }
+        }
+    }
     var state = nav.snapshot(rawState);
     this.lastNav = Date.now();
     if (state.state === 'inactive') {
@@ -425,7 +453,7 @@ HudEngine.prototype.handleNav = function(rawState) {
     }
     /* 当上游未提供初始路段距离时，按当前路口跟踪初始距离以驱动进度条。 */
     if (state.state === 'navigating' && state.initialDistanceM === null && state.distanceM !== null) {
-        var mKey = [state.direction || '', state.nextRoad || '', state.instruction || ''].join('|');
+        var mKey = [state.maneuverId, state.direction, state.roundaboutExit, state.nextRoad, state.instruction].join('|');
         if (mKey !== this.maneuverKey || this.maneuverInitialM === null || state.distanceM > this.maneuverInitialM) {
             this.maneuverKey = mKey;
             this.maneuverInitialM = state.distanceM;
@@ -460,17 +488,53 @@ HudEngine.prototype.readTraffic = function(state) {
     });
 };
 
+HudEngine.prototype.logLaneStatus = function(source, status, counts) {
+    var key = source + '/' + status;
+    var now = this.clock(), last = this.laneLogTimes[key];
+    if (last !== undefined && now - last < LANE_LOG_INTERVAL_MS) return;
+    this.laneLogTimes[key] = now;
+    this.log.info('HUD lanes ' + source + ': ' + status + (counts ? ' ' + counts : ''));
+};
+
+HudEngine.prototype.logLaneInput = function(source, state, info, rejected) {
+    // 只记录计数。编号有重叠的原生事件可能是其他类型，所以单独记录解码失败的候选数。
+    if (!info || !['received', 'eligible', 'matched'].every(function(key) {
+        var n = info[key];
+        return Number.isInteger(n) && n >= 0 && n <= 65535;
+    })) return;
+    if (state.state === 'inactive' && !info.received && !rejected) {
+        if (source === 'OAP' && this.nativeVerified) this.logLaneStatus(source, 'no-maneuver');
+        return;
+    }
+    var status = 'position-mismatch';
+    if (state.lanes.length) status = 'matched';
+    else if (!info.received) status = rejected ? 'decode-rejected' : 'no-event';
+    else if (!info.eligible) status = 'empty-or-unreliable';
+    else if (state.state === 'inactive') status = 'no-maneuver';
+    else if (info.matched > 1) status = 'ambiguous-position';
+    var gap = info.closestGapM;
+    var gapText = status === 'position-mismatch' && typeof gap === 'number' && isFinite(gap) && gap >= 0
+        ? ' closestGapM=' + (gap < 0.001 ? '<0.001' : gap.toFixed(3)) : '';
+    this.logLaneStatus(source, status, 'received=' + info.received + ' eligible=' + info.eligible +
+        ' matched=' + info.matched + ' selectedLanes=' + state.lanes.length + ' rejectedCandidates=' + (rejected || 0) + gapText);
+};
+
 HudEngine.prototype.withOapLanes = function(state) {
     var oap = this.oapState;
-    if (state.lanes.length || !oap || !oap.lanes.length || Date.now() - this.lastOapNav >= this.staleMs ||
-        state.remainingDistanceM === null || state.remainingDistanceM !== oap.remainingDistanceM ||
-        !state.direction || state.direction !== oap.direction) return state;
+    if (state.lanes.length || !oap || !oap.lanes.length || Date.now() - this.lastOapNav >= this.staleMs) return state;
+    if (state.maneuverPositionM === null || state.maneuverPositionM !== oap.maneuverPositionM ||
+        !state.direction || state.direction !== oap.direction) {
+        this.logLaneStatus('merge', 'maneuver-mismatch');
+        return state;
+    }
+    this.logLaneStatus('merge', 'used-OAP');
     return Object.assign({}, state, { lanes: oap.lanes });
 };
 
-HudEngine.prototype.handleOapNav = function(rawState) {
+HudEngine.prototype.handleOapNav = function(rawState, laneInfo) {
     if (!this.enabled || this.suspended || this.validation) return;
     var state = nav.snapshot(rawState);
+    this.logLaneInput('OAP', state, laneInfo);
     this.oapState = state.state === 'inactive' ? null : state;
     this.lastOapNav = this.oapState ? Date.now() : 0;
     if (this.nativeVerified && this.nativeState && Date.now() - this.nativeAt < this.staleMs) {
@@ -486,6 +550,8 @@ HudEngine.prototype.handleNavError = function(reason) {
     this.oapState = null;
     this.lastOapNav = 0;
     if (this.nativeVerified && this.nativeState && Date.now() - this.nativeAt < this.staleMs) {
+        var code = ['queryContent INVALID_VIEW_PARAMS', 'queryContent UNKNOWN_VIEW_ID', 'queryContent rejected'].indexOf(reason) >= 0 ? reason : 'query-failed';
+        this.logLaneStatus('OAP', code);
         if (hadOapLanes && !this.nativeState.lanes.length) this.handleNav(this.nativeState);
         return;
     }
@@ -515,7 +581,9 @@ HudEngine.prototype.tick = function() {
         }).then(function(reply) {
             if (!self.enabled || self.suspended || self.validation || generation !== self.generation) return;
             self.nativeRetryAt = 0;
-            var parsed = nav.fromBmw(reply);
+            var laneInfo = {};
+            var parsed = nav.fromBmw(reply, laneInfo);
+            self.logLaneInput('native', parsed, laneInfo, reply && reply.laneRejected);
             if (parsed.state !== 'inactive') {
                 var changed = !self.nativeVerified || !self.nativeState ||
                     !!self.nativeState.lanes.length !== !!parsed.lanes.length;
@@ -611,7 +679,7 @@ function startDaemon(opts) {
                 else if (msg.cmd === 'validation-parking') engine.updateParking(sock, msg.parked);
                 else if (msg.cmd === 'validation-stop') engine.updateParking(sock, false);
                 else if (msg.cmd === 'suspend') engine.suspend();
-                else if (msg.cmd === 'nav') engine.handleOapNav(msg.state);
+                else if (msg.cmd === 'nav') engine.handleOapNav(msg.state, msg.laneInfo);
                 else if (msg.cmd === 'nav-error') engine.handleNavError(msg.reason);
             }
         });

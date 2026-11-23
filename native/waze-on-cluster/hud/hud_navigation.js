@@ -30,6 +30,11 @@
 
     function text(v) { return typeof v === 'string' ? v.replace(/[\x00-\x1f]/g, ' ').trim().slice(0, 160) : ''; }
     function number(v) { return typeof v === 'number' && isFinite(v) && v >= 0 ? v : null; }
+    var BMW_BRANCH = { BRANCH_LEFT: 'slight_left', BRANCH_RIGHT: 'slight_right',
+        HIGHWAY_IN_LEFT: 'merge_left', HIGHWAY_IN_RIGHT: 'merge_right', HIGHWAY_IN_STRAIGHT: 'straight',
+        HIGHWAY_OUT_LEFT: 'slight_left', HIGHWAY_OUT_RIGHT: 'slight_right', HIGHWAY_OUT_STRAIGHT: 'straight',
+        FORK_LEFT: 'slight_left', FORK_RIGHT: 'slight_right', TRIPLE_FORK_LEFT: 'slight_left',
+        TRIPLE_FORK_RIGHT: 'slight_right', TRIPLE_FORK_STRAIGHT: 'straight' };
     function direction(v) { return DIRECTIONS.indexOf(v) >= 0 ? v : null; }
     function snapshot(raw) {
         raw = raw || {};
@@ -50,8 +55,12 @@
             trafficLight: trafficLight, speedLimitKmh: speedLimitKmh,
             nextRoad: text(raw.nextRoad), instruction: text(raw.instruction), exitLabel: text(raw.exitLabel),
             direction: direction(raw.direction), distanceM: number(raw.distanceM),
+            maneuverPositionM: number(raw.maneuverPositionM), maneuverId: text(raw.maneuverId),
+            roundaboutExit: raw.direction === 'roundabout' && Number.isInteger(raw.roundaboutExit) &&
+                raw.roundaboutExit > 0 && raw.roundaboutExit <= 255 ? raw.roundaboutExit : null,
             initialDistanceM: number(raw.initialDistanceM), remainingDistanceM: number(raw.remainingDistanceM),
             remainingTimeS: number(raw.remainingTimeS), arrivalUnix: number(raw.arrivalUnix),
+            arrivalClock: typeof raw.arrivalClock === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(raw.arrivalClock) ? raw.arrivalClock : '',
             lanes: (Array.isArray(raw.lanes) ? raw.lanes : []).slice(0, 8).map(function(lane) {
                 return { directions: (Array.isArray(lane.directions) ? lane.directions : []).map(direction).filter(Boolean),
                     recommended: lane.recommended === true,
@@ -64,7 +73,8 @@
         if (!v) return '';
         if (typeof v === 'string') return text(v);
         if (Array.isArray(v)) return v.map(words).filter(Boolean).join(' ');
-        if (v.type === 'text') return words(v.value);
+        if (v.type === 'text' || v.type === 'icon') return words(v.value);
+        if (v.icon) return words(v.icon);
         if (typeof v.text === 'string') return text(v.text);
         if (v.elements) return words(v.elements);
         return '';
@@ -76,8 +86,11 @@
         var info = assist && (assist.type === 'value' ? assist.value : !assist.type ? assist.value : null);
         var reason = info && info.reason;
         var limit = reason && (reason.type === 'speedLimitInfo' ? reason.value : !reason.type ? reason.speedLimitInfo : null);
-        if (!limit || ['KMH', 'KM_P_H', 'KILOMETER_PER_HOUR', 'KILOMETERS_PER_HOUR'].indexOf(enumName(limit.speedUnit)) < 0) return null;
-        return limit.speedLimit;
+        if (!limit || number(limit.speedLimit) === null || limit.speedLimit === 0) return null;
+        var unit = enumName(limit.speedUnit);
+        if (['KMH', 'KM_P_H', 'KILOMETER_PER_HOUR', 'KILOMETERS_PER_HOUR'].indexOf(unit) >= 0) return limit.speedLimit;
+        if (unit === 'MI_P_H_UK' || unit === 'MI_P_H_US') return Math.round(limit.speedLimit * 1.609344);
+        return null;
     }
     function bmwLaneMarker(v) {
         var name = enumName(v);
@@ -123,8 +136,12 @@
             };
         });
     }
-    function fromBmw(reply) {
+    function fromBmw(reply, laneInfo) {
         var views = reply && reply.viewContent;
+        var currentDistances = reply && (reply.currentDistances || (views && views.currentDistances));
+        var routeDistance = number(currentDistances && currentDistances.carDistanceToFinalDestination);
+        var guidanceState = reply && reply.guidanceState;
+        if (guidanceState === 'CALCULATING_ROUTE') return snapshot({ state: 'rerouting' });
         var events = reply && reply.events;
         if (!events) {
             events = [];
@@ -133,7 +150,11 @@
             });
         }
         var kinds = ['intersection', 'roundabout', 'branch', 'destinationManeuver', 'laneChange', 'passiveManeuver'];
-        var destTimeS = null, laneEvents = [];
+        var destTimeS = null, destDistance = null, laneEvents = [], laneEventCount = 0, limits = [];
+        var renderedDist = function(event) {
+            var fd = event.formattedDistance || {}, multiplier = BMW_DISTANCE_TO_METERS[enumName(fd.unit)];
+            return typeof multiplier === 'number' && /^\d+(\.\d+)?$/.test(fd.distance || '') ? Number(fd.distance) * multiplier : null;
+        };
         for (var j = 0; j < (events || []).length; j++) {
             var du = events[j], dk = du.type, de = du.value;
             if (!dk && du.destinationManeuver && typeof du.destinationManeuver === 'object') {
@@ -141,39 +162,82 @@
             } else if (!dk && du.laneGuiding && typeof du.laneGuiding === 'object') {
                 dk = 'laneGuiding'; de = du.laneGuiding;
             }
-            if (dk === 'destinationManeuver' && de && typeof de.travelTime === 'number' && de.travelTime > 0 && destTimeS === null) {
-                destTimeS = de.travelTime;
+            if (dk === 'destinationManeuver' && de && de.unreliable !== true && de.isCheckeredFlag !== false) {
+                if (destTimeS === null && number(de.travelTime) > 0) destTimeS = de.travelTime;
+                if (destDistance === null) destDistance = renderedDist(de);
             }
-            if (dk === 'laneGuiding' && de && de.unreliable !== true && Array.isArray(de.lanes) && de.lanes.length) {
-                laneEvents.push(de);
+            var limitEvent = dk === 'speedLimitAssist' ? de : du.speedLimitAssist;
+            if (limitEvent && limitEvent.unreliable !== true && routeDistance !== null &&
+                number(limitEvent.distanceToDestination) === routeDistance && renderedDist(limitEvent) === 0) {
+                var limit = bmwSpeedLimit(limitEvent);
+                if (limit !== null && limits.indexOf(limit) < 0) limits.push(limit);
+            }
+            if (dk === 'laneGuiding') {
+                laneEventCount++;
+                if (de && de.unreliable !== true && Array.isArray(de.lanes) && de.lanes.length) laneEvents.push(de);
             }
         }
+        if (laneInfo) {
+            laneInfo.received = laneEventCount;
+            laneInfo.eligible = laneEvents.length;
+            laneInfo.matched = 0;
+        }
+        var nextTurn = null, passive = null, destination = null, event, kind;
         for (var i = 0; i < (events || []).length; i++) {
-            var union = events[i], kind = union.type, event = union.value;
+            var union = events[i];
+            kind = union.type;
+            event = union.value;
             if (!kind) {
                 kind = kinds.filter(function(k) { return union[k] && typeof union[k] === 'object'; })[0];
                 event = union[kind];
             }
-            if (kinds.indexOf(kind) < 0 || !event) continue;
-            var fd = event.formattedDistance || {}, unit = enumName(fd.unit), value = null;
-            // 格式化数字与单位一起使用。样本 rawDistance=1 与显示 147 米不一致，不把它当米数。
-            var metersPerUnit = BMW_DISTANCE_TO_METERS[unit];
-            if (typeof metersPerUnit === 'number' && /^\d+(\.\d+)?$/.test(fd.distance || '')) {
-                value = Number(fd.distance) * metersPerUnit;
+            if (kinds.indexOf(kind) < 0 || !event || event.unreliable === true) continue;
+            if (kind === 'destinationManeuver') {
+                if (!destination) destination = { kind: kind, event: event };
+            } else if (kind === 'passiveManeuver') {
+                if (!passive) passive = { kind: kind, event: event };
+            } else if (!nextTurn) {
+                nextTurn = { kind: kind, event: event };
             }
+        }
+        var selected = nextTurn || destination || passive;
+        if (selected) {
+            kind = selected.kind;
+            event = selected.event;
+            // CarPlay 的 rawDistance 样本是固定值，转向距离使用车机格式化值。
+            var value = renderedDist(event);
             // 两种事件共用路线剩余里程。只有同一位置且唯一的一条车道引导可用于这个转向。
             var position = number(event.distanceToDestination);
+            var closestGapM = Infinity;
             var matchingLanes = position === null ? [] : laneEvents.filter(function(lane) {
-                return lane.distanceToDestination === position;
+                var lanePosition = number(lane.distanceToDestination);
+                if (laneInfo && lanePosition !== null) closestGapM = Math.min(closestGapM, Math.abs(lanePosition - position));
+                return lanePosition === position;
             });
-            var timeS = destTimeS !== null ? destTimeS : (typeof event.travelTime === 'number' && event.travelTime > 0 ? event.travelTime : null);
-            return snapshot({ state: 'navigating', source: 'BMW 导航结构化事件',
-                direction: BMW_DIRECTIONS[enumName(event.direction)] ||
-                    (kind === 'roundabout' ? 'roundabout' : kind === 'destinationManeuver' ? 'arrive' : null),
-                instruction: words(event.description), distanceM: value,
-                remainingDistanceM: position,
-                remainingTimeS: number(timeS),
-                speedLimitKmh: bmwSpeedLimit(event),
+            if (laneInfo) {
+                laneInfo.matched = matchingLanes.length;
+                if (isFinite(closestGapM)) laneInfo.closestGapM = closestGapM;
+            }
+            var turn = BMW_DIRECTIONS[enumName(event.direction)];
+            if (kind === 'roundabout') turn = 'roundabout';
+            else if (kind === 'destinationManeuver') turn = 'arrive';
+            else if (kind === 'branch') turn = BMW_BRANCH[enumName(event.branchType)] || turn;
+            else if (kind === 'laneChange') {
+                var side = enumName(event.changeSide);
+                if (side === 'LEFT' || side === 'RIGHT') turn = 'merge_' + side.toLowerCase();
+            }
+            var speedLimit = bmwSpeedLimit(event);
+            var uid = typeof event.uid === 'string' ? event.uid :
+                Number.isSafeInteger(event.uid) && event.uid > 0 ? String(event.uid) : '';
+            var arrived = kind === 'destinationManeuver' && event.isCheckeredFlag === true &&
+                guidanceState === 'INACTIVE' && routeDistance === 0 && value === 0;
+            return snapshot({ state: arrived ? 'arrived' : 'navigating', source: 'BMW 导航结构化事件',
+                direction: turn, roundaboutExit: kind === 'roundabout' ? event.exitNumber : null,
+                nextRoad: words(event.nextRoad), exitLabel: words(event.exitLabel),
+                instruction: words(event.description), distanceM: value, maneuverPositionM: position, maneuverId: uid,
+                remainingDistanceM: routeDistance === null || (routeDistance === 0 && value > 0) ? destDistance : routeDistance,
+                remainingTimeS: destTimeS,
+                speedLimitKmh: speedLimit === null && limits.length === 1 ? limits[0] : speedLimit,
                 lanes: matchingLanes.length === 1 ? bmwLanes(matchingLanes[0]) : [] });
         }
         return snapshot({ state: 'inactive' });
@@ -249,6 +313,6 @@
         return { value: (m / 1000).toFixed(m < 100000 ? 1 : 0), unit: 'km' };
     }
     return { snapshot: snapshot, fromInput: fromInput, fromBmw: fromBmw, fromIap: fromIap,
-        decodeIap: decodeIap, distance: distance, directions: DIRECTIONS,
+        decodeIap: decodeIap, bmwLanes: bmwLanes, distance: distance, directions: DIRECTIONS,
         laneDirections: laneDirections, laneIcon: laneIcon };
 }));

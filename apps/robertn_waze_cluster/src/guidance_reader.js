@@ -3,8 +3,9 @@
 const IFACE = 'de.bmw.infotainment.navigation.guiding.GuidanceEventList';
 const INSTANCE = 'Main_Instance', VIEW = 'HUD.RB.Main';
 const INCLUDE_LANES = 'INCLUDE_LANE_GUIDINGS';
+const INCLUDE_LIMITS = 'INCLUDE_SPEED_LIMIT_ASSIST';
 const FALLBACK_CONFIG = { viewport: { startPoint: { anchorPoint: { standardReferencePoint: 'CCP' }, offsets: [] },
-    maxElementCount: 6, endPoints: [], includedTypes: ['INCLUDE_DESTINATIONS', 'INCLUDE_ACTIVE_MANEUVERS', INCLUDE_LANES] },
+    maxElementCount: 6, endPoints: [], includedTypes: ['INCLUDE_DESTINATIONS', 'INCLUDE_ACTIVE_MANEUVERS', INCLUDE_LANES, INCLUDE_LIMITS] },
     options: ['ENABLE_PRIORITIZED_VIEW'], minimumUpdateIntervalMs: 500, segmentItemRasterLength: 0 };
 
 function within(promise, ms) {
@@ -62,14 +63,26 @@ class GuidanceReader {
                 if (!this.config) {
                     const viewport = value.viewport || FALLBACK_CONFIG.viewport;
                     const types = viewport.includedTypes || FALLBACK_CONFIG.viewport.includedTypes;
-                    const hasLanes = types.some((type) => type === INCLUDE_LANES || type === 0 || (type && type.name === INCLUDE_LANES));
+                    const hasType = (name, value) => types.some((type) => type === name || type === value || (type && type.name === name));
+                    const limit = viewport.maxElementCount;
                     this.config = Object.assign({}, value, { viewport: Object.assign({}, viewport, {
-                        includedTypes: hasLanes ? types : types.concat(INCLUDE_LANES)
+                        // 原厂 HUD 可能只取一条事件，连转向和车道都放不下。零值沿用原厂语义。
+                        maxElementCount: limit === 0 ? 0 : Math.max(limit || 0, FALLBACK_CONFIG.viewport.maxElementCount),
+                        includedTypes: types.concat(hasType(INCLUDE_LANES, 0) ? [] : [INCLUDE_LANES],
+                            hasType(INCLUDE_LIMITS, 11) ? [] : [INCLUDE_LIMITS])
                     }) });
                 }
                 return this.call(proxy, 'queryContent', { viewConfigs: [this.config] });
             });
-        }).then((reply) => { current(); return reply; });
+        }).then((reply) => {
+            current();
+            const error = reply && reply.GuidanceEventListError;
+            const code = error && typeof error === 'object' ? error.name || error.value : error;
+            if (code === 2 || code === 'INVALID_VIEW_PARAMS') throw new Error('queryContent INVALID_VIEW_PARAMS');
+            if (code === 1 || code === 'UNKNOWN_VIEW_ID') throw new Error('queryContent UNKNOWN_VIEW_ID');
+            if (code && code !== 'NO_ERROR') throw new Error('queryContent rejected');
+            return reply;
+        });
     }
 
     stop() {
