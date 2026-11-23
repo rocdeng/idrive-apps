@@ -522,14 +522,12 @@ NativeGuidanceReader.prototype.guidanceField = function(key, context) {
         field = this.fields[key] = { id: null, next: 0, at: 0, value: null, context: context };
     }
     var now = uptimeMs();
-    if (field.id === null && now >= field.next) {
+    if (now >= field.next) {
+        // 替换超时的请求编号，上一条有效值仍受新鲜度和路口约束。
         field.next = now + ROAD_INTERVAL_MS;
         field.id = String(this.nextId++);
         try { this.child.stdin.write(field.id + ' ' + key + ' -\n'); }
         catch (_) { field.id = null; field.value = null; }
-    } else if (field.id !== null && now >= field.next) {
-        field.id = null;
-        field.value = null;
     }
     return now - field.at < ROAD_FRESH_MS ? field.value : null;
 };

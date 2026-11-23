@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include <atomic>
+#include <chrono>
 #include <csignal>
 #include <iostream>
 #include <map>
@@ -45,7 +46,15 @@ const std::map<std::string, vsomeip::method_t> kGuidanceGetters = {
 std::atomic<bool> g_stop(false);
 std::mutex g_out_mu;
 std::mutex g_pend_mu;
-std::map<vsomeip::session_t, uint64_t> g_pending;
+using PendingClock = std::chrono::steady_clock;
+struct PendingRequest {
+    uint64_t id;
+    PendingClock::time_point sent_at;
+};
+std::map<vsomeip::session_t, PendingRequest> g_pending;
+constexpr size_t kMaxPending = 64;
+// Keep the reply mapping longer than the HUD reader's 3-second view timeout.
+constexpr auto kPendingLifetime = std::chrono::seconds(5);
 std::atomic<bool> g_avail(false);
 std::atomic<bool> g_road_avail(false);
 
@@ -138,7 +147,7 @@ int main()
             auto it = g_pending.find(m->get_session());
             if (it == g_pending.end())
                 return;
-            req_id = it->second;
+            req_id = it->second.id;
             g_pending.erase(it);
         }
         const auto pl = m->get_payload();
@@ -199,11 +208,22 @@ int main()
         if (!bytes.empty())
             pl->set_data(bytes);
         req->set_payload(pl);
+        bool tracked;
         {
             std::lock_guard<std::mutex> lk(g_pend_mu);
-            if (g_pending.size() > 64)
-                g_pending.clear();
-            g_pending[sess] = id;
+            const auto now = PendingClock::now();
+            for (auto it = g_pending.begin(); it != g_pending.end();) {
+                if (now - it->second.sent_at >= kPendingLifetime)
+                    it = g_pending.erase(it);
+                else
+                    ++it;
+            }
+            tracked = g_pending.size() < kMaxPending &&
+                      g_pending.emplace(sess, PendingRequest{id, now}).second;
+        }
+        if (!tracked) {
+            emit_line("err " + std::to_string(id) + " pending_full");
+            continue;
         }
         app->send(req);
     }
