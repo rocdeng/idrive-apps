@@ -448,8 +448,16 @@ HudEngine.prototype.handleNav = function(rawState) {
                 var currentLane = info.guidanceField('lanes', laneContext);
                 if (currentLane) {
                     var lanes = nav.bmwLanes(currentLane);
-                    if (lanes.some(function(lane) { return lane.directions.length > 0; })) {
-                        this.logLaneStatus('current', 'used-single-row', 'selectedLanes=' + lanes.length);
+                    var lanePosition = lanes.length ? nav.currentLanePosition(currentLane, rawState.maneuverPositionM) : '';
+                    if (!lanes.length) {
+                        this.logLaneStatus('current', 'no-directions');
+                    } else if (lanePosition === 'mismatch') {
+                        // 当前车道可能还是刚过的路口或下一个路口，不能挂到这个转向上。
+                        this.logLaneStatus('current', 'position-mismatch', 'lanePositionM=' + currentLane.distanceToDestination +
+                            ' lengthM=' + currentLane.length + ' maneuverPositionM=' + rawState.maneuverPositionM);
+                    } else {
+                        this.logLaneStatus('current', lanePosition === 'matched' ? 'used-single-row' : 'used-without-position',
+                            'selectedLanes=' + lanes.length);
                         rawState = Object.assign({}, rawState, { lanes: lanes });
                     }
                 }
@@ -535,6 +543,7 @@ HudEngine.prototype.logLaneInput = function(source, state, info, rejected) {
     else if (!info.eligible) status = 'empty-or-unreliable';
     else if (state.state === 'inactive') status = 'no-maneuver';
     else if (info.matched > 1) status = 'ambiguous-position';
+    else if (info.matched === 1) status = 'no-directions';
     var gap = info.closestGapM;
     var gapText = status === 'position-mismatch' && typeof gap === 'number' && isFinite(gap) && gap >= 0
         ? ' closestGapM=' + (gap < 0.001 ? '<0.001' : gap.toFixed(3)) : '';
@@ -545,7 +554,7 @@ HudEngine.prototype.logLaneInput = function(source, state, info, rejected) {
 HudEngine.prototype.withOapLanes = function(state) {
     var oap = this.oapState;
     if (state.lanes.length || !oap || !oap.lanes.length || Date.now() - this.lastOapNav >= this.staleMs) return state;
-    if (state.maneuverPositionM === null || state.maneuverPositionM !== oap.maneuverPositionM ||
+    if (!nav.lanePositionMatches(state.maneuverPositionM, oap.maneuverPositionM) ||
         !state.direction || state.direction !== oap.direction) {
         this.logLaneStatus('merge', 'maneuver-mismatch');
         return state;

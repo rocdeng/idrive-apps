@@ -85,15 +85,15 @@
         var font = this.font;
         return Array.from(str).reduce(function(n, ch) { var g = font.glyph(ch); return n + (g ? g.advance : 64) * size / 64; }, 0);
     };
+    Surface.prototype.fitText = function(str, size, maxWidth) {
+        if (this.measure(str, size) <= maxWidth) return str;
+        var chars = Array.from(str);
+        while (chars.length && this.measure(chars.join('') + '…', size) > maxWidth) chars.pop();
+        return chars.join('') + '…';
+    };
     Surface.prototype.text = function(str, x, y, size, color, maxWidth) {
         str = String(str || '');
-        if (maxWidth) {
-            var chars = Array.from(str);
-            if (this.measure(str, size) > maxWidth) {
-                while (chars.length && this.measure(chars.join('') + '…', size) > maxWidth) chars.pop();
-                str = chars.join('') + '…';
-            }
-        }
+        if (maxWidth) str = this.fitText(str, size, maxWidth);
         var start = x, self = this;
         Array.from(str).forEach(function(ch) {
             var g = self.font.glyph(ch);
@@ -246,7 +246,7 @@
     function safeW(w) { return w * SAFE_SCALE_X; }
     function safeH(h) { return h * SAFE_SCALE_Y; }
     function safeFont(size) { return size * SAFE_SCALE_Y; }
-    function etaBounds(s, value) {
+    function textBounds(s, value) {
         return Array.from(value + '…').reduce(function(bounds, ch) {
             var glyph = s.font.glyph(ch);
             if (!glyph) return bounds;
@@ -256,10 +256,10 @@
     }
     function etaSecondLine(s, value, y, size, maxWidth, first, firstY, firstSize) {
         var safeBottom = Math.floor(safeY(200));
-        var bounds = etaBounds(s, value);
+        var bounds = textBounds(s, value);
         if (first) {
             // 先测第一行的实际字形底部。行距不足时压缩第二行字号，避免两行重叠。
-            var firstBottom = safeY(firstY) + etaBounds(s, first)[1] * firstSize + safeH(2);
+            var firstBottom = safeY(firstY) + textBounds(s, first)[1] * firstSize + safeH(2);
             var height = bounds[1] - bounds[0];
             if (height > 0) size = Math.min(size, (safeBottom - firstBottom) / height);
         }
@@ -410,9 +410,52 @@
             i === 0 ? safeX(x[i]) - Math.min(safeW(maxWidth), s.measure(state.currentRoad, size)) : safeX(x[i]),
             safeY(y[i]), size, style === 4 ? [152, 160, 170] : WHITE, safeW(maxWidth));
     }
+    function drawCruiseStatusRow(s, state, fs, style) {
+        var light = state.trafficLight;
+        var hasSpeed = state.speedLimitKmh !== null;
+        var colors = {red: [255, 76, 72], green: [64, 240, 152], yellow: [255, 198, 45]};
+        var trafficW = 72, trafficX = 453 - trafficW - 4;
+        // 453×200 安全区内，巡航三项共用底边，留出 12 px 底距。
+        var rowBottom = 200 - 12;
+        var thinSign = style === 1 || style === 2;
+        var speedSize = thinSign ? 44 : 48;
+        var roadOffset = hasSpeed ? speedSize + (state.currentRoad ? 12 : 0) : 0;
+        var left = 4, right = light ? trafficX - 8 : 453 - 4;
+        var roadSize = safeFont(28 * fs);
+        var road = s.fitText(state.currentRoad, roadSize, safeW(right - left - roadOffset));
+        var groupWidth = roadOffset + s.measure(road, roadSize) / SAFE_SCALE_X;
+        // 限速和路名成组居中。长路名可以向左延伸，右侧给倒计时留空。
+        var groupX = Math.max(left, Math.min((453 - groupWidth) / 2, right - groupWidth));
+        if (hasSpeed) {
+            if (thinSign) {
+                var ringCx = groupX + 22, ringCy = rowBottom - 22;
+                drawSafeRing(s, safeX(ringCx), safeY(ringCy), safeW(44), safeH(44), [255, 81, 76]);
+                var limitSize = String(state.speedLimitKmh).length === 3 ? 22 : 25;
+                s.text(String(state.speedLimitKmh),
+                    safeX(ringCx) - s.measure(String(state.speedLimitKmh), safeFont(limitSize)) / 2,
+                    safeY(ringCy) - safeFont(limitSize) * 0.61, safeFont(limitSize), WHITE);
+            } else {
+                drawSpeedSignWhite(s, safeX(groupX + 24), safeY(rowBottom - 24), safeW(48), safeH(48), String(state.speedLimitKmh));
+            }
+        }
+        if (light) {
+            var color = colors[light.color] || colors.yellow;
+            var radius = style === 4 || style === 6 ? 10 : 22;
+            var rowY = rowBottom - 44;
+            s.rect(safeX(trafficX), safeY(rowY), safeW(trafficW), safeH(44), safeH(radius), [24, 28, 34], 1);
+            drawGlowDot(s, safeX(trafficX + 16), safeY(rowY + 22), safeW(12), safeH(12), color);
+            if (light.seconds !== null) {
+                s.text(String(light.seconds), safeX(trafficX + 29), safeY(rowY + 9), safeFont(22), WHITE, safeW(38));
+            } else {
+                s.text(light.text || '注意', safeX(trafficX + 27), safeY(rowY + 13), safeFont(14), color, safeW(38));
+            }
+        }
+        if (!road) return;
+        var roadY = safeY(rowBottom) - textBounds(s, road)[1] * roadSize;
+        s.text(road, safeX(groupX + roadOffset), roadY, roadSize, WHITE);
+    }
     function renderCruise(s, state, fs, style) {
-        drawStyleAlerts(s, state, style);
-        drawCurrentRoad(s, state, fs, style);
+        drawCruiseStatusRow(s, state, fs, style);
         return s.pixels;
     }
     function renderCockpit(s, state, validationLabel, fs, dfs) {

@@ -20,6 +20,7 @@ var DEFAULT_VIEW = 'HUD.RB.Main';
 var ROAD_INTERVAL_MS = 1000;
 var ROAD_TIMEOUT_MS = 900;
 var ROAD_FRESH_MS = 2000;
+var LANE_FIELD_LOG_INTERVAL_MS = 30000;
 var GUIDANCE_GETTERS = {
     state: { method: '0002', decode: decodeGuidanceState },
     destination: { method: '0005', decode: decodeDestinationInfo },
@@ -274,7 +275,9 @@ function decodeDirectionArray(sub) {
     return out;
 }
 
-function decodeLaneGuiding(r) {
+// LaneGuiding 继承 GuidanceRangedEvent（GuidanceEvent 的 uid、distanceToDestination、
+// unreliable、sourceId 加上 length），之后才是车道行本身。
+function decodeLaneGuidingStruct(r) {
     r.u64();                                  // uid
     var distanceToDestination = r.f64();      // Double
     var unreliable = r.u8();                  // unreliable (Bool)
@@ -282,10 +285,15 @@ function decodeLaneGuiding(r) {
     r.union();                                // sourceId (Union)
     var length = r.f64();                     // length (Double)
     var row = decodeLaneRow(r);
-    if (r.left() !== 0 || row.lanes.length === 0) throw new Error('laneGuiding mismatch');
     row.distanceToDestination = distanceToDestination;
     row.length = length;
     row.unreliable = unreliable === 1;
+    return row;
+}
+
+function decodeLaneGuiding(r) {
+    var row = decodeLaneGuidingStruct(r);
+    if (r.left() !== 0 || row.lanes.length === 0) throw new Error('laneGuiding mismatch');
     return { type: 'laneGuiding', value: row };
 }
 
@@ -321,12 +329,16 @@ function decodeLaneRow(r) {
         recommendedCarPositionLaneIndex: recommendedCarPositionLaneIndex, bargraphProgress: bargraphProgress };
 }
 
+// Guidance.currentLaneGuiding = { rows: ArrayD<LaneGuiding>, carPositionLaneIndex: UInt8 }。
 function decodeCurrentLanes(buf) {
     var r = new Reader(buf), rows = r.sub(), row = null;
-    if (rows.left() > 0) row = decodeLaneRow(rows);
+    if (rows.left() > 0) row = decodeLaneGuidingStruct(rows);
     r.u8(); // carPositionLaneIndex is not a recommendation
+    if (r.left()) throw new Error('unexpected current lanes data');
     // A single explicitly current row can be used. With multiple rows there is no maneuver association.
-    return !r.left() && !rows.left() && row && row.lanes.length ? row : null;
+    if (rows.left()) return { status: 'not-single-row', row: null };
+    if (!row || !row.lanes.length) return { status: 'empty', row: null };
+    return row.unreliable ? { status: 'unreliable', row: null } : { status: 'received', row: row };
 }
 
 function decodeViewContentStruct(r, laneInfo) {
@@ -395,6 +407,7 @@ function NativeGuidanceReader(options) {
     this.roadTimer = null;
     this.roadStatus = '';
     this.fields = Object.create(null);
+    this.laneLogTimes = Object.create(null);
     this.useBom = o.useBom !== undefined ? !!o.useBom : true;
     this.bomLocked = o.useBom !== undefined;
     this.reqHex = encodeGetViewContent([this.viewId], this.useBom).toString('hex');
@@ -515,8 +528,18 @@ NativeGuidanceReader.prototype.currentRoad = function() {
     return this.roadName && now - this.roadAt < ROAD_FRESH_MS ? this.roadName : '';
 };
 
+NativeGuidanceReader.prototype._reportCurrentLanes = function(status) {
+    var now = uptimeMs(), last = this.laneLogTimes[status];
+    if (last !== undefined && now - last < LANE_FIELD_LOG_INTERVAL_MS) return;
+    this.laneLogTimes[status] = now;
+    this.log.info('HUD lanes current getter: ' + status);
+};
+
 NativeGuidanceReader.prototype.guidanceField = function(key, context) {
-    if (!this.child || !this.roadAvailable) return null;
+    if (!this.child || !this.roadAvailable) {
+        if (key === 'lanes') this._reportCurrentLanes('service-unavailable');
+        return null;
+    }
     var field = this.fields[key];
     if (!field || field.context !== context) {
         field = this.fields[key] = { id: null, next: 0, at: 0, value: null, context: context };
@@ -524,10 +547,15 @@ NativeGuidanceReader.prototype.guidanceField = function(key, context) {
     var now = uptimeMs();
     if (now >= field.next) {
         // 替换超时的请求编号，上一条有效值仍受新鲜度和路口约束。
+        if (key === 'lanes' && field.id !== null) this._reportCurrentLanes('timeout');
         field.next = now + ROAD_INTERVAL_MS;
         field.id = String(this.nextId++);
         try { this.child.stdin.write(field.id + ' ' + key + ' -\n'); }
-        catch (_) { field.id = null; field.value = null; }
+        catch (_) {
+            field.id = null;
+            field.value = null;
+            if (key === 'lanes') this._reportCurrentLanes('write-failed');
+        }
     }
     return now - field.at < ROAD_FRESH_MS ? field.value : null;
 };
@@ -583,10 +611,19 @@ NativeGuidanceReader.prototype._onLine = function(line) {
             if (field.id !== id) continue;
             field.id = null;
             field.value = null;
-            var getter = GUIDANCE_GETTERS[name];
+            var getter = GUIDANCE_GETTERS[name], status = 'query-failed';
             if (parts[0] === 'reply' && parts[2] === getter.method && parts[3] === '00') {
-                try { field.value = getter.decode(Buffer.from(parts[4] || '', 'hex')); } catch (_) {}
+                try {
+                    var decodedField = getter.decode(Buffer.from(parts[4] || '', 'hex'));
+                    if (name === 'lanes') {
+                        status = decodedField.status;
+                        field.value = decodedField.row;
+                    } else {
+                        field.value = decodedField;
+                    }
+                } catch (_) { status = 'decode-rejected'; }
             }
+            if (name === 'lanes') this._reportCurrentLanes(status);
             field.at = uptimeMs();
             break;
         }

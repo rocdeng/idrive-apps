@@ -106,6 +106,20 @@
         if (lane.directionToFollow !== undefined) add(lane.directionToFollow);
         return out;
     }
+    var LANE_POSITION_TOLERANCE_M = 5;
+    function lanePositionMatches(a, b) {
+        return number(a) !== null && number(b) !== null && Math.abs(a - b) <= LANE_POSITION_TOLERANCE_M;
+    }
+    // 车机当前车道是区段事件，接口没说明 distanceToDestination 记在区段哪一端。
+    // 只接受车道位置或区段下游端点，避免把区段中间的其他路口误作车道终点。两个字段都为 0 视为没有位置信息。
+    function currentLanePosition(row, maneuverPositionM) {
+        var position = number(row && row.distanceToDestination), length = number(row && row.length) || 0;
+        if (position === 0 && length === 0) return 'no-position';
+        var maneuver = number(maneuverPositionM);
+        if (position === null || maneuver === null) return 'mismatch';
+        return lanePositionMatches(maneuver, position) || lanePositionMatches(maneuver, position - length)
+            ? 'matched' : 'mismatch';
+    }
     function bmwLanes(laneEvent) {
         var rawLanes = laneEvent && Array.isArray(laneEvent.lanes) ? laneEvent.lanes : [];
         if (!rawLanes.length) return [];
@@ -116,7 +130,7 @@
         var carIdx = typeof laneEvent.recommendedCarPositionLaneIndex === 'number' &&
             laneEvent.recommendedCarPositionLaneIndex >= 0 &&
             laneEvent.recommendedCarPositionLaneIndex < rawLanes.length ? laneEvent.recommendedCarPositionLaneIndex : -1;
-        return rawLanes.slice(0, 8).map(function(lane, idx) {
+        var lanes = rawLanes.slice(0, 8).map(function(lane, idx) {
             lane = lane || {};
             var follow = bmwLaneFollowDirs(lane);
             var dirs = follow.slice();
@@ -135,6 +149,8 @@
                 leftBoundary: idx > 0 ? bmwLaneMarker(markers[idx + markerOffset]) : null
             };
         });
+        // 如果整行都没有方向，让另一路导航继续补齐。部分车道没有方向时仍保留它的占位。
+        return lanes.some(function(lane) { return lane.directions.length > 0; }) ? lanes : [];
     }
     function fromBmw(reply, laneInfo) {
         var views = reply && reply.viewContent;
@@ -212,7 +228,7 @@
             var matchingLanes = position === null ? [] : laneEvents.filter(function(lane) {
                 var lanePosition = number(lane.distanceToDestination);
                 if (laneInfo && lanePosition !== null) closestGapM = Math.min(closestGapM, Math.abs(lanePosition - position));
-                return lanePosition === position;
+                return lanePositionMatches(position, lanePosition);
             });
             if (laneInfo) {
                 laneInfo.matched = matchingLanes.length;
@@ -314,5 +330,6 @@
     }
     return { snapshot: snapshot, fromInput: fromInput, fromBmw: fromBmw, fromIap: fromIap,
         decodeIap: decodeIap, bmwLanes: bmwLanes, distance: distance, directions: DIRECTIONS,
-        laneDirections: laneDirections, laneIcon: laneIcon };
+        laneDirections: laneDirections, laneIcon: laneIcon, lanePositionMatches: lanePositionMatches,
+        currentLanePosition: currentLanePosition };
 }));
