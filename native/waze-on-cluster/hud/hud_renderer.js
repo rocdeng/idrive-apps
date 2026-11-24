@@ -156,6 +156,14 @@
             .forEach(function(b) { self.shape(place(b.contours), colorOf(b), clip); });
         if (g.extra.length) this.shape(place(g.extra), on, clip);
     };
+    // 车道图标放进车道格子：和车道箭头一样按 10 1 44 62 视图裁切。
+    Surface.prototype.laneIcon = function(icon, x, y, w, h, color) {
+        var view = arrows.LANE_VIEW, scale = Math.min(w / view[2], h / view[3]);
+        var vx = x + (w - view[2] * scale) / 2, vy = y + (h - view[3] * scale) / 2;
+        this.shape(icon.contours.map(function(c) {
+            return c.map(function(p) { return [vx + (p[0] - view[0]) * scale, vy + (p[1] - view[1]) * scale]; });
+        }), color, [vx, vy, vx + view[2] * scale, vy + view[3] * scale]);
+    };
     // 所有 HUD 风格共用风格 1 的主箭头配色，渐变覆盖箭头的实际高度。
     var MAIN_ARROW_GRADIENT = { top: WHITE, mid: [235, 246, 255], bottom: [142, 174, 202], tailAlpha: 0.78 };
     function mainArrow(s, state, x, y, w, h) {
@@ -425,6 +433,15 @@
     function laneLighting(lane, direction) {
         var keys = laneKeys(lane);
         var inArrow = function(name) { return keys.some(function(key) { return arrows.hasBranch(key, name); }); };
+        // 公交车道必须能走当前转向。车机给了可跟随方向时，还必须匹配其中之一。
+        if (lane.kind === 'bus') {
+            var wantedBus = LANE_MANEUVERS[direction] || [];
+            var followBus = lane.follow.map(arrows.branchFor);
+            var litBus = lane.recommended && wantedBus.filter(function(name) {
+                return inArrow(name) && (!followBus.length || followBus.indexOf(name) >= 0);
+            })[0];
+            return litBus ? { recommended: true, lit: litBus } : { recommended: false, lit: null };
+        }
         if (!lane.recommended || !keys.length) return { recommended: lane.recommended, lit: null };
         var wanted = LANE_MANEUVERS[direction] || null;
         var follow = (lane.follow || []).map(arrows.branchFor).filter(inArrow);
@@ -439,12 +456,26 @@
     // 车道箭头：推荐车道用 on 色，只点亮 lane.lit；非推荐车道整个画成 gray。
     // bg 是箭头所在底块的颜色，用来混合出暗色。box 是安全区坐标。
     function laneArrows(s, lane, state, x, y, w, h, on, gray, bg) {
+        // spec.md 第 9 节：不推荐的公交车道画灰色车道图标。车机推荐的公交车道照常画亮的箭头，
+        // 右下角叠一个公交角标。
+        var icon = lane.kind && arrows.laneIcon(lane.kind);
+        if (icon && !lane.recommended) {
+            s.laneIcon(icon, safeX(x), safeY(y), safeW(w), safeH(h), gray);
+            return;
+        }
         var keys = laneKeys(lane);
-        var cell = w / Math.max(1, keys.length);
+        // 在格子右下角给公交图标留位置，避免图标盖住右转箭尖。
+        var badgeWidth = icon ? Math.min(w * 0.37, h * 0.34) : 0;
+        var gap = icon ? Math.min(2, w * 0.08) : 0;
+        var cell = (w - badgeWidth - gap) / Math.max(1, keys.length);
         keys.forEach(function(key, i) {
             s.turnArrow(key, lane.recommended ? lane.lit : null, safeX(x + i * cell), safeY(y), safeW(cell), safeH(h),
                 lane.recommended ? on : gray, { view: arrows.LANE_VIEW, bg: bg });
         });
+        if (icon) {
+            var badgeHeight = badgeWidth * 62 / 44;
+            s.laneIcon(icon, safeX(x + w - badgeWidth), safeY(y + h - badgeHeight), safeW(badgeWidth), safeH(badgeHeight), on);
+        }
     }
     // 实心车道色块每侧的缩进（安全区单位）。车道多、色块窄时按比例减小。
     function laneInset(width) { return Math.min(5, width * 0.12); }

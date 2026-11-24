@@ -65,9 +65,13 @@
             lanes: (Array.isArray(raw.lanes) ? raw.lanes : []).slice(0, 8).map(function(lane) {
                 var dirs = (Array.isArray(lane.directions) ? lane.directions : []).map(direction).filter(Boolean);
                 // follow 是车机给出的这条车道可跟随的方向，HUD 从中挑当前动作来点亮。
-                var follow = lane.recommended === true && Array.isArray(lane.follow) ?
+                // 公交车道：车机推荐时（例如只能从公交车道右转）照常推荐，HUD 画亮的箭头加公交角标；
+                // 车机不推荐时画灰色公交车图标。
+                var kind = lane.kind === 'bus' ? 'bus' : null;
+                var recommended = lane.recommended === true;
+                var follow = recommended && Array.isArray(lane.follow) ?
                     lane.follow.filter(function(d) { return dirs.indexOf(d) >= 0; }) : [];
-                return { directions: dirs, recommended: lane.recommended === true, follow: follow,
+                return { directions: dirs, kind: kind, recommended: recommended, follow: follow,
                     leftBoundary: ['solid', 'dashed'].indexOf(lane.leftBoundary) >= 0 ? lane.leftBoundary : null };
             }) };
     }
@@ -129,6 +133,8 @@
         if (!rawLanes.length) return [];
         var markers = Array.isArray(laneEvent.laneMarkers) ? laneEvent.laneMarkers : [];
         var markerOffset = markers.length === rawLanes.length - 1 ? -1 : 0;
+        // 公交车道（additionalLaneInfo = BUS）和其他车道一样按车机的推荐标记，只多记一个 kind。
+        function isBus(l) { return !!l && enumName(l.additionalLaneInfo) === 'BUS'; }
         var anyHighlighted = rawLanes.some(function(l) { return l && l.isHighlighted === true; });
         var anyFollow = !anyHighlighted && rawLanes.some(function(l) { return l && bmwLaneFollowDirs(l).length > 0; });
         var carIdx = typeof laneEvent.recommendedCarPositionLaneIndex === 'number' &&
@@ -144,11 +150,13 @@
                     if (mapped && dirs.indexOf(mapped) < 0) dirs.push(mapped);
                 });
             }
+            var bus = isBus(lane);
             var recommended = anyHighlighted ? lane.isHighlighted === true
                 : anyFollow ? follow.length > 0
                 : idx === carIdx;
             return {
                 directions: dirs,
+                kind: bus ? 'bus' : null,
                 recommended: recommended,
                 follow: recommended ? follow.slice() : [],
                 leftBoundary: idx > 0 ? bmwLaneMarker(markers[idx + markerOffset]) : null

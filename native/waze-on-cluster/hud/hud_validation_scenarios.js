@@ -167,6 +167,51 @@ const scenarios = [
     }
   },
   {
+    "id": "lanes-5-bus-right",
+    "label": "五车道 · 最右公交车道",
+    "input": {
+      "state": "navigating",
+      "source": "车道演示数据",
+      "currentRoad": "深南大道",
+      "nextRoad": "科技园路",
+      "exitLabel": "",
+      "direction": "right",
+      "distanceM": 250,
+      "initialDistanceM": 600,
+      "remainingDistanceM": 7400,
+      "remainingTimeS": 1080,
+      "lanes": [
+        { "directions": ["left"], "recommended": false, "leftBoundary": null },
+        { "directions": ["straight"], "recommended": false, "leftBoundary": "dashed" },
+        { "directions": ["straight"], "recommended": false, "leftBoundary": "dashed" },
+        { "directions": ["straight", "right"], "recommended": true, "follow": ["right"], "leftBoundary": "dashed" },
+        { "directions": ["right"], "kind": "bus", "recommended": false, "leftBoundary": "solid" }
+      ]
+    }
+  },
+  {
+    "id": "lanes-4-bus-right-turn",
+    "label": "四车道 · 只能从公交车道右转",
+    "input": {
+      "state": "navigating",
+      "source": "车道演示数据",
+      "currentRoad": "深南大道",
+      "nextRoad": "科技园路",
+      "exitLabel": "",
+      "direction": "right",
+      "distanceM": 180,
+      "initialDistanceM": 600,
+      "remainingDistanceM": 7300,
+      "remainingTimeS": 1060,
+      "lanes": [
+        { "directions": ["left"], "recommended": false, "leftBoundary": null },
+        { "directions": ["straight"], "recommended": false, "leftBoundary": "dashed" },
+        { "directions": ["straight"], "recommended": false, "leftBoundary": "dashed" },
+        { "directions": ["straight", "right"], "kind": "bus", "recommended": true, "follow": ["right"], "leftBoundary": "solid" }
+      ]
+    }
+  },
+  {
     "id": "lanes-4-double-left",
     "label": "四车道 · 左／左／直／右",
     "input": {

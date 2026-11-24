@@ -38,6 +38,7 @@ var DIRECTIONS = {
     5: 'RIGHT', 6: 'SLIGHT_RIGHT', 7: 'HARD_RIGHT', 8: 'UTURN_RIGHT', 9: 'UTURN_LEFT'
 };
 var LANE_MARKERS = { 1: 'SOLID', 2: 'DASHED' };
+var ADDITIONAL_LANE_INFO = ['NONE', 'ELLIPSIS', 'BUS', 'HOV', 'SCOOTER', 'BIKE', 'TOLL_ETC', 'TOLL_CASH', 'TOLL_ETC_CASH', 'BLOCKED'];
 var BRANCH_TYPES = ['', 'BRANCH_LEFT', 'BRANCH_RIGHT', 'HIGHWAY_IN_LEFT', 'HIGHWAY_IN_RIGHT',
     'HIGHWAY_IN_STRAIGHT', 'HIGHWAY_OUT_LEFT', 'HIGHWAY_OUT_RIGHT', 'HIGHWAY_OUT_STRAIGHT',
     'FORK_LEFT', 'FORK_RIGHT', 'TRIPLE_FORK_LEFT', 'TRIPLE_FORK_RIGHT', 'TRIPLE_FORK_STRAIGHT', 'OVERPASS', 'UNDERPASS'];
@@ -333,6 +334,7 @@ function decodeLaneRow(r) {
             directionToFollow: directionToFollow,
             otherDirections: otherDirections,
             isHighlighted: hi === 1,
+            additionalLaneInfo: ADDITIONAL_LANE_INFO[addInfo],
             directionsToFollow: directionsToFollow
         });
     }

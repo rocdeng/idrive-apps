@@ -6,7 +6,7 @@
     else root.HudArrows = factory();
 }(this, function() {
     'use strict';
-    var DATA = {"grid":64,"stroke":10,"headSpec":{"halfWidth":14,"length":18,"branchScale":0.8},"maneuvers":["left","right","straight","slight_left","slight_right","uturn","merge_left","merge_right"],"arrows":{"left-turn":{"zh":"左转","translate":[-0.5,-3.5],"static":false,"branches":[{"name":"left","d":"M49 60V34A14 14 0 0 0 35 20H29L27.5 20","head":[[11.0,20.0],[29.0,6.0],[29.0,34.0]]}],"extra":null},"right-turn":{"zh":"右转","translate":[0.5,-3.5],"static":false,"branches":[{"name":"right","d":"M15 60V34A14 14 0 0 1 29 20H35L36.5 20","head":[[53.0,20.0],[35.0,34.0],[35.0,6.0]]}],"extra":null},"slight-left":{"zh":"稍向左","translate":[1.0,-7.66],"static":false,"branches":[{"name":"slight_left","d":"M38 60V42L31 29.9L30.25 28.6","head":[[22.0,14.31],[43.12,22.9],[18.88,36.9]]}],"extra":null},"slight-right":{"zh":"稍向右","translate":[-1.0,-7.66],"static":false,"branches":[{"name":"slight_right","d":"M26 60V42L33 29.9L33.75 28.6","head":[[42.0,14.31],[45.12,36.9],[20.88,22.9]]}],"extra":null},"u-turn":{"zh":"掉头","translate":[2.5,-3.0],"static":false,"branches":[{"name":"uturn","d":"M46 58V24A12 12 0 0 0 22 24V40L22 41.5","head":[[22.0,58.0],[8.0,40.0],[36.0,40.0]]}],"extra":null},"roundabout":{"zh":"环岛","translate":[-3.5,-7.0],"static":true,"branches":[{"name":"stem","d":"M26 60V42","head":[]},{"name":"exit","d":"M38 30H44L45.5 30","head":[[62.0,30.0],[44.0,44.0],[44.0,16.0]]}],"extra":"<circle cx=\"26\" cy=\"30\" r=\"12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"10\"/>"},"arrive":{"zh":"到达（方格旗）","translate":[-1.5,-1.0],"static":true,"branches":[],"extra":"<rect x=\"12\" y=\"6\" width=\"7\" height=\"54\" fill=\"currentColor\"/><rect x=\"20.5\" y=\"7.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"37\" y=\"7.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"28.75\" y=\"16.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"45.25\" y=\"16.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"20.5\" y=\"25.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"37\" y=\"25.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"20.5\" y=\"7.5\" width=\"33\" height=\"27\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\"/>"},"straight":{"zh":"直行","translate":[0.0,-2.5],"static":false,"branches":[{"name":"straight","d":"M32 60V22L32 20.5","head":[[32.0,4.0],[46.0,22.0],[18.0,22.0]]}],"extra":null},"straight-or-left":{"zh":"直行或左转","translate":[-4.3,-2.5],"static":false,"branches":[{"name":"straight","d":"M44 60V22L44 20.5","head":[[44.0,4.0],[58.0,22.0],[30.0,22.0]]},{"name":"left","d":"M44 58V52A10 10 0 0 0 34 42H29L27.5 42","head":[[14.6,42.0],[29.0,30.8],[29.0,53.2]]}],"extra":null},"straight-or-right":{"zh":"直行或右转","translate":[4.3,-2.5],"static":false,"branches":[{"name":"straight","d":"M20 60V22L20 20.5","head":[[20.0,4.0],[34.0,22.0],[6.0,22.0]]},{"name":"right","d":"M20 58V52A10 10 0 0 1 30 42H35L36.5 42","head":[[49.4,42.0],[35.0,53.2],[35.0,30.8]]}],"extra":null},"left-or-right":{"zh":"左转或右转","translate":[0.0,-14.34],"static":false,"branches":[{"name":"left","d":"M32 62V50L17.86 35.86L16.8 34.8","head":[[7.68,25.68],[25.78,27.94],[9.94,43.78]]},{"name":"right","d":"M32 62V50L46.14 35.86L47.2 34.8","head":[[56.32,25.68],[54.06,43.78],[38.22,27.94]]}],"extra":null},"straight-or-uturn":{"zh":"直行或掉头","translate":[-3.4,-2.5],"static":false,"branches":[{"name":"straight","d":"M46 60V22L46 20.5","head":[[46.0,4.0],[60.0,22.0],[32.0,22.0]]},{"name":"uturn","d":"M46 56V44A12 12 0 0 0 22 44V48L22 49.5","head":[[22.0,62.4],[10.8,48.0],[33.2,48.0]]}],"extra":null},"left-or-uturn":{"zh":"左转或掉头","translate":[-0.5,-1.5],"static":false,"branches":[{"name":"left","d":"M48 60V28A12 12 0 0 0 36 16H30L28.5 16","head":[[12.0,16.0],[30.0,2.0],[30.0,30.0]]},{"name":"uturn","d":"M48 56V48A10 10 0 0 0 28 48V50L28 51.5","head":[[28.0,64.4],[16.8,50.0],[39.2,50.0]]}],"extra":null},"curve-left":{"zh":"左弯／向左合流","translate":[-4.0,-4.89],"static":false,"branches":[{"name":"merge_left","d":"M42 60V44Q42 32 36 23.5L35.14 22.27","head":[[25.62,8.79],[47.44,15.43],[24.56,31.57]]}],"extra":null},"curve-right":{"zh":"右弯／向右合流","translate":[4.0,-4.89],"static":false,"branches":[{"name":"merge_right","d":"M22 60V44Q22 32 28 23.5L28.86 22.27","head":[[38.38,8.79],[39.44,31.57],[16.56,15.43]]}],"extra":null}}};
+    var DATA = {"grid":64,"stroke":10,"headSpec":{"halfWidth":14,"length":18,"branchScale":0.8},"maneuvers":["left","right","straight","slight_left","slight_right","uturn","merge_left","merge_right"],"arrows":{"left-turn":{"zh":"左转","translate":[-0.5,-3.5],"static":false,"branches":[{"name":"left","d":"M49 60V34A14 14 0 0 0 35 20H29L27.5 20","head":[[11.0,20.0],[29.0,6.0],[29.0,34.0]]}],"extra":null},"right-turn":{"zh":"右转","translate":[0.5,-3.5],"static":false,"branches":[{"name":"right","d":"M15 60V34A14 14 0 0 1 29 20H35L36.5 20","head":[[53.0,20.0],[35.0,34.0],[35.0,6.0]]}],"extra":null},"slight-left":{"zh":"稍向左","translate":[1.0,-7.66],"static":false,"branches":[{"name":"slight_left","d":"M38 60V42L31 29.9L30.25 28.6","head":[[22.0,14.31],[43.12,22.9],[18.88,36.9]]}],"extra":null},"slight-right":{"zh":"稍向右","translate":[-1.0,-7.66],"static":false,"branches":[{"name":"slight_right","d":"M26 60V42L33 29.9L33.75 28.6","head":[[42.0,14.31],[45.12,36.9],[20.88,22.9]]}],"extra":null},"u-turn":{"zh":"掉头","translate":[2.5,-3.0],"static":false,"branches":[{"name":"uturn","d":"M46 58V24A12 12 0 0 0 22 24V40L22 41.5","head":[[22.0,58.0],[8.0,40.0],[36.0,40.0]]}],"extra":null},"roundabout":{"zh":"环岛","translate":[-3.5,-7.0],"static":true,"branches":[{"name":"stem","d":"M26 60V42","head":[]},{"name":"exit","d":"M38 30H44L45.5 30","head":[[62.0,30.0],[44.0,44.0],[44.0,16.0]]}],"extra":"<circle cx=\"26\" cy=\"30\" r=\"12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"10\"/>"},"arrive":{"zh":"到达（方格旗）","translate":[-1.5,-1.0],"static":true,"branches":[],"extra":"<rect x=\"12\" y=\"6\" width=\"7\" height=\"54\" fill=\"currentColor\"/><rect x=\"20.5\" y=\"7.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"37\" y=\"7.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"28.75\" y=\"16.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"45.25\" y=\"16.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"20.5\" y=\"25.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"37\" y=\"25.5\" width=\"8.25\" height=\"9\" fill=\"currentColor\"/><rect x=\"20.5\" y=\"7.5\" width=\"33\" height=\"27\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\"/>"},"straight":{"zh":"直行","translate":[0.0,-2.5],"static":false,"branches":[{"name":"straight","d":"M32 60V22L32 20.5","head":[[32.0,4.0],[46.0,22.0],[18.0,22.0]]}],"extra":null},"straight-or-left":{"zh":"直行或左转","translate":[-4.3,-2.5],"static":false,"branches":[{"name":"straight","d":"M44 60V22L44 20.5","head":[[44.0,4.0],[58.0,22.0],[30.0,22.0]]},{"name":"left","d":"M44 58V52A10 10 0 0 0 34 42H29L27.5 42","head":[[14.6,42.0],[29.0,30.8],[29.0,53.2]]}],"extra":null},"straight-or-right":{"zh":"直行或右转","translate":[4.3,-2.5],"static":false,"branches":[{"name":"straight","d":"M20 60V22L20 20.5","head":[[20.0,4.0],[34.0,22.0],[6.0,22.0]]},{"name":"right","d":"M20 58V52A10 10 0 0 1 30 42H35L36.5 42","head":[[49.4,42.0],[35.0,53.2],[35.0,30.8]]}],"extra":null},"left-or-right":{"zh":"左转或右转","translate":[0.0,-14.34],"static":false,"branches":[{"name":"left","d":"M32 62V50L17.86 35.86L16.8 34.8","head":[[7.68,25.68],[25.78,27.94],[9.94,43.78]]},{"name":"right","d":"M32 62V50L46.14 35.86L47.2 34.8","head":[[56.32,25.68],[54.06,43.78],[38.22,27.94]]}],"extra":null},"straight-or-uturn":{"zh":"直行或掉头","translate":[-3.4,-2.5],"static":false,"branches":[{"name":"straight","d":"M46 60V22L46 20.5","head":[[46.0,4.0],[60.0,22.0],[32.0,22.0]]},{"name":"uturn","d":"M46 56V44A12 12 0 0 0 22 44V48L22 49.5","head":[[22.0,62.4],[10.8,48.0],[33.2,48.0]]}],"extra":null},"left-or-uturn":{"zh":"左转或掉头","translate":[-0.5,-1.5],"static":false,"branches":[{"name":"left","d":"M48 60V28A12 12 0 0 0 36 16H30L28.5 16","head":[[12.0,16.0],[30.0,2.0],[30.0,30.0]]},{"name":"uturn","d":"M48 56V48A10 10 0 0 0 28 48V50L28 51.5","head":[[28.0,64.4],[16.8,50.0],[39.2,50.0]]}],"extra":null},"curve-left":{"zh":"左弯／向左合流","translate":[-4.0,-4.89],"static":false,"branches":[{"name":"merge_left","d":"M42 60V44Q42 32 36 23.5L35.14 22.27","head":[[25.62,8.79],[47.44,15.43],[24.56,31.57]]}],"extra":null},"curve-right":{"zh":"右弯／向右合流","translate":[4.0,-4.89],"static":false,"branches":[{"name":"merge_right","d":"M22 60V44Q22 32 28 23.5L28.86 22.27","head":[[38.38,8.79],[39.44,31.57],[16.56,15.43]]}],"extra":null}},"laneIcons":{"bus":{"zh":"公交车道","neverLit":true,"svg":"<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linejoin=\"round\"><rect x=\"17\" y=\"6\" width=\"30\" height=\"46\" rx=\"7\"/><rect x=\"23\" y=\"12\" width=\"18\" height=\"20\" rx=\"3\"/><path d=\"M12 19H17M52 19H47\"/></g><g fill=\"currentColor\"><rect x=\"10\" y=\"13\" width=\"4\" height=\"14\" rx=\"2\"/><rect x=\"50\" y=\"13\" width=\"4\" height=\"14\" rx=\"2\"/><circle cx=\"24\" cy=\"42\" r=\"3\"/><circle cx=\"40\" cy=\"42\" r=\"3\"/><rect x=\"21\" y=\"52\" width=\"6\" height=\"7\" rx=\"1.5\"/><rect x=\"37\" y=\"52\" width=\"6\" height=\"7\" rx=\"1.5\"/></g>"}}};
     var MITER_LIMIT = 4; // SVG 默认值
     // 导航方向名 → 箭头数据键。数据里没有急转，用普通左右转代替。
     var KEY_BY_DIRECTION = { left: 'left-turn', right: 'right-turn', straight: 'straight',
@@ -116,25 +116,59 @@
         for (var i = 0; i < 64; i++) pts.push([cx + r * Math.cos(i * Math.PI / 32), cy + r * Math.sin(i * Math.PI / 32)]);
         return pts;
     }
-    function rectPts(x, y, w, h) { return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]; }
-    // extra 是 SVG 片段，目前只有 circle 和 rect。填充或描边都用 currentColor。
-    function parseExtra(svg) {
-        var contours = [];
-        (svg || '').replace(/<(circle|rect)\b([^>]*)\/?>/g, function(_, tag, attrs) {
+    // 圆角矩形轮廓，r 为 0 时就是普通矩形。
+    function rectPts(x, y, w, h, r) {
+        r = Math.max(0, Math.min(r || 0, w / 2, h / 2));
+        if (!r) return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+        var pts = [], corners = [[x + w - r, y + r, -Math.PI / 2], [x + w - r, y + h - r, 0],
+            [x + r, y + h - r, Math.PI / 2], [x + r, y + r, Math.PI]];
+        corners.forEach(function(c) {
+            for (var i = 0; i <= 8; i++) {
+                var a = c[2] + i * Math.PI / 16;
+                pts.push([c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]);
+            }
+        });
+        return pts;
+    }
+    // 设计数据里的 SVG 片段（extra、laneIcons）。只支持其中出现的 g、rect（含 rx）、circle 和
+    // 只有直线的 path；fill、stroke、stroke-width 可以写在外层 g 上继承。颜色一律当 currentColor。
+    // 描边矩形和圆按外轮廓减内轮廓画，圆角处的 round 拐角由圆角本身体现；path 端点平切。
+    function parseSvg(svg) {
+        var contours = [], stack = [{ fill: true, stroke: false, sw: 0 }];
+        function attrsOf(text) {
             var a = {};
-            attrs.replace(/([\w-]+)="([^"]*)"/g, function(__, k, v) { a[k] = v; });
-            var stroked = a.fill === 'none', sw = parseFloat(a['stroke-width'] || '0');
-            if (tag === 'circle') {
-                var cx = +a.cx, cy = +a.cy, r = +a.r;
-                if (stroked) {
-                    contours.push(positive(circle(cx, cy, r + sw / 2)), negative(circle(cx, cy, Math.max(0, r - sw / 2))));
-                } else contours.push(positive(circle(cx, cy, r)));
-            } else {
-                var x = +a.x, y = +a.y, w = +a.width, h = +a.height;
-                if (stroked) {
-                    contours.push(positive(rectPts(x - sw / 2, y - sw / 2, w + sw, h + sw)),
-                        negative(rectPts(x + sw / 2, y + sw / 2, w - sw, h - sw)));
-                } else contours.push(positive(rectPts(x, y, w, h)));
+            text.replace(/([\w-]+)="([^"]*)"/g, function(_, k, v) { a[k] = v; });
+            return a;
+        }
+        function style(a) {
+            var top = stack[stack.length - 1];
+            return { fill: a.fill !== undefined ? a.fill !== 'none' : top.fill,
+                stroke: a.stroke !== undefined ? a.stroke !== 'none' : top.stroke,
+                sw: a['stroke-width'] !== undefined ? parseFloat(a['stroke-width']) : top.sw };
+        }
+        (svg || '').replace(/<(\/?)(g|rect|circle|path)\b([^>]*?)(\/?)>/g, function(_, close, tag, attrText, selfClose) {
+            if (tag === 'g') {
+                if (close) stack.pop(); else if (!selfClose) stack.push(style(attrsOf(attrText)));
+                return '';
+            }
+            var a = attrsOf(attrText), st = style(a), hw = st.sw / 2;
+            if (tag === 'rect') {
+                var x = +a.x, y = +a.y, w = +a.width, h = +a.height, r = +(a.rx || 0);
+                if (st.fill) contours.push(positive(rectPts(x, y, w, h, r)));
+                if (st.stroke && st.sw > 0) {
+                    contours.push(positive(rectPts(x - hw, y - hw, w + st.sw, h + st.sw, r ? r + hw : 0)),
+                        negative(rectPts(x + hw, y + hw, w - st.sw, h - st.sw, Math.max(0, r - hw))));
+                }
+            } else if (tag === 'circle') {
+                var cx = +a.cx, cy = +a.cy, cr = +a.r;
+                if (st.fill) contours.push(positive(circle(cx, cy, cr)));
+                if (st.stroke && st.sw > 0) {
+                    contours.push(positive(circle(cx, cy, cr + hw)), negative(circle(cx, cy, Math.max(0, cr - hw))));
+                }
+            } else if (st.stroke && st.sw > 0) {
+                parsePath(a.d).forEach(function(line) {
+                    Array.prototype.push.apply(contours, strokePolyline(line, st.sw));
+                });
             }
             return '';
         });
@@ -164,9 +198,17 @@
                 if (vertical && lowest > y0) contours.push(positive(rectPts(x0 - DATA.stroke / 2, y0, DATA.stroke, lowest - y0)));
                 return { name: b.name, contours: contours };
             }),
-            extra: parseExtra(a.extra)
+            extra: parseSvg(a.extra)
         };
         return cache[key];
+    }
+    // 车道图标（公交车道等）：不是转向箭头，永远不点亮，坐标同样是 64×64。
+    var iconCache = Object.create(null);
+    function laneIcon(name) {
+        var icon = DATA.laneIcons && DATA.laneIcons[name];
+        if (!icon) return null;
+        if (!iconCache[name]) iconCache[name] = { name: name, neverLit: icon.neverLit === true, contours: parseSvg(icon.svg) };
+        return iconCache[name];
     }
     function keyFor(direction) { return KEY_BY_DIRECTION[direction] || null; }
     function branchFor(direction) { return BRANCH_BY_DIRECTION[direction] || direction || null; }
@@ -176,6 +218,6 @@
     }
     // 暗色是背景色与亮色按比例混合的不透明色。
     function mix(bg, fg, t) { return [0, 1, 2].map(function(i) { return Math.round(bg[i] + (fg[i] - bg[i]) * t); }); }
-    return { data: DATA, geometry: geometry, keyFor: keyFor, branchFor: branchFor, hasBranch: hasBranch, mix: mix,
+    return { data: DATA, geometry: geometry, laneIcon: laneIcon, keyFor: keyFor, branchFor: branchFor, hasBranch: hasBranch, mix: mix,
         DIM_RATIO: 0.35, VIEW: [0, 0, 64, 64], LANE_VIEW: [10, 1, 44, 62] };
 }));

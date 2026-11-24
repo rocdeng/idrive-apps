@@ -97,7 +97,7 @@ async function main() {
         for (let n = 0; n <= 8; n++) assert(states.some(s => s.lanes.length === n), '覆盖 ' + n + ' 车道');
         ['reference', 'bmw', 'iap', 'lanes-2-left-straight', 'lanes-3-right-straight', 'lanes-4-double-left',
             'lanes-4-shared', 'lanes-4-uturn', 'lanes-5-uturn', 'lanes-6-shared', 'lanes-6-merge',
-            'lanes-3-left-right', 'lanes-4-three-way', 'lanes-8-wide', 'rerouting', 'arrived', 'inactive']
+            'lanes-3-left-right', 'lanes-4-three-way', 'lanes-5-bus-right', 'lanes-4-bus-right-turn', 'lanes-8-wide', 'rerouting', 'arrived', 'inactive']
             .forEach(id => assert(seen.includes(id), '保留展示页场景 ' + id));
         ['bmw', 'iap'].forEach(id => assert.strictEqual(nav.fromInput(scenarios.find(s => s.id === id).input).state,
             'navigating', '原始数据通过正式适配器解析：' + id));

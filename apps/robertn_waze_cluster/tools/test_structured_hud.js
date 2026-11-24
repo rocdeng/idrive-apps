@@ -142,11 +142,11 @@ function testLaneLighting(laneFont) {
     };
     const center = safePx(laneX + cellW / 2);
     // 可跟随 [直行, 右转]，当前右转：右转亮、直行暗；当前直行则反过来。
-    let frame = render([{ directions: ['straight', 'right'], recommended: true, follow: ['straight', 'right'] }], 'right');
+    let frame = render([{ directions: ['straight', 'right'], kind: null, recommended: true, follow: ['straight', 'right'] }], 'right');
     let c = colorsIn(frame, 0);
     assert(has(c, green) && has(c, dim) && !has(c, gray), '组合车道一亮一暗');
     assert(greenCentroid(frame) > center, '多个可跟随方向时点亮当前动作（右转）');
-    frame = render([{ directions: ['straight', 'right'], recommended: true, follow: ['straight', 'right'] }], 'straight');
+    frame = render([{ directions: ['straight', 'right'], kind: null, recommended: true, follow: ['straight', 'right'] }], 'straight');
     assert(greenCentroid(frame) < center, '多个可跟随方向时点亮当前动作（直行）');
     // 车机没给可跟随方向，当前右转，车道只有直行和左转：整条置灰，也没有绿线。
     frame = render([{ directions: ['straight', 'left'], recommended: true }], 'right');
@@ -165,7 +165,67 @@ function testLaneLighting(laneFont) {
     for (let y = Math.floor((106 - ah / 2 + 36) * 480 / 272); y < Math.ceil((106 + ah / 2 + 36) * 480 / 272); y++) {
         assert.strictEqual(frame[(y * 800 + right) * 4 + 3], 0, '车道箭头裁到视图内');
     }
-    console.log('通过：车道按可跟随方向点亮、不通向当前动作整条置灰、箭头裁到格子内');
+    // spec.md 第 9 节：车机不推荐的公交车道是灰色图标，不亮、没有绿色下划线。
+    // 例外（规则 1）：车机推荐公交车道、而且它的箭头里有当前转向时（只能从公交车道右转），
+    // 照常画亮的箭头和下划线，右下角叠公交角标。
+    const busCell = 1;
+    const busUnderline = (Math.floor((129.5 + 36) * 480 / 272) * 800 + Math.floor((laneX + cellW * 1.5 + 0.5) * 800 / 454)) * 4;
+    const plain = { directions: ['straight'], recommended: false };
+    const adapters = [nav, require('../../../native/waze-on-cluster/hud/hud_navigation.js')];
+    for (const adapter of adapters) {
+        const kept = adapter.snapshot({ state: 'navigating', lanes: [plain,
+            { directions: ['right'], kind: 'bus', recommended: true, follow: ['right'] }] }).lanes[1];
+        assert.deepStrictEqual(kept, { directions: ['right'], kind: 'bus', recommended: true, follow: ['right'], leftBoundary: null },
+            '车机推荐的公交车道保留推荐和可跟随方向');
+    }
+    // 1. 车机不推荐：灰色图标。
+    frame = render([plain, { directions: ['right'], kind: 'bus', recommended: false }], 'right');
+    c = colorsIn(frame, busCell);
+    assert(has(c, gray) && !has(c, green) && !has(c, dim), '不推荐的公交车道是灰色图标，没有亮的部分');
+    assert.strictEqual(frame[busUnderline + 3], 0, '不推荐的公交车道没有绿色下划线');
+    const grayArrow = render([plain, { directions: ['right'], recommended: false }], 'right');
+    assert(!Buffer.from(frame).equals(Buffer.from(grayArrow)), '不推荐的公交车道画图标，不画箭头');
+    // 2. 车机推荐、箭头里有当前转向：亮箭头 + 下划线 + 公交角标。
+    const busTurn = { directions: ['straight', 'right'], kind: 'bus', recommended: true, follow: ['right'] };
+    frame = render([plain, busTurn], 'right');
+    c = colorsIn(frame, busCell);
+    assert(has(c, green) && has(c, dim) && !has(c, gray), '只能从公交车道右转时点亮右转支');
+    assert.deepStrictEqual(Array.from(frame.slice(busUnderline, busUnderline + 4)), [61, 220, 151, 255], '推荐的公交车道有绿色下划线');
+    const litArrow = render([plain, { ...busTurn, kind: null }], 'right');
+    assert(!Buffer.from(frame).equals(Buffer.from(litArrow)), '推荐的公交车道叠公交角标');
+    // 角标在箭头格子右下角：格子里那一块要有绿色的角标像素，不只是底色。
+    {
+        const aw = 24, ah = aw * 62 / 44, ax = laneX + busCell * cellW + (cellW - aw) / 2, ay = 106 - ah / 2;
+        const bw = Math.min(aw * 0.37, ah * 0.34), bh = bw * 62 / 44;
+        let greenInBadge = 0;
+        for (let y = Math.ceil((ay + ah - bh + 36) * 480 / 272); y < Math.floor((ay + ah + 36) * 480 / 272); y++) {
+            for (let x = Math.ceil(safePx(ax + aw - bw)); x < Math.floor(safePx(ax + aw)); x++) {
+                const p = (y * 800 + x) * 4;
+                if (frame[p] === 61 && frame[p + 1] === 220 && frame[p + 2] === 151) greenInBadge++;
+            }
+        }
+        assert(greenInBadge > 20, '右下角画出了绿色公交角标');
+    }
+    // 3. 车机推荐，但箭头里没有当前转向：仍按不推荐画灰色图标。
+    frame = render([plain, { directions: ['straight'], kind: 'bus', recommended: true }], 'right');
+    c = colorsIn(frame, busCell);
+    assert(has(c, gray) && !has(c, green) && !has(c, dim), '公交车道不通向当前转向时是灰色图标');
+    assert.strictEqual(frame[busUnderline + 3], 0, '公交车道不通向当前转向时没有下划线');
+    frame = render([plain, { ...busTurn, follow: ['straight'] }], 'right');
+    c = colorsIn(frame, busCell);
+    assert(has(c, gray) && !has(c, green), '车机只推荐直行时，不能因另有右转箭头就点亮公交车道');
+    assert.strictEqual(frame[busUnderline + 3], 0, '车机没有推荐当前转向时，公交车道没有下划线');
+    // 车机的推荐标记同样作用于公交车道。
+    for (const adapter of adapters) {
+        const row = (busHighlighted) => adapter.bmwLanes({ lanes: [
+            { directionToFollow: 'STRAIGHT_ON', otherDirections: [], isHighlighted: false, additionalLaneInfo: 'NONE' },
+            { directionToFollow: 'RIGHT', otherDirections: [], isHighlighted: !busHighlighted, additionalLaneInfo: 'NONE' },
+            { directionToFollow: 'RIGHT', otherDirections: [], isHighlighted: busHighlighted, additionalLaneInfo: { name: 'BUS' } }
+        ], laneMarkers: ['DASHED', 'SOLID'], recommendedCarPositionLaneIndex: 2 }).map((l) => [l.kind, l.recommended]);
+        assert.deepStrictEqual(row(false), [[null, false], [null, true], ['bus', false]], '车机没推荐的 BUS 车道不推荐');
+        assert.deepStrictEqual(row(true), [[null, false], [null, false], ['bus', true]], '车机推荐的 BUS 车道照常推荐');
+    }
+    console.log('通过：车道按可跟随方向点亮、不通向当前动作整条置灰、箭头裁到格子内、公交车道按车机推荐画图标或亮箭头加角标');
 }
 function safePx(x) { return (x + 0.5) * 800 / 454; }
 
@@ -327,10 +387,10 @@ async function main() {
     const laneState = nav.fromBmw(laneReply);
     assert.strictEqual(laneState.remainingTimeS, 1080, '同时含 destinationManeuver 与 laneGuiding 时应保留剩余时间');
     assert.deepStrictEqual(laneState.lanes, [
-        { directions: ['left'], recommended: false, follow: [], leftBoundary: null },
-        { directions: ['straight'], recommended: false, follow: [], leftBoundary: 'dashed' },
-        { directions: ['right', 'straight'], recommended: true, follow: ['right'], leftBoundary: 'solid' },
-        { directions: ['right'], recommended: true, follow: ['right'], leftBoundary: 'dashed' }
+        { directions: ['left'], kind: null, recommended: false, follow: [], leftBoundary: null },
+        { directions: ['straight'], kind: null, recommended: false, follow: [], leftBoundary: 'dashed' },
+        { directions: ['right', 'straight'], kind: null, recommended: true, follow: ['right'], leftBoundary: 'solid' },
+        { directions: ['right'], kind: null, recommended: true, follow: ['right'], leftBoundary: 'dashed' }
     ], 'fromBmw 应解析 laneGuiding 车道方向、推荐高亮、可跟随方向与虚实分隔线');
     const [turn, destination, currentLanes] = laneReply.viewContent[0].eventsInView;
     const laterLanes = { laneGuiding: { ...currentLanes.laneGuiding, distanceToDestination: 7150 } };
@@ -480,6 +540,17 @@ async function main() {
         subWrap([u32be(lgBody.length), u32be(15), lgBody])
     ]);
     const lgDecoded = someip.decodeGetViewContent(Buffer.concat([u32be(0), subWrap([bomBuf, viewStruct])]));
+    {
+        // additionalLaneInfo 第 2 项是 BUS。
+        const busLane = Buffer.concat([u32be(5), subWrap([]), Buffer.from([0]), u32be(2), subWrap([])]);
+        const busBody = Buffer.concat([lgBody.slice(0, lgBody.length - 2 - subWrap([u32be(2)]).length - subWrap([lane0, lane1]).length),
+            subWrap([lane0, busLane]), subWrap([u32be(2)]), Buffer.from([1, 50])]);
+        const busView = Buffer.concat([u32be(1), Buffer.from([1]), u32be(0), u32be(1), subWrap([u32be(busBody.length), u32be(15), busBody])]);
+        const busDecoded = someip.decodeGetViewContent(Buffer.concat([u32be(0), subWrap([bomBuf, busView])]));
+        assert.deepStrictEqual(busDecoded.events[0].value.lanes.map((l) => l.additionalLaneInfo), ['NONE', 'BUS'],
+            '原生解码保留 additionalLaneInfo');
+        assert.strictEqual(nav.bmwLanes(busDecoded.events[0].value)[1].kind, 'bus', '原生 BUS 车道进入 HUD 数据');
+    }
     assert.strictEqual(lgDecoded.error, 0);
     assert.strictEqual(lgDecoded.events.length, 1);
     assert.strictEqual(lgDecoded.events[0].type, 'laneGuiding');
@@ -538,8 +609,8 @@ async function main() {
     assert.strictEqual(mixed.laneRejected, 1, '计数损坏的候选事件，且仍解码后续事件');
     assert.deepStrictEqual(mixed.events, lgDecoded.events);
     assert.deepStrictEqual(nav.fromBmw({ events: [{ type: 'intersection', value: { direction: 'RIGHT', distanceToDestination: 7400 } }, lgDecoded.events[0]] }).lanes, [
-        { directions: ['straight'], recommended: false, follow: [], leftBoundary: null },
-        { directions: ['right', 'straight'], recommended: true, follow: ['right'], leftBoundary: 'dashed' }
+        { directions: ['straight'], kind: null, recommended: false, follow: [], leftBoundary: null },
+        { directions: ['right', 'straight'], kind: null, recommended: true, follow: ['right'], leftBoundary: 'dashed' }
     ], '原生 SOME/IP laneGuiding 二进制解码应与 fromBmw 无缝衔接');
     const quiet = { info() {}, warn() {}, error() {} };
     const currentLaneLogs = [];
