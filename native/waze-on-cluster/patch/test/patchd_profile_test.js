@@ -108,7 +108,7 @@ function state() {
 }
 function profiles() { var t = fs.readFileSync(PROFILES, 'utf8'); try { return JSON.parse(t); } catch (e) { throw new Error(e.message + ': ' + t); } }
 function settings(cluster, hud, pct, x, y, keep) {
-    return { cluster: cluster, hud: hud, hud_width_pct: pct, hud_offset_x: x, hud_offset_y: y, hud_keep_shown: keep || 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 1, hud_edge_fade_pct: 0 };
+    return { cluster: cluster, hud: hud, hud_width_pct: pct, hud_offset_x: x, hud_offset_y: y, hud_keep_shown: keep || 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 2, hud_edge_fade_pct: 0 };
 }
 function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 /* For a check that nothing is written: past the save's delay. */
@@ -420,7 +420,7 @@ var A = 'a1b2c3d4-0000-4000-8000-000000000001', B = 'a1b2c3d4-0000-4000-8000-000
     var OFF = settings(0, 0, 0, 0, 0), ON = settings(1, 0, 0, 0, 0);
     /* map.state.conf's settings, in whatever order its lines are */
     var sameKeys = function (a, b) { return Object.keys(b).length === Object.keys(a).length && Object.keys(b).every(function (k) { return a[k] === b[k]; }); };
-    fs.writeFileSync(STATE, 'cluster = 1\nhud = 0\nhud_width_pct = 0\nhud_offset_x = 0\nhud_offset_y = 0\nhud_keep_shown = 0\nhud_simple = 0\nhud_simple_width_pct = 0\nhud_simple_offset_x = 0\nhud_simple_offset_y = 0\nhud_simple_font_pct = 0\nhud_simple_style = 1\nhud_edge_fade_pct = 0\n');
+    fs.writeFileSync(STATE, 'cluster = 1\nhud = 0\nhud_width_pct = 0\nhud_offset_x = 0\nhud_offset_y = 0\nhud_keep_shown = 0\nhud_simple = 0\nhud_simple_width_pct = 0\nhud_simple_offset_x = 0\nhud_simple_offset_y = 0\nhud_simple_font_pct = 0\nhud_simple_style = 2\nhud_edge_fade_pct = 0\n');
     await start();
     await ask({ cmd: 'profile', id: A });
     await ask({ cmd: 'profile-own', id: A, on: 1 });
@@ -512,6 +512,17 @@ var A = 'a1b2c3d4-0000-4000-8000-000000000001', B = 'a1b2c3d4-0000-4000-8000-000
     await start();
     r = await ask({ cmd: 'profile', id: A });
     ok('重启后保留 A 的简洁模式', r.ok && r.settings.hud_simple === 1 && state().hud_simple === 1 && state().hud === 0 && state().hud_edge_fade_pct === 25);
+    await stop();
+    var previous = profiles();
+    previous.own[A].hud_simple_style = 1;
+    fs.writeFileSync(PROFILES, JSON.stringify(previous));
+    fs.writeFileSync(STATE, fs.readFileSync(STATE, 'utf8').replace(/hud_simple_style = 2/, 'hud_simple_style = 1'));
+    await start();
+    r = await ask({ cmd: 'profile', id: A });
+    ok('旧风格 1 回退到 2，并保留驾驶员配置', r.ok && r.own &&
+        same(r.settings, Object.assign({}, previous.own[A], { hud_simple_style: 2 })), JSON.stringify(r));
+    r = await ask({ cmd: 'hud-simple-style', style: 1 });
+    ok('风格 1 已不可选', !r.ok);
 })().catch(function (e) {
     ok('no error: ' + e.message, false);
 }).then(function () {

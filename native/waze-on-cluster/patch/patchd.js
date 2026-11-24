@@ -290,7 +290,7 @@ function mapValueOk(k, v) {
     var n = Number(v);
     return /^-?\d+$/.test(v) && ((k === 'hud_width_pct' || k === 'hud_simple_width_pct') ? n === 0 || (n >= 20 && n <= 100)
         : k === 'hud_simple_font_pct' ? n === 0 || (n >= 80 && n <= 150)
-        : k === 'hud_simple_style' ? n >= 1 && n <= 6
+        : k === 'hud_simple_style' ? n >= 2 && n <= 6
         : /^hud_(simple_)?offset_/.test(k) ? n >= -800 && n <= 800 : k === 'hud_edge_fade_pct' ? n >= 0 && n <= 30 : n === 0 || n === 1);
 }
 
@@ -425,7 +425,7 @@ function saveLater(settings, withProfiles) {
 var PROFILES_FILE = path.join(STATE_DIR, 'profiles.json');
 var PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+={}-]{0,127}$/;
 var MAX_OWN = 16;
-var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 1, hud_edge_fade_pct: 0 };
+var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 2, hud_edge_fade_pct: 0 };
 var profiles = null;          /* PROFILES_FILE as read at the start, and changed since */
 var currentProfile;           /* the profile the app last told (null: none; undefined: not told since the start) */
 var restored = false;         /* MAP_STATE written from PROFILES_FILE at the start, not yet told to the app */
@@ -447,6 +447,8 @@ function profileSettings(o) {
     for (var i = 0; i < MAP_KEYS.length; i++) {
         var k = MAP_KEYS[i];
         var v = typeof o[k] === 'number' ? String(o[k]) : (k === 'hud_keep_shown' || k === 'hud_simple' || k === 'hud_simple_width_pct' || k === 'hud_simple_offset_x' || k === 'hud_simple_offset_y' || k === 'hud_simple_font_pct' || k === 'hud_simple_style' || k === 'hud_edge_fade_pct') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
+        // 升级时只替换旧风格，保留驾驶员的其他设置。
+        if (k === 'hud_simple_style' && v === '1') v = String(MAP_DEFAULTS[k]);
         if (v === null || !mapValueOk(k, v)) return null;
         s[k] = Number(v);
     }
@@ -2346,8 +2348,8 @@ function handle(line, sock) {
     }
     if (msg.cmd === 'hud-simple-style') {
         var st = msg.style;
-        if (!(typeof st === 'number' && st >= 1 && st <= 6 && st === Math.floor(st))) {
-            reply(sock, { ev: 'hud-simple-style-reply', ok: false, reason: 'HUD style must be 1-6' });
+        if (!(typeof st === 'number' && st >= 2 && st <= 6 && st === Math.floor(st))) {
+            reply(sock, { ev: 'hud-simple-style-reply', ok: false, reason: 'HUD style must be 2-6' });
             return;
         }
         saveMapSettings(sock, 'hud-simple-style-reply', { hud_simple_style: st }, 'the simple HUD style');

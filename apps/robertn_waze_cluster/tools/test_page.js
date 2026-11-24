@@ -494,6 +494,14 @@ async function main() {
             patch.map.hud_simple === 1 && render.hud === 0 && render.cluster === 1 &&
             byName.wocHud.text.indexOf('HUD simple mode:') === 0);
         await until('结构化导航已绘制', () => simpleFrames.some((f) => f.visible));
+        const hudStyle = byName.wocHudStyle;
+        await until('简洁模式默认风格 2', () => hudStyle.enabled && hudStyle.text === 'HUD style: Style 2');
+        for (const style of [3, 4, 5, 6, 2]) {
+            hudStyle.press();
+            await until(`切换到风格 ${style}`, () => patch.map.hud_simple_style === style &&
+                OnlineApp.instance._simpleHud.hudStyle === style && hudStyle.text === `HUD style: Style ${style}`);
+            if (style !== 2) await sleep(450); // 等待车机按键去重窗口结束。
+        }
         const simpleKeep = byName.wocHudKeep;
         assert.strictEqual(simpleKeep.enabled, true);
         assert.strictEqual(byName.wocHudSize.enabled, true);

@@ -63,8 +63,11 @@
             remainingTimeS: number(raw.remainingTimeS), arrivalUnix: number(raw.arrivalUnix),
             arrivalClock: typeof raw.arrivalClock === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(raw.arrivalClock) ? raw.arrivalClock : '',
             lanes: (Array.isArray(raw.lanes) ? raw.lanes : []).slice(0, 8).map(function(lane) {
-                return { directions: (Array.isArray(lane.directions) ? lane.directions : []).map(direction).filter(Boolean),
-                    recommended: lane.recommended === true,
+                var dirs = (Array.isArray(lane.directions) ? lane.directions : []).map(direction).filter(Boolean);
+                // follow 是车机给出的这条车道可跟随的方向，HUD 从中挑当前动作来点亮。
+                var follow = lane.recommended === true && Array.isArray(lane.follow) ?
+                    lane.follow.filter(function(d) { return dirs.indexOf(d) >= 0; }) : [];
+                return { directions: dirs, recommended: lane.recommended === true, follow: follow,
                     leftBoundary: ['solid', 'dashed'].indexOf(lane.leftBoundary) >= 0 ? lane.leftBoundary : null };
             }) };
     }
@@ -147,6 +150,7 @@
             return {
                 directions: dirs,
                 recommended: recommended,
+                follow: recommended ? follow.slice() : [],
                 leftBoundary: idx > 0 ? bmwLaneMarker(markers[idx + markerOffset]) : null
             };
         });

@@ -209,8 +209,8 @@
       "mode": "0644"
     },
     {
-      "path": "hud_turn_icons.js",
-      "from": "hud/hud_turn_icons.js",
+      "path": "hud_arrows.js",
+      "from": "hud/hud_arrows.js",
       "mode": "0644"
     },
     {
