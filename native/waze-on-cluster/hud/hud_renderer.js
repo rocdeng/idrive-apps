@@ -254,6 +254,15 @@
                 Math.max(bounds[1], glyph.y / 64 + glyph.h / (glyph.s || 64))];
         }, [Infinity, 0]);
     }
+    // 按实际字形墨迹把一行字的垂直中心放到 cy（安全区坐标）。
+    function centeredTextY(s, value, cy, size) {
+        var bounds = Array.from(value).reduce(function(b, ch) {
+            var glyph = s.font.glyph(ch);
+            if (!glyph) return b;
+            return [Math.min(b[0], glyph.y / 64), Math.max(b[1], glyph.y / 64 + glyph.h / (glyph.s || 64))];
+        }, [Infinity, -Infinity]);
+        return safeY(cy) - (isFinite(bounds[0]) ? (bounds[0] + bounds[1]) / 2 : 0.5) * size;
+    }
     function etaSecondLine(s, value, y, size, maxWidth, first, firstY, firstSize) {
         var safeBottom = Math.floor(safeY(200));
         var bounds = textBounds(s, value);
@@ -415,8 +424,8 @@
         var hasSpeed = state.speedLimitKmh !== null;
         var colors = {red: [255, 76, 72], green: [64, 240, 152], yellow: [255, 198, 45]};
         var trafficW = 72, trafficX = 453 - trafficW - 4;
-        // 453×200 安全区内，巡航三项共用底边，留出 12 px 底距。
-        var rowBottom = 200 - 12;
+        // 453×200 安全区内，巡航三项共用一条水平中线；最高的限速牌底边留出 12 px 底距。
+        var rowMid = 200 - 12 - 24;
         var thinSign = style === 1 || style === 2;
         var speedSize = thinSign ? 44 : 48;
         var roadOffset = hasSpeed ? speedSize + (state.currentRoad ? 12 : 0) : 0;
@@ -428,31 +437,29 @@
         var groupX = Math.max(left, Math.min((453 - groupWidth) / 2, right - groupWidth));
         if (hasSpeed) {
             if (thinSign) {
-                var ringCx = groupX + 22, ringCy = rowBottom - 22;
+                var ringCx = groupX + 22, ringCy = rowMid;
                 drawSafeRing(s, safeX(ringCx), safeY(ringCy), safeW(44), safeH(44), [255, 81, 76]);
                 var limitSize = String(state.speedLimitKmh).length === 3 ? 22 : 25;
                 s.text(String(state.speedLimitKmh),
                     safeX(ringCx) - s.measure(String(state.speedLimitKmh), safeFont(limitSize)) / 2,
                     safeY(ringCy) - safeFont(limitSize) * 0.61, safeFont(limitSize), WHITE);
             } else {
-                drawSpeedSignWhite(s, safeX(groupX + 24), safeY(rowBottom - 24), safeW(48), safeH(48), String(state.speedLimitKmh));
+                drawSpeedSignWhite(s, safeX(groupX + 24), safeY(rowMid), safeW(48), safeH(48), String(state.speedLimitKmh));
             }
         }
         if (light) {
             var color = colors[light.color] || colors.yellow;
             var radius = style === 4 || style === 6 ? 10 : 22;
-            var rowY = rowBottom - 44;
-            s.rect(safeX(trafficX), safeY(rowY), safeW(trafficW), safeH(44), safeH(radius), [24, 28, 34], 1);
-            drawGlowDot(s, safeX(trafficX + 16), safeY(rowY + 22), safeW(12), safeH(12), color);
-            if (light.seconds !== null) {
-                s.text(String(light.seconds), safeX(trafficX + 29), safeY(rowY + 9), safeFont(22), WHITE, safeW(38));
-            } else {
-                s.text(light.text || '注意', safeX(trafficX + 27), safeY(rowY + 13), safeFont(14), color, safeW(38));
-            }
+            s.rect(safeX(trafficX), safeY(rowMid - 22), safeW(trafficW), safeH(44), safeH(radius), [24, 28, 34], 1);
+            drawGlowDot(s, safeX(trafficX + 16), safeY(rowMid), safeW(12), safeH(12), color);
+            var lightText = light.seconds !== null ? String(light.seconds) : light.text || '注意';
+            var lightSize = safeFont(light.seconds !== null ? 22 : 14);
+            lightText = s.fitText(lightText, lightSize, safeW(38));
+            s.text(lightText, safeX(trafficX + (light.seconds !== null ? 29 : 27)),
+                centeredTextY(s, lightText, rowMid, lightSize), lightSize, light.seconds !== null ? WHITE : color);
         }
         if (!road) return;
-        var roadY = safeY(rowBottom) - textBounds(s, road)[1] * roadSize;
-        s.text(road, safeX(groupX + roadOffset), roadY, roadSize, WHITE);
+        s.text(road, safeX(groupX + roadOffset), centeredTextY(s, road, rowMid, roadSize), roadSize, WHITE);
     }
     function renderCruise(s, state, fs, style) {
         drawCruiseStatusRow(s, state, fs, style);
@@ -544,6 +551,8 @@
         };
         return map[dir] || '';
     }
+    // 实心车道色块每侧的缩进（安全区单位）。车道多、色块窄时按比例减小。
+    function laneInset(width) { return Math.min(5, width * 0.12); }
     function drawLaneBoundary(s, x, y, type) {
         if (type === 'solid') s.rect(safeX(x), safeY(y), safeW(0.9), safeH(44), 0, LANE_LINE, 1);
         if (type === 'dashed') {
@@ -643,14 +652,16 @@
                 var px = 142 + i * (pillW + gap);
                 if (i) drawLaneBoundary(s, px - gap / 2, 78, lane.leftBoundary);
                 var fill = lane.recommended ? [74, 232, 156] : [29, 33, 39];
-                rect(safeX(px), safeY(78), safeW(pillW), safeH(pillH), safeH(10), fill, 1);
+                // 色块两侧各缩进几像素，不贴到虚实线上，绿块看起来不会太宽。
+                var inset = laneInset(pillW);
+                rect(safeX(px + inset), safeY(78), safeW(pillW - inset * 2), safeH(pillH), safeH(10), fill, 1);
                 var combined = nav.laneIcon(lane.directions);
                 var icons = combined ? [combined] : lane.directions;
-                var cell = (pillW - 8) / icons.length;
+                var cell = (pillW - inset * 2 - 6) / icons.length;
                 icons.forEach(function(dir, j) {
                     var aw = Math.min(26, cell);
                     var ah = aw * 219 / 222;
-                    arrow(dir, safeX(px + 4 + j * cell + (cell - aw) / 2),
+                    arrow(dir, safeX(px + inset + 3 + j * cell + (cell - aw) / 2),
                         safeY(78 + (pillH - ah) / 2), safeW(aw), safeH(ah),
                         lane.recommended ? [11, 18, 14] : [138, 145, 154]);
                 });
@@ -807,13 +818,14 @@
                 var px = 148 + i * (pillW + gap);
                 if (i) drawLaneBoundary(s, px - gap / 2, laneY + 2, lane.leftBoundary);
                 var fill = lane.recommended ? [74, 232, 156] : [27, 31, 38];
-                rect(safeX(px), safeY(laneY), safeW(pillW), safeH(pillH), safeH(10), fill, 1);
+                var inset = laneInset(pillW);
+                rect(safeX(px + inset), safeY(laneY), safeW(pillW - inset * 2), safeH(pillH), safeH(10), fill, 1);
                 var combined = nav.laneIcon(lane.directions);
                 var icons = combined ? [combined] : lane.directions;
-                var cell = (pillW - 6) / Math.max(1, icons.length);
+                var cell = (pillW - inset * 2 - 4) / Math.max(1, icons.length);
                 icons.forEach(function(dir, j) {
                     var aw = Math.min(30, cell);
-                    s.strokeArrow(dir, safeX(px + 3 + j * cell + (cell - aw) / 2),
+                    s.strokeArrow(dir, safeX(px + inset + 2 + j * cell + (cell - aw) / 2),
                         safeY(laneY + (pillH - aw) / 2), safeW(aw), safeH(aw),
                         lane.recommended ? [11, 18, 14] : [126, 134, 144], 4.2);
                 });

@@ -100,25 +100,51 @@ async function main() {
         const textArea = fourCards.slice((y * 800 + 296) * 4, (y + 1) * 800 * 4);
         assert(!textArea.some(Boolean), '风格 4 不再绘制推荐车道文字');
     }
+    for (const style of [3, 5]) {
+        const frame = renderer.render({ state: 'navigating', lanes: [0, 1, 2].map((i) => ({
+            directions: [i ? 'straight' : 'left'], recommended: i === 0, leftBoundary: i ? 'solid' : null
+        })) }, laneFont, null, 100, style);
+        let green = null;
+        for (let y = 0; y < renderer.height && !green; y++) {
+            for (let x = 0; x < renderer.width; x++) {
+                const i = (y * renderer.width + x) * 4;
+                if (frame[i] === 74 && frame[i + 1] === 232 && frame[i + 2] === 156) {
+                    let right = x;
+                    while (frame[(y * renderer.width + right + 1) * 4 + 1] === 232) right++;
+                    green = { y: y + 20, right };
+                    break;
+                }
+            }
+        }
+        // 同一行上从车道线往左找最近的绿色像素，箭头在色块内部，不影响色块右边缘。
+        let line = green.right + 1;
+        while (line < renderer.width && frame[(green.y * renderer.width + line) * 4] !== 167) line++;
+        let edge = line - 1;
+        while (edge > 0 && frame[(green.y * renderer.width + edge) * 4] !== 74) edge--;
+        assert(line < renderer.width && line - edge - 1 >= 10, '风格 ' + style + ' 推荐车道色块不贴虚实线');
+    }
     const cruiseFrame = renderer.render({ state: 'cruising', currentRoad: '云海路', speedLimitKmh: 30,
         trafficLight: { color: 'red', seconds: 23 } }, laneFont, null, 100, 4);
     const bounds = (left, right) => {
-        let minX = renderer.width, maxX = -1, bottom = -1;
+        let minX = renderer.width, maxX = -1, top = -1, bottom = -1;
         for (let y = 0; y < renderer.height; y++) {
             for (let x = left; x < right; x++) {
                 if (cruiseFrame[(y * renderer.width + x) * 4 + 3] <= 4) continue;
                 minX = Math.min(minX, x);
                 maxX = Math.max(maxX, x);
+                if (top < 0) top = y;
                 bottom = y;
             }
         }
-        return { minX, maxX, bottom };
+        return { minX, maxX, top, bottom, mid: (top + bottom) / 2 };
     };
     const rowBottom = Math.floor((188 + 36) * renderer.height / 272);
+    const rowMid = (164 + 36) * renderer.height / 272;
     const [speed, road, traffic] = [[0, 367], [367, 650], [650, 800]].map(([left, right]) => bounds(left, right));
     for (const item of [speed, road, traffic]) {
-        assert(Math.abs(item.bottom - rowBottom) <= 2, '巡航限速、路名、红绿灯共用安全区靠下的底边');
+        assert(Math.abs(item.mid - rowMid) <= 1.5, '巡航限速、路名、红绿灯垂直居中在同一条中线上');
     }
+    assert(Math.abs(speed.bottom - rowBottom) <= 2, '最高的限速牌底边仍留在安全区靠下位置');
     assert(speed.maxX < road.minX, '限速在路名左侧并留空');
     assert(Math.abs((speed.minX + road.maxX) / 2 - renderer.width / 2) <= 2, '限速和路名成组居中');
     const stockConfig = { minimumUpdateIntervalMs: 500, viewport: { maxElementCount: 1,
