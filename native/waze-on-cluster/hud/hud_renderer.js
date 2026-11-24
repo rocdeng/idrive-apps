@@ -29,8 +29,7 @@
             }
         }
     };
-    function sampleGradient(grad, y) {
-        var t = Math.max(0, Math.min(1, (y - grad.y0) / (grad.h || 1)));
+    function sampleGradient(grad, t) {
         var a, b, u, alpha;
         if (t <= 0.42) {
             a = grad.top; b = grad.mid; u = t / 0.42; alpha = 1;
@@ -51,6 +50,7 @@
         var minY = Math.max(0, Math.round(c0[1]), Math.floor(Math.min.apply(null, ys)));
         var maxY = Math.min(H, Math.round(c0[3]), Math.ceil(Math.max.apply(null, ys)));
         var isGrad = color && !Array.isArray(color);
+        var gradientHeight = Math.max(1, maxY - minY - 1);
         for (var y = minY; y < maxY; y++) {
             // 每行四条子扫描线，使箭头斜边在原生 HUD 分辨率上平滑。
             var coverage = new Float32Array(W);
@@ -78,7 +78,7 @@
             }
             var rowRgb = color, rowAlpha = 1;
             if (isGrad) {
-                var g = sampleGradient(color, y);
+                var g = sampleGradient(color, (y - minY) / gradientHeight);
                 rowRgb = g.rgb; rowAlpha = g.alpha;
             }
             for (var cx = 0; cx < W; cx++) if (coverage[cx]) this.pixel(cx, y, rowRgb, coverage[cx] * rowAlpha);
@@ -141,8 +141,13 @@
         function place(contours) {
             return contours.map(function(c) { return c.map(function(p) { return [ox + p[0] * scale, oy + p[1] * scale]; }); });
         }
-        var onRgb = Array.isArray(on) ? on : on.mid;
-        var off = arrows.mix(o.bg || [0, 0, 0], onRgb, arrows.DIM_RATIO);
+        if (!Array.isArray(on)) {
+            // 主箭头共用一个渐变。分支和附加图形一起填充，公共杆的透明度只计算一次。
+            var contours = g.branches.reduce(function(all, b) { return all.concat(b.contours); }, g.extra);
+            this.shape(place(contours), on, clip);
+            return;
+        }
+        var off = arrows.mix(o.bg || [0, 0, 0], on, arrows.DIM_RATIO);
         var known = !!lit && g.branches.some(function(b) { return b.name === lit; });
         function colorOf(b) { return g.isStatic || !lit ? on : known && b.name === lit ? on : off; }
         var self = this;
@@ -151,9 +156,10 @@
             .forEach(function(b) { self.shape(place(b.contours), colorOf(b), clip); });
         if (g.extra.length) this.shape(place(g.extra), on, clip);
     };
-    // 主转向箭头只画导航给出的那个方向，全亮。
-    function mainArrow(s, state, x, y, w, h, color) {
-        s.turnArrow(arrows.keyFor(state.direction), null, x, y, w, h, color);
+    // 所有 HUD 风格共用风格 2 的主箭头配色，渐变覆盖箭头的实际高度。
+    var MAIN_ARROW_GRADIENT = { top: WHITE, mid: [235, 246, 255], bottom: [142, 174, 202], tailAlpha: 0.78 };
+    function mainArrow(s, state, x, y, w, h) {
+        s.turnArrow(arrows.keyFor(state.direction), null, x, y, w, h, MAIN_ARROW_GRADIENT);
         if (state.roundaboutExit === null) return;
         var number = String(state.roundaboutExit);
         // 圈号放在环岛箭头右下方的空白，保留箭头轮廓和指向。
@@ -165,9 +171,9 @@
     }
     // 旧风格的主箭头盒子按图形本身铺满设计。新箭头在 64×64 视图里约占 y 2.5–56.5，
     // 这里放大视图，让图形高度仍等于盒子高度、水平居中。
-    function mainArrowFilled(s, state, x, y, w, h, color) {
+    function mainArrowFilled(s, state, x, y, w, h) {
         var size = h * 64 / 54;
-        mainArrow(s, state, x + (w - size) / 2, y - 2.5 * size / 64, size, size, color);
+        mainArrow(s, state, x + (w - size) / 2, y - 2.5 * size / 64, size, size);
     }
     function trip(state) {
         var distance = '', time = '';
@@ -377,9 +383,7 @@
 
         // 2. 中栏：左侧渐变光导主箭头 + 右侧大号距离/前方路口 + 路名下方进度条
         if (state.direction) {
-            var ay = safeY(56), ah = safeH(80);
-            var mainGrad = { top: WHITE, mid: [235, 246, 255], bottom: [142, 174, 202], tailAlpha: 0.78, y0: ay, h: ah };
-            mainArrowFilled(s, state, safeX(2), ay, safeW(81), ah, mainGrad);
+            mainArrowFilled(s, state, safeX(2), safeY(56), safeW(81), safeH(80));
         }
         var dist = nav.distance(state.distanceM);
         var digitSize = safeFont(36 * dfs), unitSize = safeFont(18 * dfs);
@@ -544,9 +548,7 @@
 
         // 1. 左侧悬浮大箭头 + 下方大号距离
         if (state.direction) {
-            var ay = safeY(10), ah = safeH(88);
-            var mainGrad = { top: WHITE, mid: [238, 247, 255], bottom: [176, 198, 218], tailAlpha: 0.86, y0: ay, h: ah };
-            mainArrowFilled(s, state, safeX(16), ay, safeW(89), ah, mainGrad);
+            mainArrowFilled(s, state, safeX(16), safeY(10), safeW(89), safeH(88));
         }
         var dist = nav.distance(state.distanceM);
         var digitSize = safeFont(38 * dfs), unitSize = safeFont(18 * dfs);
@@ -642,8 +644,8 @@
         function text(str, x, y, size, color, maxWidth, bold) { return s.text(str, x, y, size, color, maxWidth, bold); }
         if (validationLabel) text(validationLabel, safeX(0), safeY(-18), safeFont(12), [255, 196, 64], safeW(453));
 
-        // 1. 左上：大号白色主箭头（64×64 视图，实际图形约占 x 15–86、y 9–95）
-        if (state.direction) mainArrow(s, state, safeX(-1), safeY(5), safeW(102), safeH(102), WHITE);
+        // 1. 左上：大号渐变主箭头（64×64 视图，实际图形约占 x 15–86、y 9–95）
+        if (state.direction) mainArrow(s, state, safeX(-1), safeY(5), safeW(102), safeH(102));
         // 距离数字和单位底边对齐在 y 143，整体不超过车道区左边。
         var dist = nav.distance(state.distanceM);
         var digitSize = safeFont(40 * dfs), unitSize = safeFont(18 * dfs);
@@ -721,9 +723,9 @@
         function text(str, x, y, size, color, maxWidth) { return s.text(str, x, y, size, color, maxWidth); }
         if (validationLabel) text(validationLabel, safeX(0), safeY(-18), safeFont(12), [255, 196, 64], safeW(453));
 
-        // 1. 左侧：圆角描边大箭头 + 下方大号距离（严格对齐方案 A）
+        // 1. 左侧：渐变大箭头 + 下方大号距离（严格对齐方案 A）
         if (state.direction) {
-            mainArrow(s, state, safeX(2), safeY(-2), safeW(112), safeH(112), WHITE);
+            mainArrow(s, state, safeX(2), safeY(-2), safeW(112), safeH(112));
         }
         var dist = nav.distance(state.distanceM);
         var digitSize = safeFont(41 * dfs), unitSize = safeFont(19 * dfs);
@@ -787,10 +789,10 @@
         function text(str, x, y, size, color, maxWidth) { return s.text(str, x, y, size, color, maxWidth); }
         if (validationLabel) text(validationLabel, safeX(0), safeY(-18), safeFont(12), [255, 196, 64], safeW(453));
 
-        // 1. 左侧深色圆角卡片（内含圆角描边主箭头 + 居中大号距离，严格对齐方案 C）
+        // 1. 左侧深色圆角卡片（内含渐变主箭头 + 居中大号距离，严格对齐方案 C）
         rect(safeX(10), safeY(10), safeW(150), safeH(146), safeH(22), [20, 23, 29], 1);
         if (state.direction) {
-            mainArrow(s, state, safeX(36), safeY(11), safeW(98), safeH(94), WHITE);
+            mainArrow(s, state, safeX(36), safeY(11), safeW(98), safeH(94));
         }
         var dist = nav.distance(state.distanceM);
         var digitSize = safeFont(39 * dfs), unitSize = safeFont(18 * dfs);
