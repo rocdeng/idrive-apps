@@ -601,7 +601,8 @@ class WazeClusterControl extends EventEmitter {
         const pct = this._askedFont != null ? this._askedFont : this.simpleHud.hudFontPct;
         if (pct === null) return null;
         const style = this.hudStyle();
-        return style >= 3 ? Math.min(pct || 100, 100) : pct || 100;
+        // 风格 2、3 的版式放不下放大的字，只提供标准和 90%。
+        return style >= 2 ? Math.min(pct || 100, 100) : pct || 100;
     }
 
     canChangeHudFont() {
@@ -617,7 +618,7 @@ class WazeClusterControl extends EventEmitter {
         if (!this.canChangeHudFont()) return;
         const cur = this.hudFontPct();
         const style = this.hudStyle();
-        const sizes = style >= 3 ? [100, 90] : HUD_FONT_PCTS;
+        const sizes = style >= 2 ? [100, 90] : HUD_FONT_PCTS;
         const next = sizes[(sizes.indexOf(cur) + 1) % sizes.length];
         this._clearAskedFont();
         this._askedFont = next;
@@ -646,14 +647,14 @@ class WazeClusterControl extends EventEmitter {
 
     hudStyleText() {
         const v = this.hudStyle();
-        const name = v === 2 ? t('Style 2') : v === 3 ? t('Style 3') : v === 4 ? t('Style 4') : v === 5 ? t('Style 5') : v === 6 ? t('Style 6') : '—';
+        const name = v === 1 ? t('Style 1') : v === 2 ? t('Style 2') : v === 3 ? t('Style 3') : '—';
         return t('HUD style: {0}', name);
     }
 
     cycleHudStyle() {
         if (!this.canChangeHudStyle()) return;
         const cur = this.hudStyle();
-        const next = cur >= 2 && cur < 6 ? cur + 1 : 2;
+        const next = cur >= 1 && cur < 3 ? cur + 1 : 1;
         this._clearAskedStyle();
         this._askedStyle = next;
         this._askedStyleTimer = setTimeout(() => {

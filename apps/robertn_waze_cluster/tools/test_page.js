@@ -495,13 +495,27 @@ async function main() {
             byName.wocHud.text.indexOf('HUD simple mode:') === 0);
         await until('结构化导航已绘制', () => simpleFrames.some((f) => f.visible));
         const hudStyle = byName.wocHudStyle;
-        await until('简洁模式默认风格 2', () => hudStyle.enabled && hudStyle.text === 'HUD style: Style 2');
-        for (const style of [3, 4, 5, 6, 2]) {
+        await until('简洁模式默认显示风格 1', () => hudStyle.enabled && hudStyle.text === 'HUD style: Style 1');
+        // 风格 1 的字号可以放大；风格 2、3 只有标准和 90%。
+        const hudFont = byName.wocHudFont, control = OnlineApp.instance._control;
+        const fontSizes = async (count) => {
+            const seen = [];
+            for (let i = 0; i < count; i++) {
+                hudFont.press();
+                await until('字号已保存', () => control.hudFontPct() !== null && control._askedFont == null);
+                seen.push(control.hudFontPct());
+                await sleep(450);
+            }
+            return seen;
+        };
+        for (const style of [2, 3, 1]) {
             hudStyle.press();
             await until(`切换到风格 ${style}`, () => patch.map.hud_simple_style === style &&
                 OnlineApp.instance._simpleHud.hudStyle === style && hudStyle.text === `HUD style: Style ${style}`);
-            if (style !== 2) await sleep(450); // 等待车机按键去重窗口结束。
+            await sleep(450); // 等待车机按键去重窗口结束。
+            if (style !== 1) assert(!(await fontSizes(3)).some((pct) => pct > 100), '风格 ' + style + ' 不提供放大字号');
         }
+        assert((await fontSizes(2)).some((pct) => pct > 100), '风格 1 可以放大字号');
         const simpleKeep = byName.wocHudKeep;
         assert.strictEqual(simpleKeep.enabled, true);
         assert.strictEqual(byName.wocHudSize.enabled, true);

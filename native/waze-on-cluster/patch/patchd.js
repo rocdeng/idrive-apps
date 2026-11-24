@@ -290,8 +290,15 @@ function mapValueOk(k, v) {
     var n = Number(v);
     return /^-?\d+$/.test(v) && ((k === 'hud_width_pct' || k === 'hud_simple_width_pct') ? n === 0 || (n >= 20 && n <= 100)
         : k === 'hud_simple_font_pct' ? n === 0 || (n >= 80 && n <= 150)
-        : k === 'hud_simple_style' ? n >= 2 && n <= 6
+        : k === 'hud_simple_style' ? n >= 1 && n <= 3
         : /^hud_(simple_)?offset_/.test(k) ? n >= -800 && n <= 800 : k === 'hud_edge_fade_pct' ? n >= 0 && n <= 30 : n === 0 || n === 1);
+}
+
+// 风格编号只有 1–3。读到其他编号（旧版本存下的或损坏的）时丢弃，改用风格 1，
+// 驾驶员的其他设置照常保留。
+function mapFileValue(k, v) {
+    if (k !== 'hud_simple_style' || mapValueOk(k, v)) return v;
+    return String(MAP_DEFAULTS.hud_simple_style);
 }
 
 /* Moves any of MAP_KEYS found in LOCAL_CONF into MAP_STATE, a value already
@@ -303,7 +310,10 @@ function moveMapSettings() {
     var local = readConf(LOCAL_CONF), state = readConf(MAP_STATE), move = {};
     var found = MAP_KEYS.filter(function (k) { return k in local; });
     if (!found.length) return;
-    found.forEach(function (k) { if (!(k in state) && mapValueOk(k, local[k])) move[k] = local[k]; });
+    found.forEach(function (k) {
+        var v = mapFileValue(k, local[k]);
+        if (!(k in state) && mapValueOk(k, v)) move[k] = v;
+    });
     try {
         if (Object.keys(move).length) rewriteConf(MAP_STATE, move, []);
         rewriteConf(LOCAL_CONF, {}, MAP_KEYS);
@@ -425,7 +435,7 @@ function saveLater(settings, withProfiles) {
 var PROFILES_FILE = path.join(STATE_DIR, 'profiles.json');
 var PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+={}-]{0,127}$/;
 var MAX_OWN = 16;
-var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 2, hud_edge_fade_pct: 0 };
+var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 1, hud_edge_fade_pct: 0 };
 var profiles = null;          /* PROFILES_FILE as read at the start, and changed since */
 var currentProfile;           /* the profile the app last told (null: none; undefined: not told since the start) */
 var restored = false;         /* MAP_STATE written from PROFILES_FILE at the start, not yet told to the app */
@@ -447,8 +457,7 @@ function profileSettings(o) {
     for (var i = 0; i < MAP_KEYS.length; i++) {
         var k = MAP_KEYS[i];
         var v = typeof o[k] === 'number' ? String(o[k]) : (k === 'hud_keep_shown' || k === 'hud_simple' || k === 'hud_simple_width_pct' || k === 'hud_simple_offset_x' || k === 'hud_simple_offset_y' || k === 'hud_simple_font_pct' || k === 'hud_simple_style' || k === 'hud_edge_fade_pct') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
-        // 升级时只替换旧风格，保留驾驶员的其他设置。
-        if (k === 'hud_simple_style' && v === '1') v = String(MAP_DEFAULTS[k]);
+        v = mapFileValue(k, v);
         if (v === null || !mapValueOk(k, v)) return null;
         s[k] = Number(v);
     }
@@ -458,7 +467,10 @@ function profileSettings(o) {
  * render's defaults for a key it lacks. */
 function mapSettingsNow() {
     var c = readConf(MAP_STATE), s = {};
-    MAP_KEYS.forEach(function (k) { s[k] = k in c && mapValueOk(k, c[k]) ? Number(c[k]) : MAP_DEFAULTS[k]; });
+    MAP_KEYS.forEach(function (k) {
+        var v = mapFileValue(k, c[k]);
+        s[k] = v !== undefined && mapValueOk(k, v) ? Number(v) : MAP_DEFAULTS[k];
+    });
     if (mapSave) MAP_KEYS.forEach(function (k) { if (k in mapSave.settings) s[k] = mapSave.settings[k]; });
     return s;
 }
@@ -2348,8 +2360,8 @@ function handle(line, sock) {
     }
     if (msg.cmd === 'hud-simple-style') {
         var st = msg.style;
-        if (!(typeof st === 'number' && st >= 2 && st <= 6 && st === Math.floor(st))) {
-            reply(sock, { ev: 'hud-simple-style-reply', ok: false, reason: 'HUD style must be 2-6' });
+        if (!(typeof st === 'number' && st >= 1 && st <= 3 && st === Math.floor(st))) {
+            reply(sock, { ev: 'hud-simple-style-reply', ok: false, reason: 'HUD style must be 1-3' });
             return;
         }
         saveMapSettings(sock, 'hud-simple-style-reply', { hud_simple_style: st }, 'the simple HUD style');

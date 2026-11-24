@@ -156,7 +156,7 @@
             .forEach(function(b) { self.shape(place(b.contours), colorOf(b), clip); });
         if (g.extra.length) this.shape(place(g.extra), on, clip);
     };
-    // 所有 HUD 风格共用风格 2 的主箭头配色，渐变覆盖箭头的实际高度。
+    // 所有 HUD 风格共用风格 1 的主箭头配色，渐变覆盖箭头的实际高度。
     var MAIN_ARROW_GRADIENT = { top: WHITE, mid: [235, 246, 255], bottom: [142, 174, 202], tailAlpha: 0.78 };
     function mainArrow(s, state, x, y, w, h) {
         s.turnArrow(arrows.keyFor(state.direction), null, x, y, w, h, MAIN_ARROW_GRADIENT);
@@ -253,9 +253,8 @@
     }
     function drawStyleAlerts(s, state, style) {
         var light = state.trafficLight;
-        var hasSpeed = state.speedLimitKmh !== null;
         var text = s.text.bind(s), rect = s.rect.bind(s);
-        if (style === 2) {
+        if (style === 1) {
             if (light) {
                 var colors = {red: [255, 76, 72], green: [64, 240, 152], yellow: [255, 198, 45]};
                 var color = colors[light.color];
@@ -273,7 +272,7 @@
                 drawSafeRing(s, cx, cy, safeW(36), safeH(36), [255, 81, 76]);
                 text(limit, cx - s.measure(limit, safeFont(lSize)) / 2, cy - safeFont(lSize) * 0.61, safeFont(lSize), WHITE);
             }
-        } else if (style === 3) {
+        } else if (style === 2) {
             if (light) {
                 var lColors = {red: [255, 76, 72], green: [64, 240, 152], yellow: [255, 198, 45]};
                 var lc = lColors[light.color];
@@ -288,38 +287,6 @@
             if (state.speedLimitKmh !== null) {
                 drawSpeedSignWhite(s, safeX(422), safeY(32), safeW(44), safeH(44), String(state.speedLimitKmh));
             }
-        } else if (style === 5) {
-            if (light) {
-                var lColors = {red: [255, 76, 72], green: [64, 240, 152], yellow: [255, 198, 45]};
-                var lc = lColors[light.color];
-                var pillX = hasSpeed ? 314 : 374;
-                rect(safeX(pillX), safeY(12), safeW(66), safeH(44), safeH(22), [26, 29, 35], 1);
-                drawGlowDot(s, safeX(pillX + 16), safeY(34), safeW(12), safeH(12), lc);
-                if (light.seconds !== null) {
-                    text(String(light.seconds), safeX(pillX + 29), safeY(21), safeFont(21), WHITE, safeW(34));
-                } else {
-                    text(light.text || '注意', safeX(pillX + 27), safeY(25), safeFont(13), lc, safeW(36));
-                }
-            }
-            if (hasSpeed) {
-                drawSpeedSignWhite(s, safeX(416), safeY(34), safeW(48), safeH(48), String(state.speedLimitKmh));
-            }
-        } else if (style === 6) {
-            if (light) {
-                var lColors = {red: [255, 76, 72], green: [64, 240, 152], yellow: [255, 198, 45]};
-                var lc = lColors[light.color];
-                var cardX = hasSpeed ? 324 : 382;
-                rect(safeX(cardX), safeY(12), safeW(60), safeH(44), safeH(12), [20, 23, 29], 1);
-                drawGlowDot(s, safeX(cardX + 14), safeY(34), safeW(12), safeH(12), lc);
-                if (light.seconds !== null) {
-                    text(String(light.seconds), safeX(cardX + 26), safeY(21), safeFont(21), WHITE, safeW(32));
-                } else {
-                    text(light.text || '注意', safeX(cardX + 24), safeY(25), safeFont(13), lc, safeW(34));
-                }
-            }
-            if (hasSpeed) {
-                drawSpeedSignWhite(s, safeX(419), safeY(34), safeW(48), safeH(48), String(state.speedLimitKmh));
-            }
         }
     }
     function drawCruiseStatusRow(s, state, fs, style) {
@@ -329,7 +296,7 @@
         var trafficW = 72, trafficX = 453 - trafficW - 4;
         // 453×200 安全区内，巡航三项共用一条水平中线；最高的限速牌底边留出 12 px 底距。
         var rowMid = 200 - 12 - 24;
-        var thinSign = style === 2;
+        var thinSign = style === 1;
         var speedSize = thinSign ? 44 : 48;
         var roadOffset = hasSpeed ? speedSize + (state.currentRoad ? 12 : 0) : 0;
         var left = 4, right = light ? trafficX - 8 : 453 - 4;
@@ -352,7 +319,7 @@
         }
         if (light) {
             var color = colors[light.color] || colors.yellow;
-            var radius = style === 4 || style === 6 ? 10 : 22;
+            var radius = style === 3 ? 10 : 22;
             s.rect(safeX(trafficX), safeY(rowMid - 22), safeW(trafficW), safeH(44), safeH(radius), [24, 28, 34], 1);
             drawGlowDot(s, safeX(trafficX + 16), safeY(rowMid), safeW(12), safeH(12), color);
             var lightText = light.seconds !== null ? String(light.seconds) : light.text || '注意';
@@ -368,13 +335,13 @@
         drawCruiseStatusRow(s, state, fs, style);
         return s.pixels;
     }
-    function renderCockpit(s, state, validationLabel, fs, dfs) {
+    function renderStyle1(s, state, validationLabel, fs, dfs) {
         function rect(x, y, w, h, r, color) { s.rect(x, y, w, h, r, color, 1); }
         function text(str, x, y, size, color, maxWidth) { return s.text(str, x, y, size, color, maxWidth); }
         if (validationLabel) text(validationLabel, safeX(0), safeY(-18), safeFont(12), [255, 196, 64], safeW(453));
         // 1. 顶栏：红绿灯（左）+ 当前道路（中左）+ 限速（右）+ 贯穿分隔线
         var roadX = state.trafficLight ? 94 : 0;
-        drawStyleAlerts(s, state, 2);
+        drawStyleAlerts(s, state, 1);
         if (state.currentRoad) {
             var topMaxW = state.speedLimitKmh !== null ? (402 - roadX) : (452 - roadX);
             s.text(state.currentRoad, safeX(roadX), safeY(7), safeFont(22 * fs), WHITE, safeW(topMaxW - 2), true);
@@ -541,7 +508,7 @@
             }
         }
     }
-    function renderStyle3(s, state, validationLabel, fs, dfs) {
+    function renderStyle2(s, state, validationLabel, fs, dfs) {
         function rect(x, y, w, h, r, color, a) { s.rect(x, y, w, h, r, color, a === undefined ? 1 : a); }
         function text(str, x, y, size, color, maxWidth) { return s.text(str, x, y, size, color, maxWidth); }
         if (validationLabel) text(validationLabel, safeX(0), safeY(-18), safeFont(12), [255, 196, 64], safeW(453));
@@ -563,7 +530,7 @@
         if (sub) text(sub, safeX(142), safeY(5), safeFont(17 * fs), [158, 166, 176], safeW(240));
         var road = state.nextRoad || state.instruction;
         if (road) text(road, safeX(142), safeY(28), safeFont(27 * fs), WHITE, safeW(242));
-        drawStyleAlerts(s, state, 3);
+        drawStyleAlerts(s, state, 2);
 
         // 3. 中右部：实心亮绿推荐车道胶囊 + 右侧红绿灯药丸
         var light = state.trafficLight;
@@ -639,7 +606,7 @@
             for (var y = 84; y < 131; y += 6.5) s.rect(safeX(x - 1), safeY(y), safeW(2), safeH(Math.min(4, 131 - y)), 0, [77, 77, 77], 1);
         }
     }
-    function renderStyle4(s, state, validationLabel, fs, dfs) {
+    function renderStyle3(s, state, validationLabel, fs, dfs) {
         function rect(x, y, w, h, r, color, a) { s.rect(x, y, w, h, r, color, a === undefined ? 1 : a); }
         function text(str, x, y, size, color, maxWidth, bold) { return s.text(str, x, y, size, color, maxWidth, bold); }
         if (validationLabel) text(validationLabel, safeX(0), safeY(-18), safeFont(12), [255, 196, 64], safeW(453));
@@ -718,152 +685,10 @@
         }
         return s.pixels;
     }
-    function renderStyle5(s, state, validationLabel, fs, dfs) {
-        function rect(x, y, w, h, r, color, a) { s.rect(x, y, w, h, r, color, a === undefined ? 1 : a); }
-        function text(str, x, y, size, color, maxWidth) { return s.text(str, x, y, size, color, maxWidth); }
-        if (validationLabel) text(validationLabel, safeX(0), safeY(-18), safeFont(12), [255, 196, 64], safeW(453));
-
-        // 1. 左侧：渐变大箭头 + 下方大号距离（严格对齐方案 A）
-        if (state.direction) {
-            mainArrow(s, state, safeX(2), safeY(-2), safeW(112), safeH(112));
-        }
-        var dist = nav.distance(state.distanceM);
-        var digitSize = safeFont(41 * dfs), unitSize = safeFont(19 * dfs);
-        var dwTotal = s.measure(dist.value, digitSize) + safeW(5) + s.measure(dist.unit, unitSize);
-        var fit = Math.min(1, safeW(122) / dwTotal);
-        digitSize *= fit; unitSize *= fit;
-        var dw = text(dist.value, safeX(14), safeY(112) + safeFont(41) - digitSize, digitSize, WHITE);
-        text(dist.unit, safeX(14) + dw + safeW(5), safeY(112) + safeFont(39) - unitSize, unitSize, [156, 163, 175]);
-
-        // 2. 右上：动作副标题 + 大号目标路名 + 红绿灯胶囊 + 白底红圈限速
-        var light = state.trafficLight;
-        var hasSpeed = state.speedLimitKmh !== null;
-        var topMaxW = light && hasSpeed ? 160 : light ? 216 : hasSpeed ? 236 : 294;
-        var sub = state.exitLabel || directionLabel(state.direction);
-        if (sub) text(sub, safeX(148), safeY(13), safeFont(15.5 * fs), [156, 163, 175], safeW(topMaxW));
-        var road = state.nextRoad || state.instruction;
-        if (road) text(road, safeX(148), safeY(34), safeFont(29 * fs), WHITE, safeW(topMaxW));
-        drawStyleAlerts(s, state, 5);
-
-        // 3. 中右：全宽动态缩放车道胶囊（按车道数量自动缩放宽度与图标）
-        if (state.lanes.length) {
-            var n = state.lanes.length;
-            var laneAreaW = 292;
-            var gap = n >= 6 ? 6 : 8;
-            var pillW = Math.min(54, (laneAreaW - gap * (n - 1)) / n);
-            var pillH = 48;
-            var laneY = 84;
-            state.lanes.forEach(function(lane, i) {
-                var px = 148 + i * (pillW + gap);
-                if (i) drawLaneBoundary(s, px - gap / 2, laneY + 2, lane.leftBoundary);
-                var fill = lane.recommended ? [74, 232, 156] : [27, 31, 38];
-                var inset = laneInset(pillW);
-                rect(safeX(px + inset), safeY(laneY), safeW(pillW - inset * 2), safeH(pillH), safeH(10), fill, 1);
-                var ah = Math.min(34, pillH - 10);
-                laneArrows(s, lane, state, px + inset + 2, laneY + (pillH - ah) / 2, pillW - inset * 2 - 4, ah,
-                    [11, 18, 14], [126, 134, 144], fill);
-            });
-        }
-
-        // 4. 底部：全宽节点进度条 + 底部当前路名与整合 ETA
-        if (state.initialDistanceM > 0 && state.distanceM !== null) {
-            var p = 1 - Math.min(1, state.distanceM / state.initialDistanceM);
-            rect(safeX(14), safeY(165), safeW(426), safeH(5), safeH(2.5), [46, 50, 56], 1);
-            if (p > 0) rect(safeX(14), safeY(165), safeW(426 * p), safeH(5), safeH(2.5), WHITE, 1);
-            var kx = 14 + 426 * p;
-            rect(safeX(kx - 6), safeY(161.5), safeW(12), safeH(12), safeH(6), WHITE, 1);
-        } else {
-            rect(safeX(14), safeY(167), safeW(426), safeH(1), 0, [42, 46, 52], 1);
-        }
-        if (state.currentRoad) text(state.currentRoad, safeX(14), safeY(179), safeFont(16 * fs), [230, 235, 240], safeW(210));
-        var etaLine = formatEtaCompact(state);
-        if (etaLine) {
-            var esz = safeFont(15.5 * fs);
-            var ew = Math.min(safeW(215), s.measure(etaLine, esz));
-            text(etaLine, safeX(440) - ew, safeY(179), esz, [172, 178, 186], safeW(215));
-        }
-        return s.pixels;
-    }
-    function renderStyle6(s, state, validationLabel, fs, dfs) {
-        function rect(x, y, w, h, r, color, a) { s.rect(x, y, w, h, r, color, a === undefined ? 1 : a); }
-        function text(str, x, y, size, color, maxWidth) { return s.text(str, x, y, size, color, maxWidth); }
-        if (validationLabel) text(validationLabel, safeX(0), safeY(-18), safeFont(12), [255, 196, 64], safeW(453));
-
-        // 1. 左侧深色圆角卡片（内含渐变主箭头 + 居中大号距离，严格对齐方案 C）
-        rect(safeX(10), safeY(10), safeW(150), safeH(146), safeH(22), [20, 23, 29], 1);
-        if (state.direction) {
-            mainArrow(s, state, safeX(36), safeY(11), safeW(98), safeH(94));
-        }
-        var dist = nav.distance(state.distanceM);
-        var digitSize = safeFont(39 * dfs), unitSize = safeFont(18 * dfs);
-        var dwTotal = s.measure(dist.value, digitSize) + safeW(4) + s.measure(dist.unit, unitSize);
-        var fit = Math.min(1, safeW(130) / dwTotal);
-        digitSize *= fit; unitSize *= fit;
-        var dxStart = safeX(85) - (s.measure(dist.value, digitSize) + safeW(4) + s.measure(dist.unit, unitSize)) / 2;
-        var dw = text(dist.value, dxStart, safeY(103) + safeFont(39) - digitSize, digitSize, WHITE);
-        text(dist.unit, dxStart + dw + safeW(4), safeY(103) + safeFont(37) - unitSize, unitSize, [156, 163, 175]);
-
-        // 2. 右上：动作副标题 + 大号目标路名 + 圆角矩形红绿灯卡片 + 白底红圈限速
-        var light = state.trafficLight;
-        var hasSpeed = state.speedLimitKmh !== null;
-        var topMaxW = light && hasSpeed ? 142 : light ? 202 : hasSpeed ? 210 : 266;
-        var sub = state.exitLabel || directionLabel(state.direction);
-        if (sub) text(sub, safeX(176), safeY(12), safeFont(15.5 * fs), [156, 163, 175], safeW(topMaxW));
-        var road = state.nextRoad || state.instruction;
-        if (road) text(road, safeX(176), safeY(33), safeFont(28.5 * fs), WHITE, safeW(topMaxW));
-        drawStyleAlerts(s, state, 6);
-
-        // 3. 中右：全宽动态缩放暗绿翡翠车道卡片（按车道数量自动缩放）
-        if (state.lanes.length) {
-            var n = state.lanes.length;
-            var laneAreaW = 266;
-            var gap = n >= 6 ? 5 : 7;
-            var cardW = Math.min(50, (laneAreaW - gap * (n - 1)) / n);
-            var cardH = 46;
-            var laneY = 78;
-            state.lanes.forEach(function(lane, i) {
-                var px = 176 + i * (cardW + gap);
-                if (i) drawLaneBoundary(s, px - gap / 2, laneY + 1, lane.leftBoundary);
-                var fill = lane.recommended ? [14, 42, 31] : [20, 23, 29];
-                rect(safeX(px), safeY(laneY), safeW(cardW), safeH(cardH), safeH(9), fill, 1);
-                if (lane.recommended) {
-                    rect(safeX(px + 2), safeY(laneY + cardH - 4.5), safeW(cardW - 4), safeH(4.5), safeH(2.25), [74, 232, 156], 1);
-                }
-                var ah = Math.min(32, cardH - 12);
-                laneArrows(s, lane, state, px + 3, laneY + (cardH - 4.5 - ah) / 2, cardW - 6, ah,
-                    WHITE, [116, 124, 134], fill);
-            });
-        }
-
-        // 4. 底部：醒目白色当前路名 + 右侧灰色 ETA + 最底全宽渐变进度条
-        if (state.currentRoad) text(state.currentRoad, safeX(10), safeY(163), safeFont(19 * fs), WHITE, safeW(220));
-        var etaLine = formatEtaCompact(state);
-        if (etaLine) {
-            var esz = safeFont(15.5 * fs);
-            var ew = Math.min(safeW(215), s.measure(etaLine, esz));
-            text(etaLine, safeX(442) - ew, safeY(166), esz, [172, 178, 186], safeW(215));
-        }
-        if (state.initialDistanceM > 0 && state.distanceM !== null) {
-            var p = 1 - Math.min(1, state.distanceM / state.initialDistanceM);
-            rect(safeX(10), safeY(188), safeW(432), safeH(6), safeH(3), [42, 46, 52], 1);
-            if (p > 0) {
-                var bx = safeX(10), by = safeY(188), bw = safeW(432 * p), bh = safeH(6), br = safeH(3);
-                var x0 = Math.max(0, Math.floor(bx)), x1 = Math.min(W - 1, Math.ceil(bx + bw));
-                var y0 = Math.max(0, Math.floor(by)), y1 = Math.min(H - 1, Math.ceil(by + bh));
-                for (var py = y0; py <= y1; py++) {
-                    for (var px = x0; px <= x1; px++) {
-                        var dx = Math.max(bx + br - (px + 0.5), 0, (px + 0.5) - (bx + bw - br));
-                        var dy = Math.max(by + br - (py + 0.5), 0, (py + 0.5) - (by + bh - br));
-                        var cov = br + 0.5 - Math.sqrt(dx * dx + dy * dy);
-                        if (cov <= 0) continue;
-                        var u = bw > 0 ? Math.max(0, Math.min(1, (px + 0.5 - bx) / bw)) : 1;
-                        var v = Math.round(132 + 123 * u);
-                        s.pixel(px, py, [v, v + 2 > 255 ? 255 : v + 2, v + 4 > 255 ? 255 : v + 4], cov > 1 ? 1 : cov);
-                    }
-                }
-            }
-        }
-        return s.pixels;
+    // 风格编号只有 1、2、3。其他值（包括旧版本存下的编号）一律按风格 1。
+    var STYLE_COUNT = 3;
+    function normalizeStyle(style) {
+        return Number.isInteger(style) && style >= 1 && style <= STYLE_COUNT ? style : 1;
     }
     function render(raw, font, validationLabel, fontPct, style) {
         var state = nav.snapshot(raw), s = new Surface(font);
@@ -872,9 +697,9 @@
             var l = laneLighting(lane, state.direction);
             return Object.assign({}, lane, { recommended: l.recommended, lit: l.lit });
         });
-        if (!Number.isInteger(style) || style < 2 || style > 6) style = 2;
+        style = normalizeStyle(style);
         var fs = typeof fontPct === 'number' && fontPct >= 80 && fontPct <= 150 ? fontPct / 100 : 1;
-        if (style >= 3) fs = Math.min(fs, 1);
+        if (style >= 2) fs = Math.min(fs, 1);
         var dfs = 1 + (fs - 1) * 0.5;
         if (state.state === 'inactive') return s.pixels;
         if (state.state === 'cruising') return renderCruise(s, state, fs, style);
@@ -883,11 +708,9 @@
             s.text(state.state === 'rerouting' ? '正在重新规划路线' : '已到达目的地', safeX(0), safeY(86), safeFont(20 * fs), WHITE, safeW(453));
             return s.pixels;
         }
+        if (style === 2) return renderStyle2(s, state, validationLabel, fs, dfs);
         if (style === 3) return renderStyle3(s, state, validationLabel, fs, dfs);
-        if (style === 4) return renderStyle4(s, state, validationLabel, fs, dfs);
-        if (style === 5) return renderStyle5(s, state, validationLabel, fs, dfs);
-        if (style === 6) return renderStyle6(s, state, validationLabel, fs, dfs);
-        return renderCockpit(s, state, validationLabel, fs, dfs);
+        return renderStyle1(s, state, validationLabel, fs, dfs);
     }
     function strings(state) {
         // 字体在浏览器中按需准备。数字和固定状态文案也包含在内。
@@ -900,5 +723,5 @@
         s.turnArrow(key, lit, 0, 0, size, size, on, { bg: bg });
         return s.pixels;
     }
-    return { render: render, renderArrow: renderArrow, strings: strings, width: W, height: H };
+    return { render: render, normalizeStyle: normalizeStyle, styleCount: STYLE_COUNT, renderArrow: renderArrow, strings: strings, width: W, height: H };
 }));

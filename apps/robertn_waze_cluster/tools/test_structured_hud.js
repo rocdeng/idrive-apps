@@ -114,7 +114,7 @@ function testArrowLighting() {
     console.log('通过：组合箭头只亮要走的一支、公共杆亮、暗色不透明、非推荐整体暗');
 }
 
-// 风格 4 车道亮灭：车机给的可跟随方向里优先挑当前动作；箭头里没有当前动作的车道整条置灰；
+// 风格 3 车道亮灭：车机给的可跟随方向里优先挑当前动作；箭头里没有当前动作的车道整条置灰；
 // 车道格子外不画箭头。
 function testLaneLighting(laneFont) {
     const green = [61, 220, 151], dim = [21, 77, 53], gray = [125, 131, 140];
@@ -130,7 +130,7 @@ function testLaneLighting(laneFont) {
         return seen;
     };
     const has = (set, c) => set.has(c.join(','));
-    const render = (lanes, direction) => renderer.render({ state: 'navigating', direction, lanes }, laneFont, null, 100, 4);
+    const render = (lanes, direction) => renderer.render({ state: 'navigating', direction, lanes }, laneFont, null, 100, 3);
     // 亮色像素的水平重心：右转支在格子右侧，直行支在左侧。
     const greenCentroid = (frame) => {
         let sum = 0, n = 0;
@@ -176,9 +176,11 @@ async function main() {
         { directions: ['left'], recommended: true, leftBoundary: 'dashed' },
         { directions: ['straight'], leftBoundary: 'solid' }, { directions: ['right'] }];
     const laneView = { state: 'navigating', lanes };
-    const pixels = renderer.render(laneView, laneFont, null, 100, 2);
-    assert.deepStrictEqual(renderer.render(laneView, laneFont, null, 100, 1), pixels, '旧风格 1 使用风格 2');
-    assert.deepStrictEqual(renderer.render(laneView, laneFont), pixels, '默认使用风格 2');
+    const pixels = renderer.render(laneView, laneFont, null, 100, 1);
+    // 风格只有 1–3，其他编号（包括旧版本的 4–6）一律按风格 1。
+    for (const other of [undefined, 0, 4, 5, 6, 2.5, '2']) {
+        assert.deepStrictEqual(renderer.render(laneView, laneFont, null, 100, other), pixels, '风格 ' + other + ' 按风格 1 绘制');
+    }
     const at = (x, y) => Array.from(pixels.slice((y * 800 + x) * 4, (y * 800 + x) * 4 + 4));
     assert(at(572, 334)[3] > 0, '实线保持连续');
     assert(at(459, 324)[3] > 0, '推荐车道也按数据画虚线');
@@ -187,10 +189,10 @@ async function main() {
     assert.deepStrictEqual(at(401, 405), [84, 245, 165, 255], '推荐车道显示绿色底线');
     assert.strictEqual(at(367, 318)[3], 0, '推荐车道保持透明底');
     assert.strictEqual(nav.snapshot({ lanes: [{ directions: [] }, lanes[2]] }).lanes.length, 2, '无箭头车道保留边界位置');
-    console.log('通过：风格 2 推荐绿线、透明底、实际虚实边界与未知边界隐藏');
+    console.log('通过：风格 1 推荐绿线、透明底、实际虚实边界与未知边界隐藏，非法风格编号按风格 1');
     testArrowLighting();
     testLaneLighting(laneFont);
-    for (const [style, x, y] of [[3, 192, 78], [4, 190.5, 86], [5, 206, 86], [6, 229.5, 79]]) {
+    for (const [style, x, y] of [[2, 192, 78], [3, 190.5, 86]]) {
         const view = { state: 'navigating', lanes: lanes.map(lane => ({ ...lane, recommended: false })) };
         const alpha = (frame, px, py) => frame[(Math.floor((py + 36) * 480 / 272) * 800 +
             Math.ceil((px + 0.5) * 800 / 454)) * 4 + 3];
@@ -203,19 +205,20 @@ async function main() {
     }
     const fourCards = renderer.render({ state: 'navigating', lanes: [0, 1, 2, 3].map((i) => ({
         directions: ['straight'], recommended: i >= 2
-    })) }, laneFont, null, 100, 4);
+    })) }, laneFont, null, 100, 3);
     // 方案 D：第 4 条车道格子从 x 273.5 起，宽 41.5，绿线在 y 128–131。
     const fourthHighlight = (Math.floor((129.5 + 36) * 480 / 272) * 800 + Math.floor((294 + 0.5) * 800 / 454)) * 4;
     assert.deepStrictEqual(Array.from(fourCards.slice(fourthHighlight, fourthHighlight + 4)), [61, 220, 151, 255],
-        '风格 4 推荐车道下方画方案 D 的绿线');
+        '风格 3 推荐车道下方画方案 D 的绿线');
     for (let y = 295; y < 328; y++) {
         const textArea = fourCards.slice((y * 800 + 296) * 4, (y + 1) * 800 * 4);
-        assert(!textArea.some(Boolean), '风格 4 不再绘制推荐车道文字');
+        assert(!textArea.some(Boolean), '风格 3 不绘制推荐车道文字');
     }
-    for (const style of [3, 5]) {
+    {
+        // 只检查用绿色底块的风格 2。
         const frame = renderer.render({ state: 'navigating', lanes: [0, 1, 2].map((i) => ({
             directions: [i ? 'straight' : 'left'], recommended: i === 0, leftBoundary: i ? 'solid' : null
-        })) }, laneFont, null, 100, style);
+        })) }, laneFont, null, 100, 2);
         let green = null;
         for (let y = 0; y < renderer.height && !green; y++) {
             for (let x = 0; x < renderer.width; x++) {
@@ -233,10 +236,10 @@ async function main() {
         while (line < renderer.width && frame[(green.y * renderer.width + line) * 4] !== 167) line++;
         let edge = line - 1;
         while (edge > 0 && frame[(green.y * renderer.width + edge) * 4] !== 74) edge--;
-        assert(line < renderer.width && line - edge - 1 >= 10, '风格 ' + style + ' 推荐车道色块不贴虚实线');
+        assert(line < renderer.width && line - edge - 1 >= 10, '风格 2 推荐车道色块不贴虚实线');
     }
     const cruiseFrame = renderer.render({ state: 'cruising', currentRoad: '云海路', speedLimitKmh: 30,
-        trafficLight: { color: 'red', seconds: 23 } }, laneFont, null, 100, 4);
+        trafficLight: { color: 'red', seconds: 23 } }, laneFont, null, 100, 3);
     const bounds = (left, right) => {
         let minX = renderer.width, maxX = -1, top = -1, bottom = -1;
         for (let y = 0; y < renderer.height; y++) {
@@ -523,13 +526,14 @@ async function main() {
         events: [{ intersection: { direction: 'LEFT' } }, limit] }).speedLimitKmh, null, '前方限速不能冒充当前位置限速');
     const noExit = { ...roundabout, roundaboutExit: null };
     const alternateExit = { ...roundabout, roundaboutExit: 2 };
-    for (let style = 2; style <= 6; style++) {
+    for (let style = 1; style <= 3; style++) {
         const frame = Buffer.from(renderer.render(roundabout, laneFont, null, 0, style));
         assert(!frame.equals(Buffer.from(renderer.render(noExit, laneFont, null, 0, style))), '环岛有有效出口时显示圈号');
         assert(!frame.equals(Buffer.from(renderer.render(alternateExit, laneFont, null, 0, style))), '圈号数字随出口变化');
         assert(Buffer.from(renderer.render({ ...roundabout, direction: 'left' }, laneFont, null, 0, style))
             .equals(Buffer.from(renderer.render({ ...noExit, direction: 'left' }, laneFont, null, 0, style))), '普通转向不显示环岛圈号');
     }
+
 
     assert.strictEqual(mixed.laneRejected, 1, '计数损坏的候选事件，且仍解码后续事件');
     assert.deepStrictEqual(mixed.events, lgDecoded.events);
@@ -573,6 +577,9 @@ async function main() {
         traffic: { reset() { resetCount++; }, read: () => Promise.resolve(alerts) },
         outputFactory: () => ({ update: (_, visible) => cruiseFrames.push(visible), close() {} }) });
     cruise.settings({ hud_simple: 1, hud: 0, hud_simple_style: 6 });
+    assert.strictEqual(cruise.hudStyle, 1, '风格 6 不存在，后端按风格 1');
+    cruise.settings({ hud_simple: 1, hud: 0, hud_simple_style: 3 });
+    assert.strictEqual(cruise.hudStyle, 3);
     const cruiseTick = async () => { cruise.tick(); await until(() => !cruise.navBusy); };
     const startedResets = resetCount;
     await cruiseTick();
@@ -804,7 +811,7 @@ async function main() {
         assert.strictEqual(state.state, 'navigating');
         assert.strictEqual(state.direction, direction);
     }
-    const maxFontFrame = renderer.render(laneState, laneFont, null, 150, 2);
+    const maxFontFrame = renderer.render(laneState, laneFont, null, 150, 1);
     for (let i = 417 * 800 * 4 + 3; i < maxFontFrame.length; i += 4) {
         assert.strictEqual(maxFontFrame[i], 0, '最大字号 ETA 留在 453×200 安全区内');
     }

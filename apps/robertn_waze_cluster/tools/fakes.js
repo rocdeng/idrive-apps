@@ -231,7 +231,7 @@ class FakePatch extends LineServer {
         this.mute = false;         /* commands received and not answered */
         this.holdAa = false;       /* an Android Auto change stays busy until releaseAa(failure) */
         this.releaseAa = null;
-        this.map = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 2 };
+        this.map = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 1 };
         this.shared = null;
         this.own = {};
         this.active = null;

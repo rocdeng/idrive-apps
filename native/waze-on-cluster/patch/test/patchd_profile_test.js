@@ -108,7 +108,7 @@ function state() {
 }
 function profiles() { var t = fs.readFileSync(PROFILES, 'utf8'); try { return JSON.parse(t); } catch (e) { throw new Error(e.message + ': ' + t); } }
 function settings(cluster, hud, pct, x, y, keep) {
-    return { cluster: cluster, hud: hud, hud_width_pct: pct, hud_offset_x: x, hud_offset_y: y, hud_keep_shown: keep || 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 2, hud_edge_fade_pct: 0 };
+    return { cluster: cluster, hud: hud, hud_width_pct: pct, hud_offset_x: x, hud_offset_y: y, hud_keep_shown: keep || 0, hud_simple: 0, hud_simple_width_pct: 0, hud_simple_offset_x: 0, hud_simple_offset_y: 0, hud_simple_font_pct: 0, hud_simple_style: 1, hud_edge_fade_pct: 0 };
 }
 function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 /* For a check that nothing is written: past the save's delay. */
@@ -420,7 +420,7 @@ var A = 'a1b2c3d4-0000-4000-8000-000000000001', B = 'a1b2c3d4-0000-4000-8000-000
     var OFF = settings(0, 0, 0, 0, 0), ON = settings(1, 0, 0, 0, 0);
     /* map.state.conf's settings, in whatever order its lines are */
     var sameKeys = function (a, b) { return Object.keys(b).length === Object.keys(a).length && Object.keys(b).every(function (k) { return a[k] === b[k]; }); };
-    fs.writeFileSync(STATE, 'cluster = 1\nhud = 0\nhud_width_pct = 0\nhud_offset_x = 0\nhud_offset_y = 0\nhud_keep_shown = 0\nhud_simple = 0\nhud_simple_width_pct = 0\nhud_simple_offset_x = 0\nhud_simple_offset_y = 0\nhud_simple_font_pct = 0\nhud_simple_style = 2\nhud_edge_fade_pct = 0\n');
+    fs.writeFileSync(STATE, 'cluster = 1\nhud = 0\nhud_width_pct = 0\nhud_offset_x = 0\nhud_offset_y = 0\nhud_keep_shown = 0\nhud_simple = 0\nhud_simple_width_pct = 0\nhud_simple_offset_x = 0\nhud_simple_offset_y = 0\nhud_simple_font_pct = 0\nhud_simple_style = 1\nhud_edge_fade_pct = 0\n');
     await start();
     await ask({ cmd: 'profile', id: A });
     await ask({ cmd: 'profile-own', id: A, on: 1 });
@@ -513,16 +513,47 @@ var A = 'a1b2c3d4-0000-4000-8000-000000000001', B = 'a1b2c3d4-0000-4000-8000-000
     r = await ask({ cmd: 'profile', id: A });
     ok('重启后保留 A 的简洁模式', r.ok && r.settings.hud_simple === 1 && state().hud_simple === 1 && state().hud === 0 && state().hud_edge_fade_pct === 25);
     await stop();
+    // 风格只有 1–3。存下的其他编号（旧版本的 4–6 或损坏值）丢弃，改用风格 1，其他设置保留。
+    var setStyle = function (n) {
+        fs.writeFileSync(STATE, fs.readFileSync(STATE, 'utf8').replace(/hud_simple_style = \d+/, 'hud_simple_style = ' + n));
+    };
     var previous = profiles();
-    previous.own[A].hud_simple_style = 1;
+    previous.own[A].hud_simple_style = 5;
+    previous.shared.hud_simple_style = 4;
     fs.writeFileSync(PROFILES, JSON.stringify(previous));
-    fs.writeFileSync(STATE, fs.readFileSync(STATE, 'utf8').replace(/hud_simple_style = 2/, 'hud_simple_style = 1'));
+    setStyle(6);
     await start();
     r = await ask({ cmd: 'profile', id: A });
-    ok('旧风格 1 回退到 2，并保留驾驶员配置', r.ok && r.own &&
-        same(r.settings, Object.assign({}, previous.own[A], { hud_simple_style: 2 })), JSON.stringify(r));
-    r = await ask({ cmd: 'hud-simple-style', style: 1 });
-    ok('风格 1 已不可选', !r.ok);
+    ok('驾驶员配置里的风格 5 丢弃，改用风格 1，其他设置保留', r.ok && r.own &&
+        same(r.settings, Object.assign({}, previous.own[A], { hud_simple_style: 1 })), JSON.stringify(r));
+    r = await ask({ cmd: 'profile', id: B });
+    ok('共享配置里的风格 4 丢弃，改用风格 1', r.ok && !r.own &&
+        same(r.settings, Object.assign({}, previous.shared, { hud_simple_style: 1 })), JSON.stringify(r));
+    for (var style of [0, 4, 5, 6]) {
+        r = await ask({ cmd: 'hud-simple-style', style: style });
+        ok('风格 ' + style + ' 不可选', !r.ok);
+    }
+    r = await ask({ cmd: 'hud-simple-style', style: 3 });
+    ok('风格 3 可选', r.ok);
+    await stop();
+    previous.own[A].hud_simple_style = null;
+    fs.writeFileSync(PROFILES, JSON.stringify(previous));
+    await start();
+    r = await ask({ cmd: 'profile', id: A });
+    ok('风格字段损坏时保留其余驾驶员设置', r.ok && r.own &&
+        same(r.settings, Object.assign({}, previous.own[A], { hud_simple_style: 1 })), JSON.stringify(r));
+    await stop();
+    // 无单独驾驶员配置时，从 map.state.conf 读取共享设置。
+    fs.writeFileSync(PROFILES, JSON.stringify({ shared: null, own: {}, active: null }));
+    setStyle(9);
+    await start();
+    r = await ask({ cmd: 'profile', id: B });
+    ok('map.state.conf 里的风格 9 丢弃，改用风格 1', r.ok && !r.own && r.settings.hud_simple_style === 1, JSON.stringify(r));
+    await stop();
+    setStyle(2);
+    await start();
+    r = await ask({ cmd: 'profile', id: B });
+    ok('合法的风格 2 原样保留', r.ok && r.settings.hud_simple_style === 2, JSON.stringify(r));
 })().catch(function (e) {
     ok('no error: ' + e.message, false);
 }).then(function () {

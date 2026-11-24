@@ -105,10 +105,8 @@
     "Stop HUD validation ({0}/{1})": "Zatrzymaj test HUD ({0}/{1})",
     "HUD text size: {0}": "Rozmiar tekstu HUD: {0}",
     "HUD style: {0}": "Styl HUD: {0}",
+    "Style 1": "Styl 1",
     "Style 2": "Styl 2",
-    "Style 3": "Styl 3",
-    "Style 4": "Styl 4",
-    "Style 5": "Styl 5",
-    "Style 6": "Styl 6"
+    "Style 3": "Styl 3"
   }
 }

@@ -105,10 +105,8 @@
     "Stop HUD validation ({0}/{1})": "HUD-teszt leállítása ({0}/{1})",
     "HUD text size: {0}": "HUD szövegméret: {0}",
     "HUD style: {0}": "HUD stílus: {0}",
+    "Style 1": "1. stílus",
     "Style 2": "2. stílus",
-    "Style 3": "3. stílus",
-    "Style 4": "4. stílus",
-    "Style 5": "5. stílus",
-    "Style 6": "6. stílus"
+    "Style 3": "3. stílus"
   }
 }

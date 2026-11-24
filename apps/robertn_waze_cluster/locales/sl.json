@@ -105,10 +105,8 @@
     "Stop HUD validation ({0}/{1})": "Ustavi preizkus HUD ({0}/{1})",
     "HUD text size: {0}": "Velikost besedila HUD: {0}",
     "HUD style: {0}": "Slog HUD: {0}",
+    "Style 1": "Slog 1",
     "Style 2": "Slog 2",
-    "Style 3": "Slog 3",
-    "Style 4": "Slog 4",
-    "Style 5": "Slog 5",
-    "Style 6": "Slog 6"
+    "Style 3": "Slog 3"
   }
 }
