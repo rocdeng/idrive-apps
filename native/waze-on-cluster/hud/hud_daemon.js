@@ -33,6 +33,8 @@ var LOG_MAX_BYTES = 512 * 1024;
 var MAX_LINE = 64 * 1024;
 var PARKING_TIMEOUT_MS = 1500;
 var LANE_LOG_INTERVAL_MS = 30000;
+// 开始导航时车机会有一两次查询返回空事件表。空表持续这么久才算导航结束，避免 HUD 闪一下。
+var NAV_END_GRACE_MS = 1500;
 function monotonicMs() {
     var time = process.hrtime();
     return time[0] * 1000 + time[1] / 1000000;
@@ -152,6 +154,7 @@ function HudEngine(options) {
     this.fontLoader = o.fontLoader || (() => new Font(require('./hud_font_data.js')));
     this.intervalMs = o.intervalMs || 500;
     this.staleMs = o.staleMs || 5000;
+    this.navEndGraceMs = o.navEndGraceMs !== undefined ? o.navEndGraceMs : NAV_END_GRACE_MS;
     this.validationStepMs = o.validationStepMs || 5000;
 
     this.font = null;
@@ -184,6 +187,7 @@ function HudEngine(options) {
     this.nativeBusy = false;
     this.nativeRetryAt = 0;
     this.nativeVerified = false;
+    this.nativeInactiveSince = null;
     this.maneuverKey = '';
     this.maneuverInitialM = null;
     this.generation = 0;
@@ -287,6 +291,7 @@ HudEngine.prototype.suspend = function() {
     if (this.nativeGuidance) this.nativeGuidance.stop();
     this.nativeRetryAt = 0;
     this.nativeVerified = false;
+    this.nativeInactiveSince = null;
     this.laneLogTimes = Object.create(null);
     this.nativeState = null;
     this.oapState = null;
@@ -563,6 +568,11 @@ HudEngine.prototype.withOapLanes = function(state) {
     return Object.assign({}, state, { lanes: oap.lanes });
 };
 
+HudEngine.prototype.withinNativeEndGrace = function() {
+    return !!this.lastNav && this.nativeInactiveSince !== null &&
+        this.clock() - this.nativeInactiveSince < this.navEndGraceMs;
+};
+
 HudEngine.prototype.handleOapNav = function(rawState, laneInfo) {
     if (!this.enabled || this.suspended || this.validation) return;
     var state = nav.snapshot(rawState);
@@ -573,7 +583,7 @@ HudEngine.prototype.handleOapNav = function(rawState, laneInfo) {
         if (!this.nativeState.lanes.length) this.handleNav(this.withOapLanes(this.nativeState));
         return;
     }
-    this.handleNav(state);
+    if (state.state !== 'inactive' || !this.withinNativeEndGrace()) this.handleNav(state);
 };
 
 HudEngine.prototype.handleNavError = function(reason) {
@@ -587,6 +597,7 @@ HudEngine.prototype.handleNavError = function(reason) {
         if (hadOapLanes && !this.nativeState.lanes.length) this.handleNav(this.nativeState);
         return;
     }
+    if (this.withinNativeEndGrace()) return;
     this.log.warn('navigation error from OAP: ' + (reason || 'unknown'));
     this.endNavigation(reason || 'navigation unavailable');
 };
@@ -619,6 +630,7 @@ HudEngine.prototype.tick = function() {
                 var changed = !self.nativeVerified || !self.nativeState ||
                     !!self.nativeState.lanes.length !== !!parsed.lanes.length;
                 self.nativeVerified = true;
+                self.nativeInactiveSince = null;
                 self.nativeState = parsed;
                 self.nativeAt = Date.now();
                 if (changed) self._changed();
@@ -629,7 +641,8 @@ HudEngine.prototype.tick = function() {
                     self.nativeVerified = false;
                     self._changed();
                 }
-                if (!self.lastOapNav || Date.now() - self.lastOapNav > self.staleMs) {
+                if (self.nativeInactiveSince === null) self.nativeInactiveSince = self.clock();
+                if (!self.withinNativeEndGrace() && (!self.lastOapNav || Date.now() - self.lastOapNav > self.staleMs)) {
                     /* 原生未解出有效事件时，不覆盖 OAP 正在推送的实时导航，也不抢占 OAP 轮询。 */
                     self.handleNav(parsed);
                 }

@@ -24,8 +24,10 @@ var LANE_FIELD_LOG_INTERVAL_MS = 30000;
 var GUIDANCE_GETTERS = {
     state: { method: '0002', decode: decodeGuidanceState },
     destination: { method: '0005', decode: decodeDestinationInfo },
-    lanes: { method: '0019', decode: decodeCurrentLanes }
+    lanes: { method: '0019', decode: decodeCurrentLanes },
+    location: { method: '0001', decode: decodeLocationStreet, service: 'location' }
 };
+var TEXT_STREET = 14; // NavigationDataTypes.TextIdentifier.STREET
 function uptimeMs() { return process.uptime() * 1000; }
 var DEFAULT_BIN = process.env.WOC_GUIDANCE_BIN || path.join(__dirname, 'woc-guidance');
 
@@ -157,6 +159,23 @@ function decodeCurrentRoad(buf) {
     var description = decodeDescription(r);
     if (r.left()) throw new Error('unexpected currentRoad data');
     return description.elements.map(function(item) { return item.value; }).join(' ');
+}
+
+// Positioning.currentLocation 开头是 Wgs84Coordinate3D 和 TextDescription，只取 STREET 的正字法文字。
+function decodeLocationStreet(buf) {
+    var r = new Reader(buf);
+    r.u8(); r.u8();                           // coordinatesValid, heightValid
+    r.f64(); r.f64();                         // longitude, latitude
+    r.u32(); r.f64(); r.f64();                // height: unit, displayLength, rawLengthMeter
+    r.u8();                                   // textDescription.languageID（1 字节枚举）
+    var map = r.sub(), street = '';           // textDescriptorList: Map<TextIdentifier, SpeechString>
+    while (map.left() > 0) {
+        var key = map.u32();
+        var orthography = map.utf8d();
+        map.utf8d(); map.utf8d();             // speechId, phonetic
+        if (key === TEXT_STREET) street = orthography.replace(/[\x00-\x1f]/g, ' ').trim();
+    }
+    return street;
 }
 
 function decodeGuidanceState(buf) {
@@ -406,6 +425,7 @@ function NativeGuidanceReader(options) {
     this.roadId = null;
     this.roadTimer = null;
     this.roadStatus = '';
+    this.locationAvailable = false;
     this.fields = Object.create(null);
     this.laneLogTimes = Object.create(null);
     this.useBom = o.useBom !== undefined ? !!o.useBom : true;
@@ -512,6 +532,11 @@ NativeGuidanceReader.prototype._finishRoad = function(name, status) {
 
 // Return the last fresh value and refresh in the background. A road query never delays maneuver guidance.
 NativeGuidanceReader.prototype.currentRoad = function() {
+    // CarPlay 导航时 Guidance.currentRoad 由投屏引导提供，百度不发当前路名，改用原厂定位的街道名。
+    return this._guidanceRoad() || this.guidanceField('location') || '';
+};
+
+NativeGuidanceReader.prototype._guidanceRoad = function() {
     if (!this.child || !this.roadAvailable) return '';
     var now = uptimeMs();
     if (this.roadId === null && now >= this.roadNext) {
@@ -536,7 +561,8 @@ NativeGuidanceReader.prototype._reportCurrentLanes = function(status) {
 };
 
 NativeGuidanceReader.prototype.guidanceField = function(key, context) {
-    if (!this.child || !this.roadAvailable) {
+    var getter = GUIDANCE_GETTERS[key];
+    if (!this.child || !(getter.service === 'location' ? this.locationAvailable : this.roadAvailable)) {
         if (key === 'lanes') this._reportCurrentLanes('service-unavailable');
         return null;
     }
@@ -563,6 +589,7 @@ NativeGuidanceReader.prototype.guidanceField = function(key, context) {
 NativeGuidanceReader.prototype._cleanupChild = function(reason) {
     this.child = null;
     this.roadAvailable = false;
+    this.locationAvailable = false;
     this.fields = Object.create(null);
     this.roadNext = 0;
     this._finishRoad('', '');
@@ -581,11 +608,18 @@ NativeGuidanceReader.prototype._onLine = function(line) {
         this._setAvailable(parts[1] === '1');
         return;
     }
+    if (parts[0] === 'location-avail') {
+        this.locationAvailable = parts[1] === '1';
+        if (!this.locationAvailable) delete this.fields.location;
+        return;
+    }
     if (parts[0] === 'road-avail') {
         this.roadAvailable = parts[1] === '1';
         if (!this.roadAvailable) {
             this._finishRoad('', 'unavailable');
-            this.fields = Object.create(null);
+            delete this.fields.state;
+            delete this.fields.destination;
+            delete this.fields.lanes;
         }
         return;
     }

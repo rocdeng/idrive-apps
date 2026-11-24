@@ -587,6 +587,80 @@ async function main() {
     assert(currentLogs.some((s) => s.startsWith('HUD lanes current: position-mismatch lanePositionM=7400 lengthM=200 maneuverPositionM=7000')));
     assert(currentLogs.some((s) => s.startsWith('HUD lanes current: used-without-position')));
     currentEngine.stop();
+
+    // CarPlay 导航时 Guidance.currentRoad 为空，改用 Positioning.currentLocation 的 STREET。
+    const speech = (text) => Buffer.concat([someip.encodeUtf8D(text), someip.encodeUtf8D(''), someip.encodeUtf8D('')]);
+    const locationWire = (street) => Buffer.concat([Buffer.from([1, 0]), f64be(113.9), f64be(22.5),
+        u32be(4), f64be(0), f64be(0), Buffer.from([11]),
+        subWrap([u32be(13), speech('深圳市'), ...(street ? [u32be(14), speech(street)] : [])]),
+        Buffer.alloc(24)]);
+    const locLogs = [];
+    const locReader = new someip.NativeGuidanceReader({ log: { ...quiet, info: (s) => locLogs.push(s) } });
+    const locRequests = [];
+    locReader.child = { stdin: { write: (line) => locRequests.push(line) } };
+    const lastId = () => locRequests[locRequests.length - 1].split(' ')[0];
+    assert.strictEqual(locReader.currentRoad(), '', '两路服务都不可用时不查询');
+    assert.deepStrictEqual(locRequests, []);
+    locReader._onLine('location-avail 1');
+    locReader._onLine('road-avail 1');
+    locReader.currentRoad();
+    const roadReq = locRequests.find((l) => l.endsWith(' road -\n')).split(' ')[0];
+    locReader._onLine('reply ' + roadReq + ' 0001 00 00000000');
+    assert(locRequests[locRequests.length - 1].endsWith(' location -\n'), '原厂路名为空时查询定位街道');
+    locReader._onLine('reply ' + lastId() + ' 0001 00 ' + locationWire('科技南十二路').toString('hex'));
+    assert.strictEqual(locReader.currentRoad(), '科技南十二路', 'CarPlay 导航时显示原厂定位的街道名');
+    locReader._onLine('road-avail 0');
+    assert.strictEqual(locReader.currentRoad(), '科技南十二路', '导航服务断开不清除定位服务仍有效的街道');
+    locReader._onLine('road-avail 1');
+    locReader.fields.location.next = 0;
+    locReader.currentRoad();
+    locReader._onLine('reply ' + lastId() + ' 0001 00 ' + locationWire('').toString('hex'));
+    assert.strictEqual(locReader.currentRoad(), '', '定位没有街道时不显示旧路名');
+    locReader.roadNext = 0;
+    locReader.currentRoad();
+    const roadReq2 = locRequests.filter((l) => l.endsWith(' road -\n')).pop().split(' ')[0];
+    locReader._onLine('reply ' + roadReq2 + ' 0001 00 ' + roadWire);
+    assert.strictEqual(locReader.currentRoad(), '情侣北路', '有原厂路名时优先使用');
+    locReader._onLine('road-avail 0');
+    locReader.fields.location.next = 0;
+    locReader.currentRoad();
+    locReader._onLine('reply ' + lastId() + ' 0001 00 ' + locationWire('科技南十二路').toString('hex'));
+    assert.strictEqual(locReader.currentRoad(), '科技南十二路', '导航服务断开时定位街道仍可用');
+    locReader._onLine('location-avail 0');
+    assert.strictEqual(locReader.currentRoad(), '', '定位服务断开后清除街道名');
+    for (const bad of [Buffer.alloc(3), Buffer.concat([locationWire('科技南十二路').slice(0, 40)])]) {
+        locReader._onLine('location-avail 1');
+        locReader.currentRoad();
+        locReader._onLine('reply ' + lastId() + ' 0001 00 ' + bad.toString('hex'));
+        assert.strictEqual(locReader.currentRoad(), '', '定位数据截断时不显示');
+    }
+
+    // 开始导航时原生偶尔返回一次空事件表，不能立刻清屏。
+    let graceReply = laneReply;
+    const graceFrames = [];
+    let graceClock = 0;
+    const graceEngine = new HudEngine({ log: quiet, navEndGraceMs: 300, clock: () => graceClock,
+        traffic: { reset() {}, read: () => Promise.resolve(null) },
+        nativeGuidance: { available: true, supported: () => true, read: () => Promise.resolve(graceReply),
+            currentRoad: () => '', stop() {} },
+        outputFactory: () => ({ update: (_, visible) => graceFrames.push(visible), close() {} }) });
+    graceEngine.settings({ hud_simple: 1, hud: 0 });
+    const graceTick = async () => { graceEngine.tick(); await until(() => !graceEngine.nativeBusy && !graceEngine.navBusy); };
+    await graceTick();
+    assert.strictEqual(graceEngine.lastState.state, 'navigating');
+    graceReply = { events: [] };
+    await graceTick();
+    graceEngine.handleOapNav({ state: 'inactive' });
+    graceEngine.handleNavError('navigation unavailable');
+    assert.deepStrictEqual(graceFrames.filter((v) => !v), [], '原生偶发空表期间，应用空表或错误也不清屏');
+    graceReply = laneReply;
+    await graceTick();
+    graceReply = { events: [] };
+    await graceTick();
+    graceClock += 350;
+    await graceTick();
+    assert.strictEqual(graceFrames[graceFrames.length - 1], false, '空事件表持续超过宽限时间后结束导航');
+    graceEngine.stop();
     for (const [type, direction] of [['roundabout', 'roundabout'], ['destinationManeuver', 'arrive']]) {
         const state = nav.fromBmw({ events: [{ type, value: { direction: direction.toUpperCase() } }] });
         assert.strictEqual(state.state, 'navigating');

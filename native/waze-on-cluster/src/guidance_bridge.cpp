@@ -4,13 +4,14 @@
  * woc-guidance: BMW GuidanceEventList and allowlisted read-only Guidance getters.
  *
  * Runs as a child of waze-on-cluster-hud.service (User=hmi_5000, which is
- * whitelisted for 0xfb1b in /etc/vsomeip/5000_5000/vsomeip_security.json).
+ * allowed to request 0xfb1b, 0xfb1a and 0xfb0c in /etc/vsomeip/5000_5000/vsomeip_security.json).
  *
  * Line protocol (stdin -> stdout, flushed per line):
  *   stdin:  <id> <method_hex> <payload_hex>\n
- *           <id> road|state|destination|lanes -\n
+ *           <id> road|state|destination|lanes|location -\n
  *   stdout: avail <0|1>\n
  *           road-avail <0|1>\n
+ *           location-avail <0|1>\n
  *           reply <id> <method_hex> <rc_hex> <payload_hex>\n
  *           err <id> <message>\n
  */
@@ -39,8 +40,18 @@ const vsomeip::instance_t kInstance = 0x0080;
 const vsomeip::major_version_t kMajor = 5;
 const vsomeip::service_t kGuidance = 0xfb1a;
 const vsomeip::major_version_t kGuidanceMajor = 7;
-const std::map<std::string, vsomeip::method_t> kGuidanceGetters = {
-    {"road", 0x0001}, {"state", 0x0002}, {"destination", 0x0005}, {"lanes", 0x0019}
+// Positioning.currentLocation：原厂定位和地图匹配的当前位置，CarPlay 导航时也不会被投屏引导覆盖。
+const vsomeip::service_t kPositioning = 0xfb0c;
+const vsomeip::major_version_t kPositioningMajor = 4;
+struct Getter {
+    vsomeip::service_t service;
+    vsomeip::major_version_t major;
+    vsomeip::method_t method;
+};
+const std::map<std::string, Getter> kGetters = {
+    {"road", {kGuidance, kGuidanceMajor, 0x0001}}, {"state", {kGuidance, kGuidanceMajor, 0x0002}},
+    {"destination", {kGuidance, kGuidanceMajor, 0x0005}}, {"lanes", {kGuidance, kGuidanceMajor, 0x0019}},
+    {"location", {kPositioning, kPositioningMajor, 0x0001}}
 };
 
 std::atomic<bool> g_stop(false);
@@ -57,6 +68,7 @@ constexpr size_t kMaxPending = 64;
 constexpr auto kPendingLifetime = std::chrono::seconds(5);
 std::atomic<bool> g_avail(false);
 std::atomic<bool> g_road_avail(false);
+std::atomic<bool> g_location_avail(false);
 
 void on_signal(int) { g_stop.store(true); }
 
@@ -135,6 +147,14 @@ int main()
         },
         kGuidanceMajor, vsomeip::ANY_MINOR);
 
+    app->register_availability_handler(
+        kPositioning, kInstance,
+        [](vsomeip::service_t, vsomeip::instance_t, bool up) {
+            g_location_avail.store(up);
+            emit_line(up ? "location-avail 1" : "location-avail 0");
+        },
+        kPositioningMajor, vsomeip::ANY_MINOR);
+
     auto on_reply = [](const std::shared_ptr<vsomeip::message> &m) {
         if (!m)
             return;
@@ -159,11 +179,12 @@ int main()
         emit_line(std::string(head) + hex);
     };
     app->register_message_handler(kService, kInstance, vsomeip::ANY_METHOD, on_reply);
-    for (const auto &getter : kGuidanceGetters)
-        app->register_message_handler(kGuidance, kInstance, getter.second, on_reply);
+    for (const auto &getter : kGetters)
+        app->register_message_handler(getter.second.service, kInstance, getter.second.method, on_reply);
 
     app->request_service(kService, kInstance, kMajor, vsomeip::ANY_MINOR);
     app->request_service(kGuidance, kInstance, kGuidanceMajor, vsomeip::ANY_MINOR);
+    app->request_service(kPositioning, kInstance, kPositioningMajor, vsomeip::ANY_MINOR);
 
     std::thread runner([&app] { app->start(); });
 
@@ -179,15 +200,18 @@ int main()
             emit_line("err 0 bad_request");
             continue;
         }
-        const auto getter = kGuidanceGetters.find(method_s);
-        const bool guidance = getter != kGuidanceGetters.end();
-        const unsigned long method = guidance ? getter->second : strtoul(method_s.c_str(), nullptr, 16);
+        const auto getter = kGetters.find(method_s);
+        const bool guidance = getter != kGetters.end();
+        const unsigned long method = guidance ? getter->second.method : strtoul(method_s.c_str(), nullptr, 16);
         std::vector<uint8_t> bytes;
         if (method == 0 || method > 0x7fff || (guidance && hex_s != "-") || !from_hex(hex_s, &bytes)) {
             emit_line("err " + std::to_string(id) + " bad_args");
             continue;
         }
-        if (!(guidance ? g_road_avail.load() : g_avail.load())) {
+        const bool available = !guidance ? g_avail.load()
+                               : getter->second.service == kPositioning ? g_location_avail.load()
+                                                                        : g_road_avail.load();
+        if (!available) {
             emit_line("err " + std::to_string(id) + " service_unavailable");
             continue;
         }
@@ -199,10 +223,10 @@ int main()
         const vsomeip::session_t sess = next_session++;
         if (next_session == 0)
             next_session = 1;
-        req->set_service(guidance ? kGuidance : kService);
+        req->set_service(guidance ? getter->second.service : kService);
         req->set_instance(kInstance);
         req->set_method(vsomeip::method_t(method));
-        req->set_interface_version(guidance ? kGuidanceMajor : kMajor);
+        req->set_interface_version(guidance ? getter->second.major : kMajor);
         req->set_session(sess);
         auto pl = rt->create_payload();
         if (!bytes.empty())
@@ -228,10 +252,12 @@ int main()
         app->send(req);
     }
 
+    app->release_service(kPositioning, kInstance);
+    app->unregister_availability_handler(kPositioning, kInstance, kPositioningMajor, vsomeip::ANY_MINOR);
     app->release_service(kGuidance, kInstance);
     app->unregister_availability_handler(kGuidance, kInstance, kGuidanceMajor, vsomeip::ANY_MINOR);
-    for (const auto &getter : kGuidanceGetters)
-        app->unregister_message_handler(kGuidance, kInstance, getter.second);
+    for (const auto &getter : kGetters)
+        app->unregister_message_handler(getter.second.service, kInstance, getter.second.method);
     app->release_service(kService, kInstance);
     app->unregister_availability_handler(kService, kInstance, kMajor, vsomeip::ANY_MINOR);
     app->unregister_message_handler(kService, kInstance, vsomeip::ANY_METHOD);
