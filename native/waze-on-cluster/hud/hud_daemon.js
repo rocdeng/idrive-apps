@@ -511,6 +511,8 @@ HudEngine.prototype.readTraffic = function(state) {
         state = Object.assign({}, state);
         if (state.state === 'cruising') {
             var guidance = self.nativeGuidance;
+            // 路名来自车机。投屏帧只是过期时读取器给的是三项为空的结果，路名照常显示；
+            // 投屏没了（null）时巡航 HUD 和以前一样收起。
             var road = alerts && guidance && guidance.currentRoad ? guidance.currentRoad() : '';
             var lanes = self.cruiseLanes();
             // 车道来自车机，不依赖投屏帧；只有车道时也显示。

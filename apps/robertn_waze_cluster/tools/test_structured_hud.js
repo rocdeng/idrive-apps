@@ -324,12 +324,12 @@ async function testSpeedCameraReader(fixtures) {
     const file = path.join(dir, 'hud-frame.yuv');
     let now = 10000;
     const logs = [];
-    const reader = new HudTrafficReader(file, () => now, { info: (line) => logs.push(line), warn() {} });
+    const reader = new HudTrafficReader(file, () => now, { info: (line) => logs.push(line), warn: (line) => logs.push(line) });
     const write = (rgb) => {
         const header = Buffer.alloc(12);
-        header.write('WOC1', 0, 'ascii');
+        header.write(rgb ? 'WOC1' : 'WOC0', 0, 'ascii');
         header.writeUInt32LE(now - 50, 4);
-        fs.writeFileSync(file, Buffer.concat([header, Buffer.from(fixtures.atlas(rgb))]));
+        fs.writeFileSync(file, rgb ? Buffer.concat([header, Buffer.from(fixtures.atlas(rgb))]) : header);
     };
     const step = async (rgb) => { now += 1100; write(rgb); return reader.read(); };
     try {
@@ -359,10 +359,36 @@ async function testSpeedCameraReader(fixtures) {
             assert.strictEqual(camResult.speedLimitKmh, 30, '电子眼限速不算当前限速，当前限速取深色底牌');
             assert.deepStrictEqual(camResult.speedCamera, { limitKmh: 40, distanceM: 735 }, '同时显示电子眼');
         }
+        // 投屏帧过期（写帧进程没写新帧）：清掉识别结果，但不是 null，巡航时车机路名照常显示；
+        // 60 秒都没有新帧才返回 null。
+        {
+            const light = fixtures.compose([[fixtures.cards.cruiseSign]]);
+            now += 1100; write(light); await reader.read();
+            now += 1100; write(light);
+            assert.strictEqual((await reader.read()).speedLimitKmh, 30);
+            const staleAt = now - 50;
+            now += 4000;
+            const stale = await reader.read();
+            assert.deepStrictEqual(stale, { trafficLight: null, speedLimitKmh: null, speedCamera: null }, '帧过期时清掉识别结果，返回空结果');
+            now += 1000;
+            await reader.read();
+            assert.strictEqual(logs.filter((l) => l.startsWith('traffic frame: frame age')).length, 1, '一段过期只记一次帧龄日志');
+            assert(logs.some((l) => l.startsWith('traffic frame: frame age ') && l.includes('stamp ' + staleAt)), '日志带帧龄和最后一帧');
+            now = staleAt + 61000;
+            assert.strictEqual(await reader.read(), null, '超过 60 秒没有新帧才当作投屏没了');
+            now += 1000; write(light);
+            await reader.read();
+            assert(logs.includes('traffic frame: fresh again at stamp ' + (now - 50)), '恢复新帧时记日志');
+            assert.strictEqual((await step(light)).speedLimitKmh, 30, '恢复后重新确认识别结果');
+            assert.strictEqual(await step(null), null, '明确断开时不等 60 秒');
+            assert.strictEqual(await reader.read(), null, '限频期间也不沿用上次会话');
+            assert.strictEqual((await step(light)).speedLimitKmh, null, '重连后第一帧不能沿用旧会话识别结果');
+            assert.strictEqual((await step(light)).speedLimitKmh, 30, '重连后两帧确认才恢复识别结果');
+        }
     } finally {
         fs.rmSync(dir, { recursive: true, force: true });
     }
-    console.log('通过：电子眼连续两帧确认、消失即清除、出现和消失写日志，白底和深色底限速牌都读、白底优先');
+    console.log('通过：电子眼连续两帧确认、消失即清除、出现和消失写日志，白底和深色底限速牌都读、白底优先，帧过期只清识别结果');
 }
 
 async function main() {
@@ -814,6 +840,12 @@ async function main() {
     assert.strictEqual(cruise.state, 'waiting');
     await cruiseTick();
     assert.strictEqual(cruise.lastState.state, 'cruising');
+    // 投屏帧只是过期：读取器给空结果，车机路名照常显示，不清屏。
+    alerts = { trafficLight: null, speedLimitKmh: null, speedCamera: null };
+    await cruiseTick();
+    assert.strictEqual(cruiseFrames[cruiseFrames.length - 1], true, '投屏帧过期时车机路名照常显示');
+    assert.strictEqual(cruise.lastState.currentRoad, '云海路');
+    assert.strictEqual(cruise.lastState.trafficLight, null, '帧过期时不显示红绿灯');
     alerts = null;
     await cruiseTick();
     assert.strictEqual(cruiseFrames[cruiseFrames.length - 1], false, '投屏断流后连同路名清屏');

@@ -80,7 +80,8 @@ bool save_hud_sample(const std::vector<uint8_t> &frame, gid_t group, uint64_t sa
             unlink(tmp);  // 清理上次进程中止留下的临时帧
         return false;
     }
-    uint8_t header[12] = {'W', 'O', 'C', '1'};
+    // WOC0 是车机确认 CarPlay 第二屏断开的空采样，和普通帧一样原子发布。
+    uint8_t header[12] = {'W', 'O', 'C', uint8_t(frame.empty() ? '0' : '1')};
     for (unsigned i = 0; i < 8; ++i)
         header[4 + i] = uint8_t(sampled_ms >> (8 * i));
     auto write_all = [fd](const uint8_t *data, size_t size) {
@@ -354,6 +355,7 @@ int serve(Config cfg)
     AltScreen::State alt_state = AltScreen::Unknown;
     int64_t alt_read_ms = 0, next_hud_sample_ms = 0;
     bool sample_hud = false, hud_selected = false;
+    bool hud_disconnect_published = false;
     int hud_sample_log = 0;   /* 0: none yet, 1: ok, -1: failed */
     struct stat map_stamp = {};
     const std::string map_state_path = cfg.str("map_state_file");
@@ -411,6 +413,10 @@ int serve(Config cfg)
                 log_info("CarPlay's alternate-screen connection: %s",
                          s == AltScreen::Connected ? "connected" : s == AltScreen::Absent ? "absent" : "not readable");
             alt_state = s;
+            if (s == AltScreen::Connected)
+                hud_disconnect_published = false;
+            else if (s == AltScreen::Absent && !hud_disconnect_published && hud_sample_size && oap_gid != (gid_t)-1)
+                hud_disconnect_published = save_hud_sample({}, oap_gid, (uint64_t)now);
             sample_hud = false;
             if (hud_sample_size && oap_gid != (gid_t)-1 && alt_state == AltScreen::Connected) {
                 struct stat stamp;

@@ -339,7 +339,7 @@
         if (!road) return;
         s.text(road, safeX(groupX + roadOffset), centeredTextY(s, road, rowMid, roadSize), roadSize, WHITE);
     }
-    var CRUISE_LANE_W = 20, CRUISE_LANE_H = 26;
+    var CRUISE_LANE_W = 26, CRUISE_LANE_H = 35;
     // 巡航时没有路线：车机没推荐的车道是灰色，推荐的用绿色；车道线比导航时细、短。
     function drawCruiseLanes(s, state, x0, cy, cell) {
         var top = cy - CRUISE_LANE_H / 2;
