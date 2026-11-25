@@ -273,12 +273,9 @@
                     text(light.text || '注意', safeX(35), safeY(9), safeFont(19), color, safeW(48));
                 }
             }
-            if (state.speedLimitKmh !== null) {
-                var limit = String(state.speedLimitKmh);
-                var lSize = limit.length === 3 ? 21 : 24;
-                var cx = safeX(434), cy = safeY(20);
-                drawSafeRing(s, cx, cy, safeW(36), safeH(36), [255, 81, 76]);
-                text(limit, cx - s.measure(limit, safeFont(lSize)) / 2, cy - safeFont(lSize) * 0.61, safeFont(lSize), WHITE);
+            if (hasLimitSign(state)) {
+                // 和风格 2、3 一样画成红圈白底黑字。
+                drawLimitSigns(s, state, 434, 20, 36, whiteSign(s));
             }
         } else if (style === 2) {
             if (light) {
@@ -292,14 +289,14 @@
                     text(light.text || '注意', safeX(400), safeY(91), safeFont(14), lc, safeW(40));
                 }
             }
-            if (state.speedLimitKmh !== null) {
-                drawSpeedSignWhite(s, safeX(422), safeY(32), safeW(44), safeH(44), String(state.speedLimitKmh));
+            if (hasLimitSign(state)) {
+                drawLimitSigns(s, state, 422, 32, 44, whiteSign(s));
             }
         }
     }
     function drawCruiseStatusRow(s, state, fs, style) {
         var light = state.trafficLight;
-        var hasSpeed = state.speedLimitKmh !== null;
+        var hasSpeed = hasLimitSign(state);
         var colors = {red: [255, 76, 72], green: [64, 240, 152], yellow: [255, 198, 45]};
         var trafficW = 72, trafficX = 453 - trafficW - 4;
         // 453×200 安全区内，巡航三项共用一条水平中线；最高的限速牌底边留出 12 px 底距。
@@ -308,21 +305,23 @@
         var speedSize = thinSign ? 44 : 48;
         var roadOffset = hasSpeed ? speedSize + (state.currentRoad ? 12 : 0) : 0;
         var left = 4, right = light ? trafficX - 8 : 453 - 4;
+        // 巡航车道：小号，跟在路名后面、红绿灯前面。车道太多时先压缩车道格子，路名最后再截断。
+        var lanes = state.lanes || [];
+        var laneCell = lanes.length ? Math.min(CRUISE_LANE_W, (right - left - roadOffset - 60) / lanes.length) : 0;
+        var lanesW = lanes.length && laneCell >= 9 ? laneCell * lanes.length : 0;
+        var lanesGap = lanesW ? (state.currentRoad || hasSpeed ? 12 : 0) : 0;
         var roadSize = safeFont(28 * fs);
-        var road = s.fitText(state.currentRoad, roadSize, safeW(right - left - roadOffset));
-        var groupWidth = roadOffset + s.measure(road, roadSize) / SAFE_SCALE_X;
+        var road = s.fitText(state.currentRoad, roadSize, safeW(Math.max(0, right - left - roadOffset - lanesW - lanesGap)));
+        var roadW = s.measure(road, roadSize) / SAFE_SCALE_X;
+        var groupWidth = roadOffset + roadW + lanesGap + lanesW;
         // 限速和路名成组居中。长路名可以向左延伸，右侧给倒计时留空。
         var groupX = Math.max(left, Math.min((453 - groupWidth) / 2, right - groupWidth));
         if (hasSpeed) {
             if (thinSign) {
-                var ringCx = groupX + 22, ringCy = rowMid;
-                drawSafeRing(s, safeX(ringCx), safeY(ringCy), safeW(44), safeH(44), [255, 81, 76]);
-                var limitSize = String(state.speedLimitKmh).length === 3 ? 22 : 25;
-                s.text(String(state.speedLimitKmh),
-                    safeX(ringCx) - s.measure(String(state.speedLimitKmh), safeFont(limitSize)) / 2,
-                    safeY(ringCy) - safeFont(limitSize) * 0.61, safeFont(limitSize), WHITE);
+                // 风格 1 的牌小一号，同样是红圈白底黑字。
+                drawLimitSigns(s, state, groupX + 22, rowMid, 44, whiteSign(s));
             } else {
-                drawSpeedSignWhite(s, safeX(groupX + 24), safeY(rowMid), safeW(48), safeH(48), String(state.speedLimitKmh));
+                drawLimitSigns(s, state, groupX + 24, rowMid, 48, whiteSign(s));
             }
         }
         if (light) {
@@ -336,8 +335,25 @@
             s.text(lightText, safeX(trafficX + (light.seconds !== null ? 29 : 27)),
                 centeredTextY(s, lightText, rowMid, lightSize), lightSize, light.seconds !== null ? WHITE : color);
         }
+        if (lanesW) drawCruiseLanes(s, state, groupX + roadOffset + roadW + lanesGap, rowMid, laneCell);
         if (!road) return;
         s.text(road, safeX(groupX + roadOffset), centeredTextY(s, road, rowMid, roadSize), roadSize, WHITE);
+    }
+    var CRUISE_LANE_W = 20, CRUISE_LANE_H = 26;
+    // 巡航时没有路线：车机没推荐的车道是灰色，推荐的用绿色；车道线比导航时细、短。
+    function drawCruiseLanes(s, state, x0, cy, cell) {
+        var top = cy - CRUISE_LANE_H / 2;
+        state.lanes.forEach(function(lane, i) {
+            var x = x0 + i * cell;
+            if (i && lane.leftBoundary === 'solid') s.rect(safeX(x - 0.5), safeY(top), safeW(1), safeH(CRUISE_LANE_H), 0, [179, 179, 179], 1);
+            if (i && lane.leftBoundary === 'dashed') {
+                for (var y = top; y < top + CRUISE_LANE_H; y += 5) {
+                    s.rect(safeX(x - 0.5), safeY(y), safeW(1), safeH(Math.min(3, top + CRUISE_LANE_H - y)), 0, [110, 110, 110], 1);
+                }
+            }
+            var ah = CRUISE_LANE_H - 4, aw = Math.min(cell - 6, ah * 44 / 62);
+            laneArrows(s, lane, state, x + (cell - aw) / 2, cy - ah / 2, aw, ah, D_GREEN, D_GRAY, [0, 0, 0]);
+        });
     }
     function renderCruise(s, state, fs, style) {
         drawCruiseStatusRow(s, state, fs, style);
@@ -351,7 +367,7 @@
         var roadX = state.trafficLight ? 94 : 0;
         drawStyleAlerts(s, state, 1);
         if (state.currentRoad) {
-            var topMaxW = state.speedLimitKmh !== null ? (402 - roadX) : (452 - roadX);
+            var topMaxW = hasLimitSign(state) ? (limitSignsLeft(s, state, 434, 36) - 14 - roadX) : (452 - roadX);
             s.text(state.currentRoad, safeX(roadX), safeY(7), safeFont(22 * fs), WHITE, safeW(topMaxW - 2), true);
         }
         rect(safeX(0), safeY(44), safeW(453), safeH(2), 0, [90, 98, 108]);
@@ -499,6 +515,61 @@
         }
         return parts.join(' · ');
     }
+    // 限速牌和电子眼。C 是当前路段限速，K 是电子眼限速（state.speedCamera）。
+    // - 没有电子眼：画一块 C。
+    // - 有电子眼、C 未知或 C 等于 K：画一块 K，这块牌闪烁（cameraBlink 为假的那一帧不画）。
+    // - C 和 K 不同：主牌 C 不闪，K 画成小牌叠在主牌右上角，小牌闪烁；主牌太小（风格 1 顶栏）时小牌并排在左边。
+    // 电子眼距离（读得出时）不闪，写在牌下方；底栏的牌写在上方；风格 1 顶栏写在左边。
+    // sign(cx, cy, d, text) 按当前风格画一块牌，坐标是安全区单位。返回这组图形最左边的 x。
+    var CAMERA_DISTANCE_FONT = 14;
+    function drawLimitSigns(s, state, cx, cy, d, sign) {
+        var C = state.speedLimitKmh, cam = state.speedCamera, K = cam ? cam.limitKmh : null;
+        var leftmost = cx - d / 2;
+        if (K === null) {
+            if (C !== null) sign(cx, cy, d, String(C));
+            return leftmost;
+        }
+        var merged = C === null || C === K, side = false, sd = 0, sx = cx, sy = cy;
+        if (merged) {
+            if (state.cameraBlink) sign(cx, cy, d, String(K));
+        } else {
+            sign(cx, cy, d, String(C));
+            if (d < 40) { side = true; sd = d * 0.8; sx = cx - d / 2 - sd / 2 - 4; sy = cy; leftmost = sx - sd / 2; }
+            else { sd = d * 0.54; sx = Math.min(cx + d * 0.5, 452 - sd / 2); sy = Math.max(cy - d * 0.52, sd / 2 + 1); }
+            if (state.cameraBlink) {
+                // 小牌外面先铺一圈深色，和主牌分开。
+                var halo = [];
+                for (var k = 0; k < 32; k++) halo.push([safeX(sx + (sd / 2 + 2) * Math.cos(k * Math.PI / 16)), safeY(sy + (sd / 2 + 2) * Math.sin(k * Math.PI / 16))]);
+                if (!side) s.shape([halo], [12, 12, 14]);
+                sign(sx, sy, sd, String(K));
+            }
+        }
+        if (cam.distanceM === null || cam.distanceM === undefined) return leftmost;
+        var dist = nav.distance(cam.distanceM), label = dist.value + ' ' + dist.unit;
+        var size = safeFont(CAMERA_DISTANCE_FONT), w = s.measure(label, size) / SAFE_SCALE_X, x, y;
+        if (d < 40) {
+            x = (side ? sx - sd / 2 : cx - d / 2) - 5 - w;
+            y = cy - CAMERA_DISTANCE_FONT * 0.62;
+            leftmost = x;
+        } else if (cy > 120) {
+            x = merged ? cx - w / 2 : cx + d * 0.15 - w;
+            y = cy - d / 2 - 4 - CAMERA_DISTANCE_FONT;
+        } else {
+            x = cx - w / 2;
+            y = cy + d / 2 + 3;
+        }
+        s.text(label, safeX(x), safeY(y), size, [255, 196, 64]);
+        return leftmost;
+    }
+    // 限速牌的左边界，用于给左边的文字留空。
+    function limitSignsLeft(s, state, cx, d) {
+        var probe = { text: function() { return 0; }, shape: function() {}, measure: s.measure.bind(s) };
+        return drawLimitSigns(probe, state, cx, 0, d, function() {});
+    }
+    function hasLimitSign(state) { return state.speedLimitKmh !== null || !!state.speedCamera; }
+    function whiteSign(s) {
+        return function(cx, cy, d, text) { drawSpeedSignWhite(s, safeX(cx), safeY(cy), safeW(d), safeH(d), text); };
+    }
     function drawSpeedSignWhite(s, cx, cy, w, h, limitStr) {
         var rx = w / 2, ry = h / 2, inner = 0.77;
         var red = [225, 42, 46];
@@ -520,7 +591,8 @@
                 }
             }
         }
-        var sz = limitStr.length === 3 ? 17 : 21;
+        // 字号按 44 的牌设计，小牌（风格 1 顶栏 36）按比例缩小，大牌不放大。
+        var sz = (limitStr.length === 3 ? 17 : 21) * Math.min(1, w / safeW(44));
         var fsz = safeFont(sz);
         s.text(limitStr, cx - s.measure(limitStr, fsz) / 2, cy - fsz * 0.61, fsz, [18, 20, 24]);
     }
@@ -627,7 +699,7 @@
                 if (inRing) s.pixel(x, y, red, outer * inRing);
             }
         }
-        var fsz = safeFont(limitStr.length === 3 ? 17 : 21);
+        var fsz = safeFont((limitStr.length === 3 ? 17 : 21) * Math.min(1, d / 44));
         s.text(limitStr, x0 - s.measure(limitStr, fsz) / 2, centeredTextY(s, limitStr, cy, fsz), fsz, [17, 17, 17], 0, true);
     }
     // 方案 D 的车道线：2 单位宽，虚线暗灰 4 实 2.5 空，实线浅灰，y 84–131。
@@ -654,7 +726,7 @@
         if (dist.unit) text(dist.unit, safeX(15) + dw + safeW(6), inkBottomY(s, dist.unit, 143, unitSize), unitSize, [214, 218, 224]);
 
         // 2. 右上：动作副标题 + 大号目标路名 + 红绿灯倒计时 + 限速牌
-        var light = state.trafficLight, hasSpeed = state.speedLimitKmh !== null;
+        var light = state.trafficLight, hasSpeed = hasLimitSign(state);
         var titleRight = hasSpeed ? 390 : 440;
         if (light) {
             var lightColors = { red: [255, 82, 72], green: [61, 220, 151], yellow: [255, 198, 45] };
@@ -667,7 +739,7 @@
             text(lt, tx, centeredTextY(s, lt, 34, lsz), lsz, lc, 0, true);
             titleRight = Math.min(titleRight, (tx - safeX(0)) / SAFE_SCALE_X - 34);
         }
-        if (hasSpeed) drawSpeedSignD(s, 418, 34, 44, String(state.speedLimitKmh));
+        if (hasSpeed) drawLimitSigns(s, state, 418, 34, 44, function(cx, cy, d, text) { drawSpeedSignD(s, cx, cy, d, text); });
         var sub = state.exitLabel || directionLabel(state.direction);
         var subSize = safeFont(16 * fs);
         if (sub) {

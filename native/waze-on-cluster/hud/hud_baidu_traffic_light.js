@@ -1,6 +1,7 @@
 'use strict';
 
-// 百度地图 V22 夜间倒计时卡片。输入为 RGB、RGBA 或全范围 BT.601 图集。
+// 百度地图 V22 夜间倒计时卡片，横排（灯在左、数字在右）和竖排（灯在上、数字在下）两种。
+// 输入为 RGB、RGBA 或全范围 BT.601 图集。
 const DIGITS = ['1110111', '0010010', '1011101', '1011011', '0111010',
     '1101011', '1101111', '1010010', '1111111', '1111011'];
 
@@ -90,7 +91,8 @@ function rings(image, width, height) {
     const maxArea = Math.floor(maxSize * maxSize * 0.62);
     if (!queue || queue.length !== maxArea) queue = new Int32Array(maxArea);
     let visitsLeft = 65536;
-    const minSize = Math.max(18, height * 0.065);
+    // 竖排卡片的灯环约为画面高度的 6.6%，下限留一点余量。
+    const minSize = Math.max(18, height * 0.06);
     for (let y = 1; y < height - 1; y += 2) {
         seed: for (let x = 1; x < width - 1; x += 2) {
             const start = y * width + x;
@@ -172,14 +174,15 @@ function digit(pixels, height, scale) {
     return value < 0 ? null : value;
 }
 
-function countdown(image, left, right, cy, scale) {
+// slant 是数字的倾斜：横排卡片的数字是斜体，竖排卡片的七段数字是直的。
+function countdown(image, left, right, cy, scale, slant = 0.12) {
     const columns = [];
     const halfHeight = Math.round(scale * 0.35);
     for (let x = Math.ceil(left); x <= right; x++) {
         const points = [];
         for (let y = -halfHeight; y <= halfHeight; y++) {
             // 按数字的倾斜方向校正，避免相邻数字在列投影里粘在一起。
-            if (image.white(x - y * 0.12, cy + y)) points.push({x, y});
+            if (image.white(x - y * slant, cy + y)) points.push({x, y});
         }
         columns.push(points);
     }
@@ -225,7 +228,27 @@ function hasCautionLabel(image, left, right, cy, scale) {
     return lit >= Math.max(12, scale * scale * 0.04);
 }
 
+// 竖排卡片：灯环里是深色底加白色方向箭头，倒计时在灯环正下方。
+// 灯环内部要是深色，避免把白底的限速牌当成灯。
+function readVerticalCard(image, ring, includeDirection) {
+    const {cx, cy, size, color} = ring;
+    const darkInside = [[-0.3, 0.1], [0.3, 0.1], [-0.21, 0.21], [0.21, 0.21]].every(([x, y]) =>
+        image.dark(cx + x * size, cy + y * size));
+    const darkCard = [-0.4, 0, 0.4].every(x => image.dark(cx + x * size, cy + size * 0.62)) &&
+        [-0.62, 0.62].every(x => image.dark(cx + x * size, cy + size * 1.0));
+    if (!darkInside || !darkCard) return null;
+    const seconds = countdown(image, cx - size * 0.55, cx + size * 0.55, cy + size, size, 0);
+    if (seconds === null) return null;
+    const light = {color: color === 1 ? 'red' : color === 2 ? 'green' : 'yellow', seconds};
+    if (includeDirection) light.direction = direction(image, cx, cy, size);
+    return light;
+}
+
 function readCard(image, ring, includeDirection) {
+    return readHorizontalCard(image, ring, includeDirection) || readVerticalCard(image, ring, includeDirection);
+}
+
+function readHorizontalCard(image, ring, includeDirection) {
     const {cx, cy, size, color} = ring;
     // 确认图标右边是深色卡片，且数字或“注意”文案与图标垂直居中。
     const darkCorners = [0.66, 1.08, 1.47].every(x =>
@@ -250,9 +273,16 @@ function recognizeBaiduTrafficLight(pixels, width, height, channels = 3, include
         (channels === 0 ? width % 2 || height % 2 || pixels.length !== width * height * 1.5 :
             (channels !== 3 && channels !== 4) || pixels.length !== width * height * channels)) return null;
     const image = frame(pixels, width, height, channels);
-    const matches = rings(image, width, height).map(ring => readCard(image, ring, includeDirection)).filter(Boolean);
-    // 同一帧同时识别到多张卡片时，无法仅凭位置确定是哪一个路口。
-    return matches.length === 1 ? matches[0] : null;
+    // 同一帧有几张卡片时，取灯离画面中心最近的那张。
+    const cx = width / 2, cy = height / 2;
+    let best = null, bestDistance = Infinity;
+    for (const ring of rings(image, width, height)) {
+        const light = readCard(image, ring, includeDirection);
+        if (!light) continue;
+        const distance = Math.hypot(ring.cx - cx, ring.cy - cy);
+        if (distance < bestDistance) { best = light; bestDistance = distance; }
+    }
+    return best;
 }
 
 module.exports = {recognizeBaiduTrafficLight};

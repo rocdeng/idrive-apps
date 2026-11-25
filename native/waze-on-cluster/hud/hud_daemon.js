@@ -175,6 +175,7 @@ function HudEngine(options) {
     this.lastState = null;
     this.lastLabel = undefined;
     this.lastNav = 0;
+    this.lastTrafficNav = null;
     this.idleReason = '';
     this.lastOapNav = 0;
     this.oapState = null;
@@ -188,6 +189,7 @@ function HudEngine(options) {
     this.nativeRetryAt = 0;
     this.nativeVerified = false;
     this.nativeInactiveSince = null;
+    this.cameraBlinkOn = true;
     this.maneuverKey = '';
     this.maneuverInitialM = null;
     this.generation = 0;
@@ -299,6 +301,7 @@ HudEngine.prototype.suspend = function() {
     this.lastOapNav = 0;
     this.navRevision++;
     this.nextNav = null;
+    this.lastTrafficNav = null;
     this.maneuverKey = '';
     this.maneuverInitialM = null;
     this.generation++;
@@ -331,6 +334,7 @@ HudEngine.prototype.endNavigation = function(reason) {
     this.idleReason = reason || '';
     if (this.lastNav) {
         this.lastNav = 0;
+        this.lastTrafficNav = null;
         this.navRevision++;
         this.nextNav = null;
         this.maneuverKey = '';
@@ -484,6 +488,7 @@ HudEngine.prototype.handleNav = function(rawState) {
         }
         if (this.maneuverInitialM > 0) state.initialDistanceM = this.maneuverInitialM;
     }
+    this.lastTrafficNav = state;
     if (this.navBusy) {
         this.nextNav = state;
         return;
@@ -502,18 +507,29 @@ HudEngine.prototype.readTraffic = function(state) {
         return null;
     }).then(function(alerts) {
         if (revision !== self.navRevision || self.nextNav) return;
+        // 识别结果只叠到这一帧，下一次从原始导航状态重新合并。
+        state = Object.assign({}, state);
         if (state.state === 'cruising') {
             var guidance = self.nativeGuidance;
             var road = alerts && guidance && guidance.currentRoad ? guidance.currentRoad() : '';
-            if (!alerts || (!road && !alerts.trafficLight && alerts.speedLimitKmh == null)) {
+            var lanes = self.cruiseLanes();
+            // 车道来自车机，不依赖投屏帧；只有车道时也显示。
+            if (!lanes.length && (!alerts || (!road && !alerts.trafficLight && alerts.speedLimitKmh == null && !alerts.speedCamera))) {
                 self.hide(self.idleReason ? 'unavailable' : 'waiting', self.idleReason);
                 return;
             }
             state.currentRoad = road;
+            state.lanes = lanes;
         }
         if (alerts) {
             state.trafficLight = alerts.trafficLight;
             if (state.speedLimitKmh == null) state.speedLimitKmh = alerts.speedLimitKmh;
+            // 电子眼：限速位置照常显示当前路段限速，电子眼限速单独记下，由渲染器画成闪烁的限速牌。
+            // 亮灭由 tick() 翻转，这里只取当前相位。
+            if (alerts.speedCamera) {
+                state.speedCamera = alerts.speedCamera;
+                state.cameraBlink = self.cameraBlinkOn;
+            }
         }
         self.draw(state);
     }).then(function() {
@@ -522,6 +538,26 @@ HudEngine.prototype.readTraffic = function(state) {
         self.nextNav = null;
         if (next) self.readTraffic(next);
     });
+};
+
+// 巡航时车机仪表会在地图底部画车道，数据来自 Guidance.currentLaneGuiding（0x0019）。
+// 没有路线，不核对路口位置；车机给空或查不到时返回空数组，HUD 不画车道。
+HudEngine.prototype.cruiseLanes = function() {
+    var info = this.nativeGuidance;
+    if (!info || typeof info.guidanceField !== 'function') return [];
+    var row = info.guidanceField('lanes', 'cruise');
+    if (!row) {
+        this.logLaneStatus('cruise', 'none');
+        return [];
+    }
+    var lanes = nav.bmwLanes(row);
+    if (!lanes.length) {
+        this.logLaneStatus('cruise', 'no-directions');
+        return [];
+    }
+    this.logLaneStatus('cruise', 'shown', 'selectedLanes=' + lanes.length + ' recommended=' +
+        lanes.filter(function(lane) { return lane.recommended; }).length);
+    return lanes;
 };
 
 HudEngine.prototype.logLaneStatus = function(source, status, counts) {
@@ -609,6 +645,8 @@ HudEngine.prototype.tick = function() {
         else this.tickValidation();
         return;
     }
+    // 电子眼每个 tick 翻转一次。现有读帧限频会在两次识别之间复用结果。
+    this.cameraBlinkOn = !this.cameraBlinkOn;
     var now = Date.now();
     if (this.lastNav && now - this.lastNav > this.staleMs) {
         this.endNavigation('navigation stale');
@@ -663,7 +701,9 @@ HudEngine.prototype.tick = function() {
         });
     }
     // 巡航可独立取投屏帧，即使车机导航服务尚未返回转向。
-    if (!this.lastNav && !this.navBusy) this.readTraffic({ state: 'cruising' });
+    if (this.navBusy) return;
+    if (!this.lastNav) this.readTraffic({ state: 'cruising' });
+    else if (this.lastTrafficNav && this.frame && this.lastState.speedCamera) this.readTraffic(this.lastTrafficNav);
 };
 
 function startDaemon(opts) {

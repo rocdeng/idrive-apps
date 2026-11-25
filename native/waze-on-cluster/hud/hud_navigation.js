@@ -52,8 +52,13 @@
             } : null;
         var speedLimitKmh = showsAlerts && Number.isInteger(raw.speedLimitKmh) &&
             raw.speedLimitKmh > 0 && raw.speedLimitKmh <= 199 ? raw.speedLimitKmh : null;
+        // 电子眼：限速值和距离（米，读不出为 null）；cameraBlink 是电子眼限速牌这一帧亮不亮。
+        var camera = raw.speedCamera;
+        var speedCamera = (state === 'navigating' || state === 'cruising') && camera && Number.isInteger(camera.limitKmh) &&
+            camera.limitKmh > 0 && camera.limitKmh <= 199 ? { limitKmh: camera.limitKmh, distanceM: number(camera.distanceM) } : null;
         return { state: state, source: text(raw.source), currentRoad: text(raw.currentRoad),
             trafficLight: trafficLight, speedLimitKmh: speedLimitKmh,
+            speedCamera: speedCamera, cameraBlink: !!speedCamera && raw.cameraBlink !== false,
             nextRoad: text(raw.nextRoad), instruction: text(raw.instruction), exitLabel: text(raw.exitLabel),
             direction: direction(raw.direction), distanceM: number(raw.distanceM),
             maneuverPositionM: number(raw.maneuverPositionM), maneuverId: text(raw.maneuverId),
