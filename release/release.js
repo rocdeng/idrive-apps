@@ -79,6 +79,7 @@ const APP_ID_PREFIX = 'robertn_';
 const APP_TREE = 'package';
 const REPO_RULES = fs.existsSync(path.join(__dirname, 'repo.json')) ? readJson(path.join(__dirname, 'repo.json')) : {};
 const UNPREFIXED_APP_IDS = REPO_RULES.unprefixedAppIds || [];
+const UNPUBLISHED_COMPONENTS = new Set(REPO_RULES.unpublishedComponents || []);
 
 /* An app's release.json or a tool's component.json "requires" (catalog
  * schema 2): component ids, of any catalog the unit reads, to their minimum
@@ -145,7 +146,7 @@ function appIcon(stagedDir) {
 }
 
 /* Every releasable component in a repo tree (the working tree or an export). */
-function components(root = REPO) {
+function components(root = REPO, forPublish = false) {
     const out = [];
     const apps = path.join(root, 'apps');
     fs.readdirSync(apps).sort().forEach((id) => {
@@ -235,17 +236,18 @@ function components(root = REPO) {
         tool(dir, id, [dir, `:(exclude,glob)${dir}/*.md`, `:(exclude)${dir}/test`]);
     });
     const texts = catalogTexts(out.map((c) => c.id), root);
-    out.forEach((c) => {
+    const selected = forPublish ? out.filter((c) => !UNPUBLISHED_COMPONENTS.has(c.id)) : out;
+    selected.forEach((c) => {
         if (texts[c.id]) {
             c.texts = texts[c.id];
         }
         Object.keys(c.requires || {}).forEach((id) => {
-            if (c.requires[id] === NEXT && !out.some((x) => x.id === id)) {
+            if (c.requires[id] === NEXT && !selected.some((x) => x.id === id)) {
                 throw new Error(`${c.dir}: requires ${id}: "${NEXT}" names a component of this repository only`);
             }
         });
     });
-    return out;
+    return selected;
 }
 
 /* The components' titles and descriptions in other languages, from
@@ -505,7 +507,7 @@ function warnDirty() {
 function cmdList() {
     const published = publishTarget.published();
     const byId = new Map((published ? published.components : []).map((e) => [e.id, e]));
-    const rows = components().map((c) => {
+    const rows = components(REPO, true).map((c) => {
         const p = byId.get(c.id);
         let state = 'not published';
         if (p) {
@@ -762,7 +764,7 @@ function cmdStamp(ids, dryRun) {
     if (git(['status', '--porcelain', '--untracked-files=no'])) {
         throw new Error('commit first: stamp writes the release commit');
     }
-    const steps = plan(components(), ids);
+    const steps = plan(components(REPO, true), ids);
     steps.forEach((p) => {
         const req = Object.keys(p.resolved).map((id) => `, requires ${id} ${p.resolved[id]}`).join('');
         const how = p.level === 'new' ? 'not released yet' : `${p.level} from ${p.c.version}`;
@@ -853,27 +855,28 @@ function cmdPublish(ids, dryRun, stamped) {
             'publish from that commit or a later one');
     }
     const current = new Map(published.components.map((e) => [e.id, e]));
-    // the catalog lists what the repository has: a component removed from it
-    // (or renamed) leaves the catalog too
-    const inRepo = new Set(components().map((c) => c.id));
-    const removed = [...current.keys()].filter((id) => !inRepo.has(id));
+    const all = components(REPO, true);
+    const publishableIds = new Set(all.map((c) => c.id));
+    const removed = [...current.keys()].filter((id) => !publishableIds.has(id));
     removed.forEach((id) => current.delete(id));
     if (stamped) {
         // what the last stamp chose, and any component whose version is
         // tagged but not in the catalog (a publish that stopped part-way)
-        const lagging = components().filter((c) => tagExists(`${c.id}@${c.version}`, REPO) &&
+        const lagging = all.filter((c) => tagExists(`${c.id}@${c.version}`, REPO) &&
             (!current.has(c.id) || current.get(c.id).version !== c.version));
-        ids = [...new Set(fs.readFileSync(STAMPED, 'utf8').split(/\s+/).filter(Boolean).concat(lagging.map((c) => c.id)))];
+        const stampedIds = fs.readFileSync(STAMPED, 'utf8').split(/\s+/)
+            .filter((id) => id && !UNPUBLISHED_COMPONENTS.has(id));
+        ids = [...new Set(stampedIds.concat(lagging.map((c) => c.id)))];
+    } else {
+        ids = select(all, ids).map((c) => c.id);
     }
     const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'mgu-publish-'));
     const skipped = [];
     // built twice: a version publishes only when both builds give the same
-    // bytes; with --stamped and nothing to publish, nothing is built
-    const none = stamped && !ids.length;
-    const built = none ? [] : build(ids, staging, skipped);
+    // bytes; with nothing to publish, nothing is built
+    const built = ids.length ? build(ids, staging, skipped) : [];
     const again = built.length ? build(built.map((e) => e.id), fs.mkdtempSync(path.join(os.tmpdir(), 'mgu-publish-b-')), skipped) : [];
     const uploads = [];
-    const all = components();
     built.forEach((e) => {
         const p = current.get(e.id);
         const b = again.find((x) => x.id === e.id);
@@ -909,7 +912,7 @@ function cmdPublish(ids, dryRun, stamped) {
         console.log('nothing new to publish');
         return;
     }
-    removed.forEach((id) => console.log(`${dryRun ? 'would remove' : 'removing'} ${id}: not in the repository`));
+    removed.forEach((id) => console.log(`${dryRun ? 'would remove' : 'removing'} ${id}: not published by this repository`));
     relisted.forEach((e) => console.log(`${dryRun ? 'would list' : 'listing'} ${e.id}@${e.version} at ${e.artifact.url}`));
     retexted.forEach((e) => console.log(`${dryRun ? 'would list' : 'listing'} ${e.id}@${e.version} with its texts`));
     uploads.forEach((e) => console.log(`${dryRun ? 'would publish' : 'publishing'} ${e.id}@${e.version}`));
