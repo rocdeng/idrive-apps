@@ -555,6 +555,17 @@ NativeGuidanceReader.prototype._guidanceRoad = function() {
     return this.roadName && now - this.roadAt < ROAD_FRESH_MS ? this.roadName : '';
 };
 
+// 车机当前车道和定位街道名（CarPlay 导航时路名的兜底）的查询结果，同一结果 30 秒记一次。
+var FIELD_LOG_PREFIX = { lanes: 'HUD lanes current getter: ', location: 'native location street: ' };
+NativeGuidanceReader.prototype._reportField = function(key, status) {
+    if (key === 'lanes') return this._reportCurrentLanes(status);
+    if (!FIELD_LOG_PREFIX[key]) return;
+    var now = uptimeMs(), tag = key + '/' + status, last = this.laneLogTimes[tag];
+    if (last !== undefined && now - last < LANE_FIELD_LOG_INTERVAL_MS) return;
+    this.laneLogTimes[tag] = now;
+    this.log.info(FIELD_LOG_PREFIX[key] + status);
+};
+
 NativeGuidanceReader.prototype._reportCurrentLanes = function(status) {
     var now = uptimeMs(), last = this.laneLogTimes[status];
     if (last !== undefined && now - last < LANE_FIELD_LOG_INTERVAL_MS) return;
@@ -565,7 +576,7 @@ NativeGuidanceReader.prototype._reportCurrentLanes = function(status) {
 NativeGuidanceReader.prototype.guidanceField = function(key, context) {
     var getter = GUIDANCE_GETTERS[key];
     if (!this.child || !(getter.service === 'location' ? this.locationAvailable : this.roadAvailable)) {
-        if (key === 'lanes') this._reportCurrentLanes('service-unavailable');
+        this._reportField(key, 'service-unavailable');
         return null;
     }
     var field = this.fields[key];
@@ -575,14 +586,14 @@ NativeGuidanceReader.prototype.guidanceField = function(key, context) {
     var now = uptimeMs();
     if (now >= field.next) {
         // 替换超时的请求编号，上一条有效值仍受新鲜度和路口约束。
-        if (key === 'lanes' && field.id !== null) this._reportCurrentLanes('timeout');
+        if (field.id !== null) this._reportField(key, 'timeout');
         field.next = now + ROAD_INTERVAL_MS;
         field.id = String(this.nextId++);
         try { this.child.stdin.write(field.id + ' ' + key + ' -\n'); }
         catch (_) {
             field.id = null;
             field.value = null;
-            if (key === 'lanes') this._reportCurrentLanes('write-failed');
+            this._reportField(key, 'write-failed');
         }
     }
     return now - field.at < ROAD_FRESH_MS ? field.value : null;
@@ -656,10 +667,11 @@ NativeGuidanceReader.prototype._onLine = function(line) {
                         field.value = decodedField.row;
                     } else {
                         field.value = decodedField;
+                        if (name === 'location') status = decodedField ? 'received' : 'empty';
                     }
                 } catch (_) { status = 'decode-rejected'; }
             }
-            if (name === 'lanes') this._reportCurrentLanes(status);
+            this._reportField(name, status);
             field.at = uptimeMs();
             break;
         }

@@ -405,8 +405,11 @@ function incidentsText(dir, now) {
     rows = rows.slice(-INCIDENTS);
     rows.push({ t: stamp(now), s: '-- this export' });
     return '-- INCIDENT lines of cluster-render.log* and waze-on-cluster.log*, the boots the kept journal saw and this export; ' +
-        'oldest first, UTC' + (rows.some(function (r) { return r.t === '~'; }) ? ' (~: no time)' : '') + '\n' +
-        rows.map(function (r) { return r.t + ' ' + r.s; }).join('\n') + '\n';
+        'oldest first, UTC+08:00' + (rows.some(function (r) { return r.t === '~'; }) ? ' (~: no time)' : '') + '\n' +
+        rows.map(function (r) {
+            var ms = Date.parse(r.t.replace(' ', 'T') + 'Z');
+            return (isFinite(ms) ? stamp(ms + 8 * 3600000) : '~') + ' ' + r.s;
+        }).join('\n') + '\n';
 }
 
 /* ---- scrub ------------------------------------------------------------------- */

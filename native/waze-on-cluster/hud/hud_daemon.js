@@ -234,7 +234,14 @@ HudEngine.prototype.status = function() {
 };
 
 HudEngine.prototype._changed = function() {
-    this.emit('change', this.status());
+    var status = this.status();
+    // 应用端在原生已有转向和车道时停止查询（structured_hud.js）。记下停和恢复的时刻。
+    var paused = status.native_guidance && !status.native_needs_lanes;
+    if (paused !== !!this.oapPaused) {
+        this.oapPaused = paused;
+        this.log.info('HUD OAP query: ' + (paused ? 'paused, native guidance has turns and lanes' : 'asked to run'));
+    }
+    this.emit('change', status);
 };
 
 HudEngine.prototype.start = function() {
@@ -295,6 +302,8 @@ HudEngine.prototype.suspend = function() {
     this.nativeVerified = false;
     this.nativeInactiveSince = null;
     this.laneLogTimes = Object.create(null);
+    this.oapQuerySignature = '';
+    this.oapQueryAt = 0;
     this.nativeState = null;
     this.oapState = null;
     this.idleReason = '';
@@ -442,8 +451,6 @@ HudEngine.prototype.handleNav = function(rawState) {
     if (!this.enabled || this.suspended || this.validation) return;
     if (rawState && rawState.state === 'navigating' && this.nativeGuidance) {
         var info = this.nativeGuidance;
-        var road = !rawState.currentRoad && info.currentRoad && info.currentRoad();
-        if (road) rawState = Object.assign({}, rawState, { currentRoad: road });
         if (info.guidanceField && info.guidanceField('state') === 'CALCULATING_ROUTE') {
             rawState = { state: 'rerouting' };
         } else if (info.guidanceField) {
@@ -489,6 +496,14 @@ HudEngine.prototype.handleNav = function(rawState) {
         if (this.maneuverInitialM > 0) state.initialDistanceM = this.maneuverInitialM;
     }
     this.lastTrafficNav = state;
+    // 切入导航时先提交转向和距离，再查询路名、读取投屏提醒。
+    if (state.state === 'navigating' && (!this.frame || this.lastState.state !== 'navigating')) {
+        this.draw(state);
+        if (this.frame && this.lastState === state) {
+            this.log.info('HUD navigation first frame: direction=' + (state.direction || 'unknown') +
+                ' distance=' + (state.distanceM === null ? 'unavailable' : 'available'));
+        }
+    }
     if (this.navBusy) {
         this.nextNav = state;
         return;
@@ -509,8 +524,11 @@ HudEngine.prototype.readTraffic = function(state) {
         if (revision !== self.navRevision || self.nextNav) return;
         // 识别结果只叠到这一帧，下一次从原始导航状态重新合并。
         state = Object.assign({}, state);
+        var guidance = self.nativeGuidance;
+        if (state.state === 'navigating' && !state.currentRoad && guidance && guidance.currentRoad) {
+            state.currentRoad = guidance.currentRoad() || '';
+        }
         if (state.state === 'cruising') {
-            var guidance = self.nativeGuidance;
             // 路名来自车机。投屏帧只是过期时读取器给的是三项为空的结果，路名照常显示；
             // 投屏没了（null）时巡航 HUD 和以前一样收起。
             var road = alerts && guidance && guidance.currentRoad ? guidance.currentRoad() : '';
@@ -526,9 +544,8 @@ HudEngine.prototype.readTraffic = function(state) {
         if (alerts) {
             state.trafficLight = alerts.trafficLight;
             if (state.speedLimitKmh == null) state.speedLimitKmh = alerts.speedLimitKmh;
-            // 电子眼：限速位置照常显示当前路段限速，电子眼限速单独记下，由渲染器画成闪烁的限速牌。
-            // 亮灭由 tick() 翻转，这里只取当前相位。
-            if (alerts.speedCamera) {
+            // 有路段限速时，纯文字抓拍不占用限速牌。带数字的电子眼按原规则绘制。
+            if (alerts.speedCamera && (!alerts.speedCamera.textOnly || state.speedLimitKmh == null)) {
                 state.speedCamera = alerts.speedCamera;
                 state.cameraBlink = self.cameraBlinkOn;
             }
@@ -611,9 +628,35 @@ HudEngine.prototype.withinNativeEndGrace = function() {
         this.clock() - this.nativeInactiveSince < this.navEndGraceMs;
 };
 
-HudEngine.prototype.handleOapNav = function(rawState, laneInfo) {
+// 应用端每次查询结果的摘要（querySummary）。内容变化时记一条；隔了 OAP_GAP_MS 以上才收到时也记，
+// 用来区分车机没给转向、转向被当成不可靠过滤掉，还是应用端没在查。
+var OAP_GAP_MS = 3000;
+function querySignature(state, query) {
+    if (!query || typeof query !== 'object' || !Number.isInteger(query.events) || query.events < 0 || query.events > 65535) {
+        return 'state=' + state.state + ' summary=none';
+    }
+    var kinds = query.kinds && typeof query.kinds === 'object' ? query.kinds : {};
+    var parts = Object.keys(kinds).filter(function(k) {
+        return /^[A-Za-z]{1,40}$/.test(k) && Number.isInteger(kinds[k]) && kinds[k] > 0 && kinds[k] <= 65535;
+    }).sort().slice(0, 24).map(function(k) { return k + ':' + kinds[k]; });
+    var unreliable = Number.isInteger(query.unreliable) && query.unreliable >= 0 && query.unreliable <= 65535 ? query.unreliable : 0;
+    return 'state=' + state.state + ' events=' + query.events + ' kinds=' + (parts.join(',') || '-') + ' unreliable=' + unreliable;
+}
+
+HudEngine.prototype.logOapQuery = function(state, query) {
+    var now = this.clock(), signature = querySignature(state, query);
+    if (this.oapQueryAt && now - this.oapQueryAt >= OAP_GAP_MS) {
+        this.log.info('HUD OAP query: reply after a ' + (now - this.oapQueryAt) + ' ms gap');
+    }
+    if (signature !== this.oapQuerySignature) this.log.info('HUD OAP query: ' + signature);
+    this.oapQuerySignature = signature;
+    this.oapQueryAt = now;
+};
+
+HudEngine.prototype.handleOapNav = function(rawState, laneInfo, query) {
     if (!this.enabled || this.suspended || this.validation) return;
     var state = nav.snapshot(rawState);
+    this.logOapQuery(state, query);
     this.logLaneInput('OAP', state, laneInfo);
     this.oapState = state.state === 'inactive' ? null : state;
     this.lastOapNav = this.oapState ? Date.now() : 0;
@@ -647,11 +690,14 @@ HudEngine.prototype.tick = function() {
         else this.tickValidation();
         return;
     }
-    // 电子眼每个 tick 翻转一次。现有读帧限频会在两次识别之间复用结果。
-    this.cameraBlinkOn = !this.cameraBlinkOn;
     var now = Date.now();
     if (this.lastNav && now - this.lastNav > this.staleMs) {
         this.endNavigation('navigation stale');
+    }
+    // 已确认的电子眼先用本帧状态切换亮灭，不等下一次异步读帧或导航回报。
+    this.cameraBlinkOn = !this.cameraBlinkOn;
+    if (this.frame && this.lastState.speedCamera) {
+        this.draw(Object.assign({}, this.lastState, { cameraBlink: this.cameraBlinkOn }), this.lastLabel);
     }
     /* 原生 vsomeip 直连 GuidanceEventList：不依赖 OAP 是否打开，开机即可自动取数。 */
     if (this.nativeGuidance && this.nativeGuidance.supported() && !this.nativeBusy && now >= this.nativeRetryAt) {
@@ -705,7 +751,7 @@ HudEngine.prototype.tick = function() {
     // 巡航可独立取投屏帧，即使车机导航服务尚未返回转向。
     if (this.navBusy) return;
     if (!this.lastNav) this.readTraffic({ state: 'cruising' });
-    else if (this.lastTrafficNav && this.frame && this.lastState.speedCamera) this.readTraffic(this.lastTrafficNav);
+    else if (this.lastTrafficNav && this.lastTrafficNav.state === 'navigating') this.readTraffic(this.lastTrafficNav);
 };
 
 function startDaemon(opts) {
@@ -767,7 +813,7 @@ function startDaemon(opts) {
                 else if (msg.cmd === 'validation-parking') engine.updateParking(sock, msg.parked);
                 else if (msg.cmd === 'validation-stop') engine.updateParking(sock, false);
                 else if (msg.cmd === 'suspend') engine.suspend();
-                else if (msg.cmd === 'nav') engine.handleOapNav(msg.state, msg.laneInfo);
+                else if (msg.cmd === 'nav') engine.handleOapNav(msg.state, msg.laneInfo, msg.query);
                 else if (msg.cmd === 'nav-error') engine.handleNavError(msg.reason);
             }
         });

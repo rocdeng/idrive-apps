@@ -7,6 +7,33 @@ const nav = require('./hud_navigation.js');
 const HUD_PATH = '/dev/shm/waze-on-cluster/hud.sock';
 
 /* OAP 侧薄桥接：连接原生 waze-on-cluster-hud.service，转发验证指令和 BMW 引导数据。 */
+// 一次导航查询的结果摘要，只有计数：事件总数、每类事件个数、其中标为不可靠的个数。
+// 后端据此记日志，区分车机没给转向、转向被当成不可靠过滤掉，还是查询本身没在跑。
+function querySummary(reply) {
+    const views = reply && reply.viewContent;
+    let events = reply && Array.isArray(reply.events) ? reply.events : null;
+    if (!events) {
+        events = [];
+        for (const view of Array.isArray(views) ? views : views ? [views] : []) {
+            if (view && Array.isArray(view.eventsInView)) events = events.concat(view.eventsInView);
+        }
+    }
+    const kinds = {};
+    let unreliable = 0;
+    for (const union of events) {
+        if (!union || typeof union !== 'object') continue;
+        let kind = typeof union.type === 'string' ? union.type : null, value = union.value;
+        if (!kind) {
+            kind = Object.keys(union).find((key) => union[key] && typeof union[key] === 'object') || 'unknown';
+            value = union[kind];
+        }
+        if (!/^[A-Za-z]{1,40}$/.test(kind)) kind = 'unknown';
+        kinds[kind] = (kinds[kind] || 0) + 1;
+        if (value && value.unreliable === true) unreliable++;
+    }
+    return { events: events.length, kinds, unreliable };
+}
+
 class StructuredHud extends EventEmitter {
     constructor(options) {
         super();
@@ -181,7 +208,7 @@ class StructuredHud extends EventEmitter {
             const laneInfo = {};
             const state = nav.fromBmw(reply, laneInfo);
             this.retryAt = 0;
-            this.hud.send({ cmd: 'nav', state, laneInfo });
+            this.hud.send({ cmd: 'nav', state, laneInfo, query: querySummary(reply) });
         }).catch((error) => {
             if (!this.enabled || this.validation || generation !== this.generation) return;
             const reason = error && error.message ? error.message : String(error);
@@ -202,4 +229,4 @@ class StructuredHud extends EventEmitter {
     }
 }
 
-module.exports = { StructuredHud, HUD_PATH };
+module.exports = { StructuredHud, HUD_PATH, querySummary };

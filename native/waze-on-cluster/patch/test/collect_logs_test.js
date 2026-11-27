@@ -166,10 +166,13 @@ if (!asRoot) {
 var out = path.join(dir, 'out-extra');
 fs.mkdirSync(out);
 var archive = cp.execFileSync('sh', [path.join(CUR, 'collect-logs.sh'), '-o', out], { env: XENV, encoding: 'utf8' }).trim();
+assert(/^woc-logs-\d{8}T\d{6}\+0800\.tar\.gz$/.test(path.basename(archive)), archive);
 cp.execFileSync('tar', ['-xzf', archive, '-C', out]);
 var A = path.join(out, path.basename(archive).replace(/\.tar\.gz$/, ''));
 function get(n) { return fs.readFileSync(path.join(A, n), 'utf8'); }
 
+assert(/^date \(UTC\+08:00\): .* \+0800$/m.test(get('time.txt')), get('time.txt'));
+assert(/^utc: .* UTC$/m.test(get('time.txt')), get('time.txt'));
 assert.strictEqual(get('patch-record-carplay.json'), fs.readFileSync(path.join(U, 'usr/bin/carplay.woc-patch.json'), 'utf8'));
 assert.strictEqual(get('patch-record-aapd.json'), fs.readFileSync(path.join(U, 'usr/bin/aapd.woc-patch.json'), 'utf8'));
 assert.strictEqual(get('aa-boot-recovery.json'), fs.readFileSync(path.join(U, 'var/opt/waze-on-cluster/aa-boot-recovery.json'), 'utf8'));
@@ -316,11 +319,11 @@ var lx = require(path.join(CUR, 'logs_extra.js'));
     fs.writeFileSync(path.join(d, 'other.log'), '2026-11-14 20:00:00.000 W INCIDENT not a tool log\n');
     var t = lx.incidentsText(d, Date.UTC(2026, 10, 14, 21, 10));
     assert.strictEqual(t, '-- INCIDENT lines of cluster-render.log* and waze-on-cluster.log*, the boots the kept journal saw and this export; ' +
-        'oldest first, UTC (~: no time)\n' +
-        '2026-11-14 15:50:00.000 -- boot 5e5e5e5e\n2026-11-14 17:49:50.000 -- boot 0a1b2c3d\n2026-11-14 18:00:00.000 cluster-render: W INCIDENT map lost: render restarted\n' +
-        '2026-11-14 20:59:00.500 -- boot 99ffee00\n2026-11-14 21:04:59.900 waze-on-cluster: W INCIDENT no frames for 5 s\n' +
-        '2026-11-14 21:05:00.100 cluster-render: W INCIDENT map lost: slot unmapped\n~ waze-on-cluster: no time INCIDENT odd\n' +
-        '2026-11-14 21:10:00.000 -- this export\n', t);
+        'oldest first, UTC+08:00 (~: no time)\n' +
+        '2026-11-14 23:50:00.000 -- boot 5e5e5e5e\n2026-11-15 01:49:50.000 -- boot 0a1b2c3d\n2026-11-15 02:00:00.000 cluster-render: W INCIDENT map lost: render restarted\n' +
+        '2026-11-15 04:59:00.500 -- boot 99ffee00\n2026-11-15 05:04:59.900 waze-on-cluster: W INCIDENT no frames for 5 s\n' +
+        '2026-11-15 05:05:00.100 cluster-render: W INCIDENT map lost: slot unmapped\n~ waze-on-cluster: no time INCIDENT odd\n' +
+        '2026-11-15 05:10:00.000 -- this export\n', t);
     console.log('ok   incidents.txt: the tools\' INCIDENT lines, each boot once, the export, oldest first');
 })();
 
@@ -380,6 +383,7 @@ var lx = require(path.join(CUR, 'logs_extra.js'));
     var srv = serve('answer'), r;
     try { r = run(); } finally { srv.kill(); }
     var f = r.files;
+    assert(/^2026-11-14 21:05:00\.100 W INCIDENT/.test(f['cluster-render.log']), f['cluster-render.log']);
     ['cluster-render.log', 'waze-on-cluster.log', 'kept-journal.log', 'kept-journal.log.1', 'kept-journal-20261114T195000Z-shutdown.log',
         'waze-on-cluster.local.conf', 'patchd-logs.json', 'incidents.txt', 'wifi.txt', 'time.txt'].forEach(function (n) {
         assert(f[n] !== undefined, n + ' in the archive: ' + Object.keys(f));
@@ -391,7 +395,7 @@ var lx = require(path.join(CUR, 'logs_extra.js'));
     });
     var pl = JSON.parse(f['patchd-logs.json']);
     assert(pl.ev === 'logs' && pl.dlt.state === 'receiving' && /CarPlay session with <DEVICE> \(<MAC-[0-9a-f]{6}>\)/.test(pl.carplay[0].msg), f['patchd-logs.json']);
-    assert(/^2026-11-14 19:40:00\.000 -- boot 5e5e5e5e\n2026-11-14 20:59:00\.500 -- boot 99ffee00\n2026-11-14 21:04:59\.900 waze-on-cluster: W INCIDENT peer <MAC-[0-9a-f]{6}> gone\n2026-11-14 21:05:00\.100 cluster-render: W INCIDENT map lost for <VIN>\n\S+ \S+ -- this export\n$/m
+    assert(/^2026-11-15 03:40:00\.000 -- boot 5e5e5e5e\n2026-11-15 04:59:00\.500 -- boot 99ffee00\n2026-11-15 05:04:59\.900 waze-on-cluster: W INCIDENT peer <MAC-[0-9a-f]{6}> gone\n2026-11-15 05:05:00\.100 cluster-render: W INCIDENT map lost for <VIN>\n\S+ \S+ -- this export\n$/m
         .test(f['incidents.txt'].split('\n').slice(1).join('\n')), f['incidents.txt']);
     assert(f['left-out.txt'] === undefined, 'nothing left out: ' + f['left-out.txt']);
     console.log('ok   the export: patchd\'s diagnostics, incidents.txt, every file scrubbed (' + r.ms + ' ms)');

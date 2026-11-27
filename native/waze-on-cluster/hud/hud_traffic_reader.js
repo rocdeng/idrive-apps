@@ -3,7 +3,7 @@
 const fs = require('fs');
 const { promisify } = require('util');
 const { recognizeBaiduTrafficLight } = require('./hud_baidu_traffic_light.js');
-const { recognizeBaiduSpeedLimit, recognizeBaiduWhiteSigns } = require('./hud_baidu_speed_limit.js');
+const { recognizeBaiduSpeedLimit, recognizeBaiduWhiteSigns, recognizeBaiduCameraText } = require('./hud_baidu_speed_limit.js');
 
 const open = promisify(fs.open), fstat = promisify(fs.fstat);
 const read = promisify(fs.read), readFile = promisify(fs.readFile), close = promisify(fs.close);
@@ -109,7 +109,8 @@ class HudTrafficReader {
             this.diagnostic('info', observed ? ('recognized ' + observed.color + ' ' + (observed.seconds === null ? (observed.text || 'caution') : (observed.seconds + 's')) + ' at stamp ' + stamp) : 'recognizer found no traffic-light card');
             const signs = recognizeBaiduWhiteSigns(bytes, WIDTH, HEIGHT, 0);
             const limit = signs.signKmh !== null ? signs.signKmh : recognizeBaiduSpeedLimit(bytes, WIDTH, HEIGHT, 0);
-            const cameraLimit = signs.cameraKmh;
+            const camera = signs.cameraKmh !== null ? signs.cameraKmh :
+                limit === null && recognizeBaiduCameraText(bytes, WIDTH, HEIGHT, 0) ? 'text' : null;
             const previous = this.pendingLight;
             // 过期或有歧义即留白，不从旧值自行递减；黄灯“注意”无倒计时需连续两帧确认。
             const sameWindow = observed && previous && stamp > this.stamp && stamp - this.stamp < FRESH && observed.color === previous.color;
@@ -122,15 +123,17 @@ class HudTrafficReader {
             this.shown = {
                 trafficLight: validStep ? observed : null,
                 speedLimitKmh: freshPair && limit === this.pendingLimit ? limit : null,
-                // 电子眼同样要连续两帧读到同一个限速才显示。
-                // 距离每帧都在变，用这一帧读到的；读不出时为 null。
-                speedCamera: freshPair && cameraLimit !== null && cameraLimit === this.pendingCamera ?
-                    { limitKmh: cameraLimit, distanceM: signs.cameraDistanceM } : null
+                // 电子眼要连续两帧读到同一种提示才显示；距离用最新读数。
+                speedCamera: freshPair && camera !== null && camera === this.pendingCamera ?
+                    (camera === 'text' ? { textOnly: true } : { limitKmh: camera, distanceM: signs.cameraDistanceM }) : null
             };
-            if (cameraLimit !== this.pendingCamera) this.log.info('traffic frame: ' + (cameraLimit === null ? 'speed camera card gone' : 'speed camera card ' + cameraLimit + ' km/h at stamp ' + stamp));
+            if (camera !== this.pendingCamera) {
+                const label = camera === 'text' ? 'text only' : camera + ' km/h';
+                this.log.info('traffic frame: ' + (camera === null ? 'speed camera card gone' : 'speed camera card ' + label + ' at stamp ' + stamp));
+            }
             this.pendingLight = observed;
             this.pendingLimit = limit;
-            this.pendingCamera = cameraLimit;
+            this.pendingCamera = camera;
             this.stamp = stamp;
             return this.shown;
         } catch (err) {

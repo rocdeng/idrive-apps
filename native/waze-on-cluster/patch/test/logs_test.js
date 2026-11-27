@@ -19,7 +19,7 @@ var collect = path.join(tmp, 'collect.sh'), df = path.join(tmp, 'df'), sizeFile 
 var freeFile = path.join(tmp, 'free'), runs = path.join(tmp, 'runs');
 /* writes an archive of $(cat size) bytes into the -o folder, as collect-logs.sh -o does */
 fs.writeFileSync(collect, '[ "$1" = -o ] || exit 2\necho run >> ' + runs + '\n' +
-    'n=woc-logs-$(date -u +%Y%m%dT%H%M%SZ).tar.gz\nhead -c "$(cat ' + sizeFile + ')" /dev/zero > "$2/.$n.part" && ' +
+    'n=woc-logs-$(TZ=CST-8 date +%Y%m%dT%H%M%S%z).tar.gz\nhead -c "$(cat ' + sizeFile + ')" /dev/zero > "$2/.$n.part" && ' +
     'mv "$2/.$n.part" "$2/$n" && echo "$2/$n"\n');
 fs.writeFileSync(df, '#!/bin/sh\n[ -s ' + freeFile + ' ] || exit 1\necho "Filesystem 1024-blocks Used Available Capacity Mounted on"\n' +
     'echo "/dev/x 1000000 1 $(cat ' + freeFile + ') 1% /var/opt"\n');
@@ -115,7 +115,7 @@ function get(url, opts) {
     await until('saved', function () { return a.state.saved && !a.state.saving; });
     assert(a.states.some(function (x) { return x.saving; }), 'saving shown while it runs');
     assert.strictEqual(a.state.error, null);
-    assert(/^woc-logs-\d{8}T\d{6}Z\.tar\.gz$/.test(a.state.saved));
+    assert(/^woc-logs-\d{8}T\d{6}\+0800\.tar\.gz$/.test(a.state.saved));
     assert.strictEqual(a.state.archives[0].name, a.state.saved);
     assert.strictEqual(a.state.archives[0].size, 2048);
     console.log('ok   the app\'s save: saving, then the archive listed and named');
@@ -132,7 +132,15 @@ function get(url, opts) {
     r = await get(base + name, { method: 'HEAD' });
     assert.strictEqual(r.status, 200);
     assert.strictEqual(r.body.length, 0);
-    console.log('ok   the page with its token lists the archive and sends it');
+    var oldUtc = 'woc-logs-20260101T000001Z.tar.gz';
+    var earlierCst = 'woc-logs-20260101T080000+0800.tar.gz';
+    fs.writeFileSync(path.join(s.dir, oldUtc), 'old');
+    fs.writeFileSync(path.join(s.dir, earlierCst), 'earlier');
+    assert.deepStrictEqual(logs.archives(s.dir).map(function (x) { return x.name; }), [name, oldUtc, earlierCst]);
+    r = await get(base + oldUtc);
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.body.toString(), 'old');
+    console.log('ok   the page downloads both archive formats and orders them by time');
 
     /* refusals */
     var host = /^http:\/\/([^/]+)\//.exec(base)[1], token = m[2];

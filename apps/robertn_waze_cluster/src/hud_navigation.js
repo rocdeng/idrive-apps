@@ -38,23 +38,29 @@
     function direction(v) { return DIRECTIONS.indexOf(v) >= 0 ? v : null; }
     function snapshot(raw) {
         raw = raw || {};
-        var state = ['navigating', 'rerouting', 'arrived', 'inactive'].indexOf(raw.state) >= 0 ? raw.state : 'inactive';
+        var state = ['navigating', 'rerouting', 'arrived', 'inactive', 'cruising'].indexOf(raw.state) >= 0 ? raw.state : 'inactive';
+        var showsAlerts = state === 'navigating' || state === 'cruising';
         var light = raw.trafficLight;
         var hasSeconds = light && Number.isInteger(light.seconds) && light.seconds >= 0 && light.seconds <= 99;
         var yellowCaution = light && light.color === 'yellow' && light.seconds === null;
-        var trafficLight = state === 'navigating' && light && ['red', 'green', 'yellow'].indexOf(light.color) >= 0 &&
+        var trafficLight = showsAlerts && light && ['red', 'green', 'yellow'].indexOf(light.color) >= 0 &&
             (hasSeconds || yellowCaution) ? {
                 color: light.color,
                 seconds: hasSeconds ? light.seconds : null,
                 text: yellowCaution ? (text(light.text) || '注意') : '',
                 direction: ['left', 'right', 'straight'].indexOf(light.direction) >= 0 ? light.direction : null
             } : null;
-        var speedLimitKmh = state === 'navigating' && Number.isInteger(raw.speedLimitKmh) &&
+        var speedLimitKmh = showsAlerts && Number.isInteger(raw.speedLimitKmh) &&
             raw.speedLimitKmh > 0 && raw.speedLimitKmh <= 199 ? raw.speedLimitKmh : null;
-        // 电子眼：限速值和距离（米，读不出为 null）；cameraBlink 是电子眼限速牌这一帧亮不亮。
-        var camera = raw.speedCamera;
-        var speedCamera = (state === 'navigating' || state === 'cruising') && camera && Number.isInteger(camera.limitKmh) &&
-            camera.limitKmh > 0 && camera.limitKmh <= 199 ? { limitKmh: camera.limitKmh, distanceM: number(camera.distanceM) } : null;
+        // 电子眼可带限速和距离，也可以只有抓拍文字。cameraBlink 控制图标或限速牌的亮灭。
+        var camera = raw.speedCamera, speedCamera = null;
+        if (showsAlerts && camera) {
+            if (Number.isInteger(camera.limitKmh) && camera.limitKmh > 0 && camera.limitKmh <= 199) {
+                speedCamera = { limitKmh: camera.limitKmh, distanceM: number(camera.distanceM) };
+            } else if (speedLimitKmh === null && camera.textOnly === true) {
+                speedCamera = { textOnly: true };
+            }
+        }
         return { state: state, source: text(raw.source), currentRoad: text(raw.currentRoad),
             trafficLight: trafficLight, speedLimitKmh: speedLimitKmh,
             speedCamera: speedCamera, cameraBlink: !!speedCamera && raw.cameraBlink !== false,

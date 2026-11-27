@@ -118,7 +118,7 @@ function testArrowLighting() {
 // 车道格子外不画箭头。
 function testLaneLighting(laneFont) {
     const green = [61, 220, 151], dim = [21, 77, 53], gray = [125, 131, 140];
-    const cellW = 41.5, laneX = 149;
+    const cellW = 41.5, laneX = 123;
     const colorsIn = (frame, i) => {
         const x0 = Math.ceil((laneX + i * cellW + 0.5) * 800 / 454), x1 = Math.floor((laneX + (i + 1) * cellW + 0.5) * 800 / 454);
         const y0 = Math.ceil((86 + 36) * 480 / 272), y1 = Math.floor((126 + 36) * 480 / 272);
@@ -300,7 +300,7 @@ function testTrafficLightCards() {
     const noDistance = (rgb, w) => { for (let y = 36; y < 58; y++) for (let x = 76; x < 120; x++) rgb.fill(30, (y * w + x) * 3, (y * w + x) * 3 + 3); };
     for (const got of camera(frameOf(cards.camera, noDistance))) assert.deepStrictEqual(got, { limitKmh: 40, distanceM: null }, '距离读不出时只给限速');
     // 只遮住其中一行仍是电子眼，不能被当成普通限速；单行路名标签是普通限速。
-    const { recognizeBaiduWhiteSigns } = require('../../../native/waze-on-cluster/hud/hud_baidu_speed_limit.js');
+    const { recognizeBaiduWhiteSigns, recognizeBaiduCameraText } = require('../../../native/waze-on-cluster/hud/hud_baidu_speed_limit.js');
     const fill = (x0, x1, y0, y1, v) => (rgb, w) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) rgb.fill(v, (y * w + x) * 3, (y * w + x) * 3 + 3); };
     const signs = (edit) => [recognizeBaiduWhiteSigns(frameOf(cards.camera, edit), W, H, 3), recognizeBaiduWhiteSigns(atlas(frameOf(cards.camera, edit)), W, H, 0)];
     const label = (rgb, w) => { fill(76, 166, 0, 72, 30)(rgb, w); fill(80, 150, 30, 42, 240)(rgb, w); };
@@ -312,6 +312,16 @@ function testTrafficLightCards() {
         for (const got of signs(edit)) assert.deepStrictEqual(got, expected, message);
     }
     console.log('通过：百度电子眼卡片识别（RGB 和车机图集），读出限速和距离，遮住一行仍是电子眼，巡航限速牌、缺字、缺数字不识别');
+    for (const [frame, expected] of [
+        [frameOf(cards.cameraText), true],
+        [compose([[cards.cameraText, 934, 391]]), true],
+        [frameOf(cards.cameraText, fill(58, 75, 0, 20, 30)), false],
+        [frameOf(cards.camera, noDigits), false],
+        [frameOf(cards.cruiseSign), false]
+    ]) {
+        assert.strictEqual(recognizeBaiduCameraText(frame, W, H), expected, '抓拍文字独立识别（RGB）');
+        assert.strictEqual(recognizeBaiduCameraText(atlas(frame), W, H, 0), expected, '抓拍文字独立识别（车机图集）');
+    }
     fixtures.label = label;
     return Object.assign(fixtures, { cards, compose, atlas });
 }
@@ -359,6 +369,16 @@ async function testSpeedCameraReader(fixtures) {
             assert.strictEqual(camResult.speedLimitKmh, 30, '电子眼限速不算当前限速，当前限速取深色底牌');
             assert.deepStrictEqual(camResult.speedCamera, { limitKmh: 40, distanceM: 735 }, '同时显示电子眼');
         }
+        const textOnly = fixtures.compose([[fixtures.cards.cameraText]]);
+        assert.strictEqual((await step(textOnly)).speedCamera, null, '仅有抓拍文字时第一帧不显示');
+        assert.deepStrictEqual((await step(textOnly)).speedCamera, { textOnly: true }, '连续两帧读到抓拍文字也能提醒');
+        const textAndLimit = fixtures.compose([[fixtures.cards.cameraText], [fixtures.cards.cruiseSign]]);
+        assert.strictEqual((await step(textAndLimit)).speedCamera, null, '出现限速牌后清除文字提醒');
+        assert.deepStrictEqual(await step(textAndLimit), { trafficLight: null, speedLimitKmh: 30, speedCamera: null }, '有单独限速牌时沿用原来的显示');
+        assert.strictEqual((await step(textOnly)).speedCamera, null, '数字和纯文字不能合在一起确认');
+        assert.deepStrictEqual((await step(textOnly)).speedCamera, { textOnly: true });
+        assert.strictEqual((await step(fixtures.compose([]))).speedCamera, null, '抓拍文字消失后立即清除');
+        assert(logs.some((line) => line.startsWith('traffic frame: speed camera card text only')), '记录纯文字电子眼');
         // 投屏帧过期（写帧进程没写新帧）：清掉识别结果，但不是 null，巡航时车机路名照常显示；
         // 60 秒都没有新帧才返回 null。
         {
@@ -392,6 +412,18 @@ async function testSpeedCameraReader(fixtures) {
 }
 
 async function main() {
+    const backendNav = require('../../../native/waze-on-cluster/hud/hud_navigation.js');
+    const cruiseAlerts = { state: 'cruising', trafficLight: { color: 'red', seconds: 17 },
+        speedLimitKmh: 60, speedCamera: { limitKmh: 50, distanceM: 130 } };
+    const cruiseSnapshot = nav.snapshot(cruiseAlerts);
+    assert.deepStrictEqual(cruiseSnapshot, backendNav.snapshot(cruiseAlerts), '应用和后端应保留同一份巡航提示');
+    assert.strictEqual(cruiseSnapshot.state, 'cruising');
+    assert.strictEqual(cruiseSnapshot.trafficLight.seconds, 17);
+    assert.strictEqual(cruiseSnapshot.speedLimitKmh, 60);
+    assert.strictEqual(cruiseSnapshot.speedCamera.distanceM, 130);
+    const cameraText = { state: 'cruising', speedCamera: { textOnly: true }, cameraBlink: false };
+    assert.deepStrictEqual(nav.snapshot(cameraText), backendNav.snapshot(cameraText));
+    assert.deepStrictEqual(backendNav.snapshot(cameraText).speedCamera, { textOnly: true });
     testCongestedSpeedLimit();
     await testSpeedCameraReader(testTrafficLightCards());
     const laneFont = new Font(require('../../../native/waze-on-cluster/hud/hud_font_data.js'));
@@ -415,7 +447,7 @@ async function main() {
     console.log('通过：风格 1 推荐绿线、透明底、实际虚实边界与未知边界隐藏，非法风格编号按风格 1');
     testArrowLighting();
     testLaneLighting(laneFont);
-    for (const [style, x, y] of [[2, 192, 78], [3, 190.5, 86]]) {
+    for (const [style, x, y] of [[2, 167, 78], [3, 164.5, 86]]) {
         const view = { state: 'navigating', lanes: lanes.map(lane => ({ ...lane, recommended: false })) };
         const alpha = (frame, px, py) => frame[(Math.floor((py + 36) * 480 / 272) * 800 +
             Math.ceil((px + 0.5) * 800 / 454)) * 4 + 3];
@@ -429,8 +461,8 @@ async function main() {
     const fourCards = renderer.render({ state: 'navigating', lanes: [0, 1, 2, 3].map((i) => ({
         directions: ['straight'], recommended: i >= 2
     })) }, laneFont, null, 100, 3);
-    // 方案 D：第 4 条车道格子从 x 273.5 起，宽 41.5，绿线在 y 128–131。
-    const fourthHighlight = (Math.floor((129.5 + 36) * 480 / 272) * 800 + Math.floor((294 + 0.5) * 800 / 454)) * 4;
+    // 方案 D：第 4 条车道格子从 x 247.5 起，宽 41.5，绿线在 y 128–131。
+    const fourthHighlight = (Math.floor((129.5 + 36) * 480 / 272) * 800 + Math.floor((268 + 0.5) * 800 / 454)) * 4;
     assert.deepStrictEqual(Array.from(fourCards.slice(fourthHighlight, fourthHighlight + 4)), [61, 220, 151, 255],
         '风格 3 推荐车道下方画方案 D 的绿线');
     for (let y = 295; y < 328; y++) {
@@ -790,18 +822,36 @@ async function main() {
     assert.deepStrictEqual(roadRequests, ['1 road -\n'], '同一时刻只请求一次当前路名');
     roadReader._onLine('reply 1 0001 00 ' + roadWire);
     assert.strictEqual(roadReader.currentRoad(), '情侣北路');
-    let finishTraffic;
+    const trafficReads = [];
     const staleFrames = [];
-    const staleEngine = new HudEngine({ nativeGuidance: null, log: quiet,
-        traffic: { reset() {}, read: () => new Promise(resolve => { finishTraffic = resolve; }) },
+    let lateRoad = '', roadReads = 0;
+    const staleEngine = new HudEngine({ log: quiet,
+        nativeGuidance: { supported: () => false, currentRoad: () => { roadReads++; return lateRoad; }, stop() {} },
+        traffic: { reset() {}, read: () => new Promise(resolve => trafficReads.push(resolve)) },
         outputFactory: () => ({ update: (_, visible) => staleFrames.push(visible), close() {} }) });
     staleEngine.settings({ hud_simple: 1, hud: 0 });
-    staleEngine.handleNav(laneState);
-    await until(() => !!finishTraffic);
-    staleEngine.handleNav({ state: 'inactive' });
-    finishTraffic(null);
+    staleEngine.tick();
+    await until(() => trafficReads.length === 1);
+    staleEngine.handleOapNav(laneState);
+    assert.deepStrictEqual(staleFrames, [true], '巡航读帧未返回时也立即显示转向');
+    assert.strictEqual(staleEngine.lastState.direction, laneState.direction);
+    assert.strictEqual(staleEngine.lastState.distanceM, laneState.distanceM);
+    assert.strictEqual(staleEngine.lastState.currentRoad, '');
+    assert.strictEqual(roadReads, 0, '首帧提交后才查询当前路名');
+    trafficReads[0](null);
+    await until(() => trafficReads.length === 2);
+    assert.deepStrictEqual(staleFrames, [true], '迟到的巡航结果不能隐藏新导航');
+    lateRoad = '深南大道';
+    trafficReads[1]({ trafficLight: { color: 'green', seconds: 23 }, speedLimitKmh: null });
     await until(() => !staleEngine.navBusy);
-    assert.deepStrictEqual(staleFrames, [], '导航结束后旧画面不能重新出现');
+    assert.strictEqual(staleEngine.lastState.currentRoad, lateRoad, '后续补上当前路名');
+    assert.strictEqual(staleEngine.lastState.trafficLight.seconds, 23, '后续补上投屏提醒');
+    staleEngine.tick();
+    await until(() => trafficReads.length === 3);
+    staleEngine.handleNav({ state: 'inactive' });
+    trafficReads[2](null);
+    await until(() => !staleEngine.navBusy);
+    assert.deepStrictEqual(staleFrames, [true, true, false], '导航结束后迟到的识别结果不能重新显示画面');
     staleEngine.stop();
 
     let alerts = null, currentRoad = '', resetCount = 0;
@@ -909,9 +959,9 @@ async function main() {
     {
         let clockMs = 0;
         const camFrames = [];
-        let cameraAlert = { limitKmh: 40, distanceM: 735 };
+        let cameraAlert = { limitKmh: 40, distanceM: 735 }, roadLimit = 60, holdRead;
         const camEngine = new HudEngine({ log: quiet, clock: () => clockMs, nativeGuidance: null,
-            traffic: { reset() {}, read: () => Promise.resolve({ trafficLight: null, speedLimitKmh: 60, speedCamera: cameraAlert }) },
+            traffic: { reset() {}, read: () => holdRead || Promise.resolve({ trafficLight: null, speedLimitKmh: roadLimit, speedCamera: cameraAlert }) },
             outputFactory: () => ({ update: (frame, visible) => camFrames.push(visible ? Buffer.from(frame) : null), close() {} }) });
         camEngine.settings({ hud_simple: 1, hud: 0, hud_simple_style: 3 });
         const camTick = async () => { camEngine.tick(); await until(() => !camEngine.navBusy); };
@@ -934,10 +984,31 @@ async function main() {
         assert.deepStrictEqual(blinks, blinks.map((_, i) => i % 2 === 0 ? blinks[0] : !blinks[0]), '没有新导航数据时 tick 也让电子眼限速牌亮灭交替');
         assert(blinks.includes(true), '电子眼限速牌不会一直不亮');
         const lastNavAt = camEngine.lastNav;
+        cameraAlert = { textOnly: true };
+        await camTick();
+        assert(!camEngine.lastState.speedCamera, '路段限速优先于纯抓拍文字');
+        assert.strictEqual(camEngine.lastState.speedLimitKmh, 60);
+        roadLimit = null;
         cameraAlert = null;
         await camTick();
+        cameraAlert = { textOnly: true };
+        await camTick();
+        assert.deepStrictEqual(camEngine.lastState.speedCamera, cameraAlert, '尚无提醒且导航没有回包时也会继续读帧');
+        const textPhase = camEngine.lastState.cameraBlink;
+        const textFrame = camFrames[camFrames.length - 1];
+        let completeRead;
+        holdRead = new Promise(resolve => { completeRead = resolve; });
+        camEngine.tick();
+        await Promise.resolve();
+        assert(camEngine.navBusy, '模拟跨 tick 的异步识别');
+        assert.strictEqual(camEngine.lastState.cameraBlink, !textPhase);
+        assert(!textFrame.equals(camFrames[camFrames.length - 1]), '读帧未返回时也会输出新的闪烁相位');
+        camEngine.tick();
+        assert.strictEqual(camEngine.lastState.cameraBlink, textPhase);
+        completeRead({ trafficLight: null, speedLimitKmh: null, speedCamera: null });
+        holdRead = null;
+        await until(() => !camEngine.navBusy);
         assert(!camEngine.lastState.speedCamera, '新投屏帧上卡片消失后，即使导航没有回包也应清除电子眼');
-        assert.strictEqual(camEngine.lastState.speedLimitKmh, 60, '清除电子眼后仍保留普通限速');
         assert.strictEqual(camEngine.lastNav, lastNavAt, '刷新图像提示不能延长导航数据的有效期');
         camEngine.stop();
     }
@@ -978,15 +1049,43 @@ async function main() {
         // 当前限速和电子眼相同：不再叠小牌，主牌闪。
         const same = render({ speedLimitKmh: 40, speedCamera: cam, cameraBlink: true });
         assert(same.equals(merged), '风格 ' + style + ' 限速相同时和只有电子眼一样');
+        for (const mode of ['navigating', 'cruising']) {
+            const scenario = { state: mode, currentRoad: '深南大道', speedCamera: { textOnly: true } };
+            const badge = render({ ...scenario, cameraBlink: true });
+            const badgeOff = render({ ...scenario, cameraBlink: false });
+            let added = 0, removed = 0;
+            for (let i = 0; i < badge.length; i += 4) {
+                if (differs(badge, badgeOff, i)) {
+                    if (badgeOff[i + 3]) removed++;
+                    else added++;
+                }
+            }
+            assert(added > 200 && removed === 0, '风格 ' + style + ' 相机图标亮灭时其他元素位置固定');
+            const onlyLimit = render({ ...scenario, speedLimitKmh: 60, speedCamera: null });
+            for (const phase of [true, false]) {
+                assert(onlyLimit.equals(render({ ...scenario, speedLimitKmh: 60, cameraBlink: phase })),
+                    '风格 ' + style + ' 车机限速优先，纯抓拍的两个相位都保留数字牌');
+            }
+        }
     }
-    // 巡航（风格 3）：限速牌在底栏，距离写在牌上方，不碰路名。
-    {
-        const cruiseBase = { state: 'cruising', currentRoad: '深南大道辅路', speedLimitKmh: 60, trafficLight: { color: 'red', seconds: 53 } };
-        const withCam = Buffer.from(renderer.render({ ...cruiseBase, speedCamera: { limitKmh: 40, distanceM: 735 }, cameraBlink: false }, laneFont, null, 100, 3));
-        const without = Buffer.from(renderer.render(cruiseBase, laneFont, null, 100, 3));
-        let lowest = 0;
-        for (let i = 0; i < withCam.length; i += 4) if (differs(withCam, without, i)) lowest = Math.max(lowest, Math.floor(i / 4 / 800));
-        assert(lowest > 0 && lowest < Math.floor((164 - 24 + 36) * 480 / 272), '巡航时距离写在底栏限速牌上方');
+    // 巡航：小牌和外圈不侵入路名所在列，亮灭都不改变路名位置，距离在主牌上方。
+    for (const style of [1, 2, 3]) {
+        const base = { state: 'cruising', currentRoad: '深南大道', speedLimitKmh: 60, trafficLight: { color: 'red', seconds: 53 } };
+        const render = (state) => Buffer.from(renderer.render({ ...base, ...state }, laneFont, null, 100, style));
+        const camera = { limitKmh: 40, distanceM: null };
+        const on = render({ speedCamera: camera, cameraBlink: true });
+        const off = render({ speedCamera: camera, cameraBlink: false });
+        const alternateRoad = render({ currentRoad: '前湾二路', speedCamera: camera, cameraBlink: false });
+        const withDistance = render({ speedCamera: { ...camera, distanceM: 735 }, cameraBlink: false });
+        let badgeRight = -1, roadLeft = 800, distanceBottom = -1;
+        for (let i = 0; i < on.length; i += 4) {
+            const x = i / 4 % 800, y = Math.floor(i / 4 / 800);
+            if (differs(on, off, i)) badgeRight = Math.max(badgeRight, x);
+            if (differs(off, alternateRoad, i)) roadLeft = Math.min(roadLeft, x);
+            if (differs(off, withDistance, i)) distanceBottom = Math.max(distanceBottom, y);
+        }
+        assert(badgeRight >= 0 && badgeRight < roadLeft && roadLeft < 800, '风格 ' + style + ' 巡航小牌给路名留足空间');
+        assert(distanceBottom > 0 && distanceBottom < Math.floor((164 - 24 + 36) * 480 / 272), '巡航时距离写在底栏限速牌上方');
     }
     console.log('通过：巡航提示、原厂路名、导航优先和断流清屏，巡航车道取自车机并画在路名和红绿灯之间，电子眼限速牌闪烁和距离');
 
@@ -1156,6 +1255,47 @@ async function main() {
         locReader.currentRoad();
         locReader._onLine('reply ' + lastId() + ' 0001 00 ' + bad.toString('hex'));
         assert.strictEqual(locReader.currentRoad(), '', '定位数据截断时不显示');
+    }
+    // 定位街道名的查询结果写日志，区分查到、没有街道和解码失败。
+    for (const status of ['received', 'empty', 'decode-rejected']) {
+        assert(locLogs.includes('native location street: ' + status), '记录定位街道名查询结果：' + status);
+    }
+
+    // 应用端查询摘要：只有计数，后端按变化、间隔和暂停写日志。
+    {
+        const { querySummary } = require('../src/structured_hud.js');
+        assert.deepStrictEqual(querySummary(null), { events: 0, kinds: {}, unreliable: 0 });
+        assert.deepStrictEqual(querySummary({ viewContent: [{ eventsInView: [
+            { intersection: { direction: 'RIGHT', unreliable: true } },
+            { type: 'destinationManeuver', value: { unreliable: false } },
+            { laneGuiding: { lanes: [] } }, { 'bad kind!': {} }] }] }),
+            { events: 4, kinds: { intersection: 1, destinationManeuver: 1, laneGuiding: 1, unknown: 1 }, unreliable: 1 },
+            '摘要按事件类型计数，记下不可靠的个数');
+        let clockMs = 0;
+        const oapLogs = [];
+        const oapEngine = new HudEngine({ log: { ...quiet, info: (line) => oapLogs.push(line) }, clock: () => clockMs, nativeGuidance: null,
+            traffic: { reset() {}, read: () => Promise.resolve(null) }, outputFactory: () => ({ update() {}, close() {} }) });
+        oapEngine.settings({ hud_simple: 1, hud: 0 });
+        const empty = { events: 0, kinds: {}, unreliable: 0 };
+        const turn = { events: 2, kinds: { intersection: 1, laneGuiding: 1 }, unreliable: 0 };
+        oapEngine.handleOapNav({ state: 'inactive' }, {}, empty);
+        clockMs = 500;
+        oapEngine.handleOapNav({ state: 'inactive' }, {}, empty);
+        clockMs = 4500;
+        oapEngine.handleOapNav({ state: 'inactive' }, {}, { events: 1, kinds: { intersection: 1 }, unreliable: 1 });
+        clockMs = 5000;
+        oapEngine.handleOapNav(laneState, {}, turn);
+        await until(() => !oapEngine.navBusy);
+        const queryLogs = oapLogs.filter((line) => line.startsWith('HUD OAP query'));
+        assert.deepStrictEqual(queryLogs, [
+            'HUD OAP query: state=inactive events=0 kinds=- unreliable=0',
+            'HUD OAP query: reply after a 4000 ms gap',
+            'HUD OAP query: state=inactive events=1 kinds=intersection:1 unreliable=1',
+            'HUD OAP query: state=navigating events=2 kinds=intersection:1,laneGuiding:1 unreliable=0'
+        ], '查询结果变化、间隔超过 3 秒时记日志，相同结果不重复记');
+        oapEngine.handleOapNav({ state: 'inactive' }, {}, { events: 'x', kinds: { 'a b': 1 } });
+        assert(oapLogs.includes('HUD OAP query: state=inactive summary=none'), '摘要格式不对时不写入其中的内容');
+        oapEngine.stop();
     }
 
     // 开始导航时原生偶尔返回一次空事件表，不能立刻清屏。

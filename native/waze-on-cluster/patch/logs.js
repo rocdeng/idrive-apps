@@ -15,7 +15,7 @@
  *                 on connect and on every change
  *
  * Save: with MIN_FREE free in DIR, collect-logs.sh -o DIR writes
- * woc-logs-<UTC>.tar.gz there. One larger than ARCHIVE_MAX is deleted; then
+ * woc-logs-<date and time+0800>.tar.gz there. One larger than ARCHIVE_MAX is deleted; then
  * the oldest go until at most ARCHIVES are left, together at most TOTAL_MAX
  * bytes. One save at a time, at most one every SAVE_GAP_MS.
  *
@@ -58,7 +58,7 @@ var ARCHIVES = 5;
 var TOTAL_MAX = 20 * 1024 * 1024;
 var ARCHIVE_MAX = 16 * 1024 * 1024;
 var MIN_FREE = 64 * 1024 * 1024;
-var NAME = /^woc-logs-\d{8}T\d{6}Z\.tar\.gz$/;
+var NAME = /^woc-logs-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z|\+0800)\.tar\.gz$/;
 var PART = /^\.woc-logs-.*\.part$/;
 var CLIENTS = 8;
 var LINE_MAX = 4096;
@@ -68,11 +68,19 @@ var DOWNLOADS = 2;
 
 function say(line) { console.log('logs: ' + line); }
 
+/* Old UTC filenames and new +0800 filenames can be stored together. */
+function archiveTime(name) {
+    var m = NAME.exec(name);
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - (m[7] === 'Z' ? 0 : 8 * 3600000);
+}
+
 /* The archives, newest first: [{ name, size, mtime }]. */
 function archives(dir) {
     var names;
     try { names = fs.readdirSync(dir); } catch (e) { return []; }
-    return names.filter(function (n) { return NAME.test(n); }).sort().reverse().map(function (name) {
+    return names.filter(function (n) { return NAME.test(n); }).sort(function (a, b) {
+        return archiveTime(b) - archiveTime(a) || b.localeCompare(a);
+    }).map(function (name) {
         try {
             var st = fs.lstatSync(path.join(dir, name));
             return st.isFile() ? { name: name, size: st.size, mtime: st.mtime.getTime() } : null;

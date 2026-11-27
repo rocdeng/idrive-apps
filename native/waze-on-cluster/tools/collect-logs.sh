@@ -6,7 +6,7 @@
 #
 #   sh /var/opt/waze-on-cluster/current/collect-logs.sh [-o <folder>]
 #
-# It writes woc-logs-<UTC date and time>.tar.gz into the folder (/tmp by
+# It writes woc-logs-<date and time+0800>.tar.gz into the folder (/tmp by
 # default) and prints its path: both tools' log files (with their .1), the
 # journal lines the journal service keeps (in RAM: journal.log and its
 # rotations; on /var/opt: the journal-*.log written around failures and at
@@ -54,7 +54,9 @@ elif [ $# -gt 0 ]; then
     exit 2
 fi
 
-STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+# Only the exporter uses these settings. Keep journal dumps in UTC.
+export TZ=UTC0
+STAMP=$(TZ=CST-8 date '+%Y%m%dT%H%M%S%z') || exit 1
 NAME=woc-logs-$STAMP
 OUT=$OUTDIR/$NAME.tar.gz
 PART=$OUTDIR/.$NAME.tar.gz.part
@@ -143,8 +145,9 @@ P2P_LINES='(802_1X|DHCP)\[p2p-'
 } > "$DIR/wifi.txt"
 
 {
-    echo "date: $(date 2>/dev/null)"
-    echo "utc: $(date -u 2>/dev/null)"
+    echo "date (UTC+08:00): $(TZ=CST-8 date '+%Y-%m-%d %H:%M:%S %z' 2>/dev/null)"
+    echo "utc: $(date -u '+%Y-%m-%d %H:%M:%S UTC' 2>/dev/null)"
+    echo "Archive name and incidents.txt: UTC+08:00. Raw service logs and journal: UTC."
     echo "uptime: $(uptime 2>/dev/null)"
 } > "$DIR/time.txt"
 

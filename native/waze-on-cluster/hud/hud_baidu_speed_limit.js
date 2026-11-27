@@ -257,9 +257,88 @@ function recognizeBaiduWhiteSigns(pixels, width, height, channels = 3) {
     return { cameraKmh, cameraDistanceM: cameraKmh === null ? null : only(found.distance), signKmh: only(found.sign) };
 }
 
+// 从百度投屏卡片提取的「抓拍」两字，归一到 24×12 的二值模板。
+const CAMERA_TEXT = Buffer.from('040610e48718aee77dbee6c7a48686a48686aec6ffa7e4c69484869484849484c696604c', 'hex');
+
+function recognizeBaiduCameraText(pixels, width, height, channels = 3) {
+    if (!validInput(pixels, width, height, channels)) return false;
+    const image = imageOf(pixels, width, height, channels);
+    const ink = new Uint8Array(width * height);
+    // 96 像素窄条每次移动 24 像素。生成二值图时，同时记录每个 24 像素块是否有笔画。
+    const step = 24, blocks = Math.ceil(width / step);
+    const occupied = new Uint8Array(blocks * height);
+    for (let y = 0; y < height; y++) {
+        const offset = y * width;
+        for (let b = 0, x = 0; b < blocks; b++) {
+            const end = Math.min(x + step, width);
+            let hasInk = 0;
+            for (; x < end; x++) {
+                if (image.white(x, y)) ink[offset + x] = hasInk = 1;
+            }
+            occupied[y * blocks + b] = hasInk;
+        }
+    }
+    const minHeight = 10, maxHeight = 26;
+    function matches(left, top, w, h) {
+        let leftErrors = 0, rightErrors = 0, dark = 0;
+        for (let y = 0; y < 12; y++) {
+            const py = top + Math.floor((y + 0.5) * h / 12);
+            for (let x = 0; x < 24; x++) {
+                const px = left + Math.floor((x + 0.5) * w / 24);
+                const lit = ink[py * width + px];
+                const expected = (CAMERA_TEXT[y * 3 + (x >> 3)] >> (x & 7)) & 1;
+                if (lit !== expected) {
+                    if (x < 12) leftErrors++;
+                    else rightErrors++;
+                    if (leftErrors > 32 || rightErrors > 32) return false;
+                }
+                if (!lit && image.dark(px, py)) dark++;
+            }
+        }
+        return leftErrors + rightErrors <= 57 && dark >= 90;
+    }
+    // 在重叠的窄条中按空白行切分文字，再用列投影找两个相邻汉字。
+    // 与圆牌独立检测，即使整块限速牌被挡住也能识别。
+    const stripBlocks = 4, stripWidth = step * stripBlocks, columns = new Uint8Array(stripWidth);
+    for (let b = 0; b < blocks; b++) {
+        const start = b * step, end = Math.min(b + stripBlocks, blocks);
+        const span = Math.min(stripWidth, width - start);
+        let top = -1;
+        for (let y = 0; y <= height; y++) {
+            const offset = y * blocks;
+            let i = b;
+            if (y < height) while (i < end && !occupied[offset + i]) i++;
+            if (y < height && i < end) {
+                if (top < 0) top = y;
+                continue;
+            }
+            if (top < 0) continue;
+            const h = y - top, row = top;
+            top = -1;
+            if (h < minHeight || h > maxHeight) continue;
+            columns.fill(0);
+            for (let r = row; r < y; r++) {
+                const offset = r * width + start;
+                for (let x = 0; x < span; x++) columns[x] += ink[offset + x];
+            }
+            const minWidth = Math.ceil(h * 1.7), maxWidth = Math.floor(h * 2.45);
+            for (let x = 0; x + minWidth <= span; x++) {
+                if (!columns[x] || (x && columns[x - 1] > 1)) continue;
+                for (let w = minWidth; w <= maxWidth && x + w <= span; w++) {
+                    if (!columns[x + w - 1] || (x + w < span && columns[x + w] > 1)) continue;
+                    // 附近别的字有一两个笔画突出时，文字行会比这两字的实际边界略高。
+                    if (matches(start + x, row, w, h) || matches(start + x, row + 1, w, h - 1) ||
+                        matches(start + x, row, w, h - 1)) return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 function recognizeBaiduSpeedCamera(pixels, width, height, channels = 3) {
     const signs = recognizeBaiduWhiteSigns(pixels, width, height, channels);
     return signs.cameraKmh === null ? null : { limitKmh: signs.cameraKmh, distanceM: signs.cameraDistanceM };
 }
 
-module.exports = { recognizeBaiduSpeedLimit, recognizeBaiduSpeedCamera, recognizeBaiduWhiteSigns };
+module.exports = { recognizeBaiduSpeedLimit, recognizeBaiduSpeedCamera, recognizeBaiduWhiteSigns, recognizeBaiduCameraText };
